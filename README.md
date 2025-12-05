@@ -28,28 +28,32 @@ The `analyze_portfolio.py` script automates the daily "check-up":
 
 ## Tools & Scripts
 
-### `vol_screener.py`
+### `scripts/vol_screener.py`
 *   **Purpose:** Scans a watchlist to find the best premium-selling candidates.
 *   **Features:**
     *   Multi-threaded scanning (fast).
     *   Calculates Vol Bias on the fly.
     *   Filters and ranks symbols by "Richness".
-*   **Usage:** `python3 vol_screener.py [LIMIT]`
+    *   Uses proxies for futures (e.g., `/CL` via USO, `/ES` via VIX) and labels them in the output.
+*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all]`
+*   **Watchlist:** `watchlists/default-watchlist.csv` (first column `Symbol`).
 
-### `analyze_portfolio.py`
+### `scripts/analyze_portfolio.py`
 *   **Purpose:** Diagnoses your current open positions.
 *   **Features:**
-    *   Parses `sample_positions.csv` (Tastytrade export format).
+    *   Parses `util/sample_positions.csv` (Tastytrade export format).
     *   Generates a Markdown table of actionable steps (Harvest, Defense, etc.).
-*   **Usage:** `python3 analyze_portfolio.py`
+    *   Flags stale prices and zero-cost-basis trades; Gamma caution applies even if P/L% is unknown.
+*   **Usage:** `source venv/bin/activate && python3 scripts/analyze_portfolio.py [positions/your_export.csv]`
 
-### `get_market_data.py`
+### `scripts/get_market_data.py`
 *   **Purpose:** The engine room. Fetches raw data from Yahoo Finance.
 *   **Features:**
     *   Maps Futures symbols (`/CL` -> `CL=F`).
-    *   Calculates HV100 and IV30 math.
+    *   Calculates HV100 and IV30 math, with option-chain guards to avoid runaway downloads.
+    *   Provides proxy IV/HV for futures so Vol Bias is available even when chains are absent.
 
 ## Workflow
-1.  **Morning:** Export positions to `sample_positions.csv`. Run `analyze_portfolio.py`.
-2.  **Rebalance:** If portfolio delta is skewed, run `vol_screener.py` to find contrarian candidates.
+1.  **Morning:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
+2.  **Rebalance:** If portfolio delta is skewed, run `source venv/bin/activate && python3 scripts/vol_screener.py` to find contrarian candidates.
 3.  **Execution:** Use the "Vol Bias" report to select the most expensive premium to sell.
