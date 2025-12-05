@@ -144,6 +144,14 @@ Analyze grouped strategies in this order:
 *   **Defense:** None. Defined Risk.
 *   **Stop:** 50% Loss. (Do not hold to zero).
 
+## Agent Workflow Preferences
+
+*   **Commit Cadence:** The user prefers a "Feature/Unit of Work" commit workflow. This means:
+    1.  Implement all changes related to a single feature or task.
+    2.  Verify the changes are working as expected.
+    3.  Commit all related files together with a single, descriptive commit message.
+*   **Commit Prompt:** After completing a feature and verification, the agent will prompt the user for confirmation before committing and pushing changes.
+
 ## Interaction Guidelines
 * **Tone:** Professional but accessible. "Let the math do the work."
 * **Visual Signals:**
