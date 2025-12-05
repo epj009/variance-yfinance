@@ -9,6 +9,7 @@ import sqlite3
 import time
 import os
 import random
+import io # Added for stderr redirection
 
 # Mapping from Tasty/CLI format to Yahoo Finance
 SYMBOL_MAP = {
@@ -76,7 +77,6 @@ class MarketCache:
 cache = MarketCache()
 
 def map_symbol(symbol):
-    # Handle Futures roots like /ESZ5 -> ES=F
     if symbol.startswith('/'):
         for key, val in SYMBOL_MAP.items():
             if symbol.startswith(key):
@@ -85,7 +85,6 @@ def map_symbol(symbol):
     return SYMBOL_MAP.get(symbol, symbol)
 
 def retry_fetch(func, *args, retries=3, backoff_factor=1.5, **kwargs):
-    """Generic retry wrapper with exponential backoff"""
     last_exception = None
     delay = 1.0
     
@@ -94,8 +93,6 @@ def retry_fetch(func, *args, retries=3, backoff_factor=1.5, **kwargs):
             return func(*args, **kwargs)
         except Exception as e:
             last_exception = e
-            # If it's a 404 or specific error, maybe don't retry? 
-            # yfinance errors are often generic.
             time.sleep(delay + random.uniform(0, 0.5))
             delay *= backoff_factor
             
@@ -119,7 +116,6 @@ def calculate_hv(ticker_obj, symbol_key):
     try:
         val = retry_fetch(_fetch)
         if val is not None:
-            # Cache for 24 hours (86400 seconds)
             cache.set(cache_key, val, 86400)
         return val
     except Exception:
@@ -177,7 +173,6 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
     try:
         val = retry_fetch(_fetch)
         if val is not None:
-            # Cache for 15 minutes (900 seconds)
             cache.set(cache_key, val, 900)
         return val
     except Exception:
@@ -190,20 +185,26 @@ def get_price(ticker_obj, symbol_key):
         return cached
         
     def _fetch():
-        # Try fast info
+        # Prioritize fast_info
         try:
             p = ticker_obj.fast_info.last_price
             if p: return p
         except:
             pass
-        # Fallback
-        info = ticker_obj.info
-        return info.get('currentPrice') or info.get('regularMarketPrice')
+        
+        # Fallback to history
+        try:
+            hist = ticker_obj.history(period="1d", interval="1m")
+            if not hist.empty:
+                return hist['Close'].iloc[-1]
+        except:
+            pass
+        
+        return None
 
     try:
         val = retry_fetch(_fetch, retries=2)
         if val is not None:
-            # Cache for 10 minutes
             cache.set(cache_key, val, 600)
         return val
     except:
@@ -216,27 +217,29 @@ def get_earnings_date(ticker_obj, symbol_key):
         return cached
 
     def _fetch():
+        # Temporarily redirect stderr to suppress yfinance's verbose 404 warnings
+        original_stderr = sys.stderr
+        sys.stderr = io.StringIO()
         try:
             cal = ticker_obj.calendar
             if not cal:
                 return None
-            # Handle different return types (sometimes list, sometimes dict)
             if isinstance(cal, dict):
                 dates = cal.get('Earnings Date')
-                if dates:
-                    # return the first date as string YYYY-MM-DD
+                if dates and isinstance(dates, list) and len(dates) > 0:
                     return dates[0].isoformat()
             return None
-        except:
+        except Exception: 
             return None
+        finally:
+            sys.stderr = original_stderr # Restore stderr
 
     try:
         val = retry_fetch(_fetch, retries=1)
         if val is not None:
-            # Cache for 7 days (earnings dates don't change often)
             cache.set(cache_key, val, 604800)
         return val
-    except:
+    except Exception:
         return None
 
 def process_single_symbol(raw_symbol):
@@ -269,7 +272,6 @@ def process_single_symbol(raw_symbol):
 
 def get_market_data(symbols):
     results = {}
-    # Reduced workers to avoid rate limits
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_symbol = {executor.submit(process_single_symbol, sym): sym for sym in symbols}
         for future in concurrent.futures.as_completed(future_to_symbol):
