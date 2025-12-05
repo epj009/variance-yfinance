@@ -319,16 +319,10 @@ def analyze_portfolio(file_path):
     print(f"Fetching live market data for {len(unique_roots)} symbols...")
     market_data = get_market_data(unique_roots)
         
-    # 4. Analysis Loop
-    print("\n### Morning Triage Report")
-    # Expanded Header
-    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
-    print("|---|---|---|---|---|---|---|---|---|")
-    
+    all_position_reports = []
     total_beta_delta = 0.0
-    has_actions = False # Initialize flag
     missing_ivr_legs = 0
-    
+
     for legs in clusters:
         root = get_root_symbol(legs[0]['Symbol'])
         
@@ -347,12 +341,13 @@ def analyze_portfolio(file_path):
 
         net_cost = sum(parse_currency(l['Cost']) for l in legs)
         
-        pl_pct = 0.0
-        if net_cost < 0: # Credit Trade (Received money)
+        pl_pct = None
+        # Treat negatives as credits received, positives as debits paid
+        if net_cost < 0:
             max_profit = abs(net_cost)
             if max_profit > 0:
                 pl_pct = net_pl / max_profit
-        elif net_cost > 0: # Debit Trade (Paid money)
+        elif net_cost > 0:
             pl_pct = net_pl / net_cost
         
         # Initialize variables
@@ -368,18 +363,21 @@ def analyze_portfolio(file_path):
         live_price = m_data.get('price', 0)
         is_stale = m_data.get('is_stale', False)
         earnings_date = m_data.get('earnings_date')
+        proxy_note = m_data.get('proxy')
 
         # 1. Harvest (Short Premium only)
-        if net_cost < 0 and pl_pct >= 0.50:
+        if net_cost < 0 and pl_pct is not None and pl_pct >= 0.50:
             action = "✅ Harvest"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
         
         # 2. Defense
         underlying_price = parse_currency(legs[0]['Underlying Last Price'])
+        price_used = "static"
         # Use live price if available
         if live_price:
             underlying_price = live_price
+            price_used = "live_stale" if is_stale else "live"
             
         is_tested = False
         for l in legs:
@@ -393,17 +391,17 @@ def analyze_portfolio(file_path):
                 elif otype == 'Put' and underlying_price < strike: is_tested = True
         
         if not is_winner and is_tested and min_dte < 21:
-            action = "🛠️ Defense"
+            action = "🛡️ Defense"
             logic = "Tested & < 21 DTE"
             
-        # 3. Gamma Zone
+        # 3. Gamma Zone (apply even if P/L% is unknown)
         if not is_winner and not is_tested and min_dte < 21 and min_dte > 0:
             action = "☢️ Gamma"
             logic = "< 21 DTE Risk"
             
         # 4. Zombie (Enhanced with Real-time Vol Bias)
         if not is_winner and not is_tested and min_dte > 21:
-            if -0.10 <= pl_pct <= 0.10:
+            if pl_pct is not None and -0.10 <= pl_pct <= 0.10:
                 if vol_bias > 0 and vol_bias < 0.80:
                     action = "🗑️ Zombie"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
@@ -413,26 +411,73 @@ def analyze_portfolio(file_path):
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning
+        earnings_note = ""
         if earnings_date and earnings_date != "Unavailable":
             try:
                 edate = datetime.fromisoformat(earnings_date).date()
                 days_to_earn = (edate - datetime.now().date()).days
                 if 0 <= days_to_earn <= 5:
-                    action = f"⚠️ Earnings ({days_to_earn}d)" 
-                    logic = "Binary Event Risk"
+                    earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
+                    if not action:
+                        action = f"⚠️ Earnings ({days_to_earn}d)"
+                        logic = "Binary Event Risk"
+                    else:
+                        logic = f"{logic} | {earnings_note}" if logic else earnings_note
             except:
                 pass
+        
+        price_str = f"${live_price:.2f}" if live_price else "N/A"
+        if is_stale:
+            price_str += "*"
+        bias_str = f"{vol_bias:.2f}" if vol_bias else "N/A"
+        if proxy_note:
+            bias_str += f" ({proxy_note})"
 
-        if action:
-            price_str = f"${live_price:.2f}" if live_price else "N/A"
-            if is_stale:
-                price_str += "*"
-            bias_str = f"{vol_bias:.2f}" if vol_bias else "N/A"
-            print(f"| {root} | {strategy_name} | {price_str} | {bias_str} | ${net_pl:.2f} | {pl_pct:.1%} | {min_dte}d | {action} | {logic} |")
-            has_actions = True # Set flag if an action was printed
+        if (price_used != "live" or is_stale) and not is_winner and min_dte < 21:
+            # If we can't rely fully on tested logic due to stale/absent live price, note it
+            note = "Price stale/absent; tested status uncertain"
+            if action in ["🛡️ Defense", "☢️ Gamma"]:
+                logic = f"{logic} | {note}" if logic else note
+            elif not action:
+                action = ""
+                logic = note
 
-    if not has_actions:
+        all_position_reports.append({
+            'root': root,
+            'strategy_name': strategy_name,
+            'price_str': price_str,
+            'bias_str': bias_str,
+            'net_pl': net_pl,
+            'pl_pct': pl_pct,
+            'min_dte': min_dte,
+            'action': action,
+            'logic': logic,
+        })
+
+    actionable_reports = [r for r in all_position_reports if r['action']]
+    non_actionable_reports = [r for r in all_position_reports if not r['action']]
+
+    # Print Morning Triage Report
+    print("\n### Morning Triage Report")
+    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
+    print("|---|---|---|---|---|---|---|---|---|")
+    if actionable_reports:
+        for r in actionable_reports:
+            pl_pct_str = f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A"
+            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | {r['action']} | {r['logic']} |")
+    else:
         print("No specific triage actions triggered for current positions.")
+
+    # Print Portfolio Overview (Non-Actionable Positions)
+    print("\n### Portfolio Overview (Non-Actionable Positions)")
+    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Status |")
+    print("|---|---|---|---|---|---|---|---|")
+    if non_actionable_reports:
+        for r in non_actionable_reports:
+            pl_pct_str = f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A"
+            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | Hold (Within Parameters) |")
+    else:
+        print("No non-actionable positions to display.")
 
     print("\n")
     print(f"**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
@@ -448,7 +493,7 @@ def analyze_portfolio(file_path):
         print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Zombie checks may fall back to live Vol Bias only.")
 
 if __name__ == "__main__":
-    file_path = "sample_positions.csv"
+    file_path = "util/sample_positions.csv"
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
     analyze_portfolio(file_path)

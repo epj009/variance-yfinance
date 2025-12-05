@@ -1,0 +1,146 @@
+import sys
+import csv
+from datetime import datetime
+from get_market_data import get_market_data
+
+# Default to the broader house list
+WATCHLIST_PATH = 'watchlists/default-watchlist.csv'
+
+def get_days_to_date(date_str):
+    if not date_str or date_str == "Unavailable":
+        return "N/A" # Return a string for unavailable
+    try:
+        target = datetime.fromisoformat(date_str).date()
+        today = datetime.now().date()
+        delta = (target - today).days
+        return delta
+    except:
+        return "N/A"
+
+def screen_volatility(limit=None, show_all=False):
+    # 1. Read Watchlist
+    symbols = []
+    try:
+        with open(WATCHLIST_PATH, 'r') as f:
+            # Simple parsing: Skip header if exists, read first column
+            reader = csv.reader(f)
+            for row in reader:
+                if row and row[0] != 'Symbol':
+                    symbols.append(row[0])
+    except FileNotFoundError:
+        print(f"Warning: Watchlist file '{WATCHLIST_PATH}' not found. Using default symbols (SPY, QQQ, IWM).")
+        symbols = ['SPY', 'QQQ', 'IWM']
+    except Exception as e:
+        print(f"Error reading watchlist: {e}")
+        return
+
+    if limit:
+        symbols = symbols[:limit]
+        
+    print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH}...")
+    
+    # 2. Get Market Data (Threaded)
+    data = get_market_data(symbols)
+    
+    # 3. Process & Filter
+    candidates = []
+    low_bias_skipped = 0
+    missing_bias = 0
+    for sym, metrics in data.items():
+        if 'error' in metrics:
+            continue
+        
+        iv30 = metrics.get('iv30')
+        hv100 = metrics.get('hv100')
+        vol_bias = metrics.get('vol_bias')
+        price = metrics.get('price')
+        earnings_date = metrics.get('earnings_date')
+        
+        days_to_earnings = get_days_to_date(earnings_date)
+        
+        if vol_bias is None:
+            missing_bias += 1
+            if not show_all:
+                continue
+        elif vol_bias <= 0.85 and not show_all:
+            low_bias_skipped += 1
+            continue
+
+        candidates.append({
+            'Symbol': sym,
+            'Price': price,
+            'IV30': iv30,
+            'HV100': hv100,
+            'Vol Bias': vol_bias,
+            'Earnings In': days_to_earnings,
+            'Proxy': metrics.get('proxy')
+        })
+    
+    # 4. Sort by signal quality: real bias first, proxy bias second, no-bias last; then bias desc within group
+    def _signal_key(c):
+        bias = c['Vol Bias']
+        proxy = c.get('Proxy')
+        if bias is None:
+            return (2, 0)
+        if proxy:
+            return (1, bias)
+        return (0, bias)
+    candidates.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
+    
+    # 5. Print Report
+    print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
+    filter_note = "All symbols (no bias filter)" if show_all else "Vol Bias (IV / HV) > 0.85"
+    print(f"**Filter:** {filter_note}\n")
+    print("| Symbol | Price | IV30 | HV100 | Vol Bias | Earn | Status |")
+    print("|---|---|---|---|---|---|---|")
+    
+    for c in candidates:
+        bias = c['Vol Bias']
+        dte = c['Earnings In']
+        proxy_note = c.get('Proxy')
+        
+        status_icons = []
+        
+        if bias is None:
+            status_icons.append("❓ No Bias")
+        elif bias > 1.0:
+            status_icons.append("🔥 Expensive")
+        elif bias > 0.85:
+            status_icons.append("✨ Fair/High")
+        else:
+            status_icons.append("❄️ Cheap")
+        
+        earn_str = dte # Direct assignment now
+        if isinstance(dte, int) and dte <= 5 and dte >= 0:
+            status_icons.append("⚠️ Earn")
+        
+        status = " ".join(status_icons)
+
+        price_str = f"${c['Price']:.2f}" if c['Price'] is not None else "N/A"
+        iv_str = f"{c['IV30']:.1f}%" if c['IV30'] is not None else "N/A"
+        hv_str = f"{c['HV100']:.1f}%" if c['HV100'] is not None else "N/A"
+        bias_str = f"{bias:.2f}" if bias is not None else "N/A"
+        
+        note = f" ({proxy_note})" if proxy_note else ""
+        
+        # Only show interesting ones or top 10
+        print(f"| {c['Symbol']}{note} | {price_str} | {iv_str} | {hv_str} | {bias_str} | {earn_str} | {status} |")
+
+    # Summary of filtered symbols
+    if not show_all:
+        print(f"\nSkipped {low_bias_skipped} symbols below bias threshold and {missing_bias} with missing bias.")
+    elif missing_bias:
+        print(f"\nNote: {missing_bias} symbols missing bias (no IV/HV).")
+
+if __name__ == "__main__":
+    limit = None
+    show_all = False
+    for arg in sys.argv[1:]:
+        if arg == "--show-all":
+            show_all = True
+        else:
+            try:
+                limit = int(arg)
+            except:
+                pass
+    screen_volatility(limit, show_all)
