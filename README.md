@@ -23,7 +23,7 @@ The `analyze_portfolio.py` script automates the daily "check-up":
     *   ✅ **Harvest:** Profit > 50%? Close it.
     *   🛡️ **Defense:** Tested & < 21 DTE? Roll it.
     *   ☢️ **Gamma:** < 21 DTE & Loser? Close it.
-    *   🗑️ **Dead Money:** Low Vol & Flat P/L? Kill it.
+    *   🪦 **Dead Money:** Low Vol & Flat P/L? Kill it.
 *   **Portfolio Delta:** Sums Beta-Weighted Deltas to warn if you are "Too Long" (>75) or "Too Short" (<-50).
 
 ## Tools & Scripts

@@ -403,11 +403,11 @@ def analyze_portfolio(file_path):
         if not is_winner and not is_tested and min_dte > 21:
             if pl_pct is not None and -0.10 <= pl_pct <= 0.10:
                 if vol_bias > 0 and vol_bias < 0.80:
-                    action = "🗑️ Dead Money"
+                    action = "🪦 Dead Money"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
                 elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < 20:
                      # Fallback if no live data
-                     action = "🗑️ Dead Money"
+                     action = "🪦 Dead Money"
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning
