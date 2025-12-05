@@ -367,7 +367,7 @@ def analyze_portfolio(file_path):
 
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct is not None and pl_pct >= 0.50:
-            action = "✅ Harvest"
+            action = "🌾 Harvest"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
         

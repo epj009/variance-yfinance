@@ -20,7 +20,7 @@ Since reliable "IV Rank" data is often behind paywalls, we engineered a custom m
 The `analyze_portfolio.py` script automates the daily "check-up":
 *   **Grouping:** Automatically groups individual option legs into complex strategies (Iron Condors, Strangles, etc.).
 *   **Status Checks:**
-    *   ✅ **Harvest:** Profit > 50%? Close it.
+    *   🌾 **Harvest:** Profit > 50%? Close it.
     *   🛡️ **Defense:** Tested & < 21 DTE? Roll it.
     *   ☢️ **Gamma:** < 21 DTE & Loser? Close it.
     *   🪦 **Dead Money:** Low Vol & Flat P/L? Kill it.
