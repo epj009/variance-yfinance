@@ -101,7 +101,7 @@ def identify_strategy(legs):
 
     if len(legs) == 1:
         leg = legs[0]
-        if leg['Type'] == 'STOCK': return "Stock"
+        if is_stock_type(leg['Type']): return "Stock"
         
         # Specific identification for single options
         qty = parse_currency(leg['Quantity'])
@@ -202,8 +202,8 @@ def cluster_strategies(positions):
         # Make a mutable copy for this root's legs
         root_legs = list(root_legs_original)
         
-        stock_legs = [l for l in root_legs if l['Type'] == 'STOCK']
-        option_legs = [l for l in root_legs if l['Type'] != 'STOCK']
+        stock_legs = [l for l in root_legs if is_stock_type(l['Type'])]
+        option_legs = [l for l in root_legs if not is_stock_type(l['Type'])]
         
         # Used flags for options within this root
         option_used_flags = [False] * len(option_legs)
