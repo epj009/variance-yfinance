@@ -77,6 +77,7 @@ Analyze grouped strategies in this order:
 *   **Defense (Tested):**
     *   Roll the *untested* side closer (e.g., if Put is ITM, roll Call down to 30 Delta).
     *   If < 21 DTE, roll *both* legs out in time (for a credit).
+    *   *Warning:* If Inverted, look to close for a scratch or small loss.
 *   **Stop:** 3x Credit.
 
 ### 2. Iron Condor (Defined Risk)
@@ -87,18 +88,61 @@ Analyze grouped strategies in this order:
     *   *Warning:* Do not roll Iron Condors out in time unless you can get a significant credit (> 10% of width). Usually better to close or hold.
 *   **Stop:** Max Loss (defined).
 
-### 3. Jade Lizard (Bullish/Neutral)
-*   **Setup:** Sell Short Put + Sell Call Credit Spread (Short Call + Long Call). Net Credit must be > Width of Call Spread (No upside risk).
+### 3. Iron Butterfly (Defined Risk)
+*   **Setup:** Sell ATM Call & Put, Buy Wings (Width determines risk).
+*   **Target:** 25% Profit (due to lower probability).
+*   **Defense (Tested):**
+    *   Do not roll the tested side.
+    *   Roll the *untested* wing closer to reduce risk, but this locks in a loss.
+    *   Generally, hold through expiration or close at stop.
+*   **Stop:** Max Loss (defined).
+
+### 4. Jade Lizard (Bullish/Neutral)
+*   **Setup:** Sell Short Put + Sell Call Credit Spread. Net Credit > Width of Call Spread.
 *   **Target:** 50% Profit.
 *   **Defense:**
     *   *Downside (Put ITM):* Manage like a Naked Put. Roll out in time or roll Call Spread down.
     *   *Upside (Call ITM):* Do nothing. You have no risk to the upside if set up correctly.
 
-### 4. Vertical Spread (Defined Risk)
+### 5. Twisted Sister (Bearish/Neutral)
+*   **Setup:** Sell Short Call + Sell Put Credit Spread (Inverse Jade Lizard).
+*   **Target:** 50% Profit.
+*   **Defense:**
+    *   *Upside (Call ITM):* Manage like a Naked Call. Roll out in time or roll Put Spread up.
+    *   *Downside (Put ITM):* Do nothing (No risk if Credit > Width).
+
+### 6. Vertical Spread (Defined Risk)
 *   **Setup:** Buy one, Sell one (same type).
 *   **Target:** 50% Profit.
-*   **Defense:** Generally, **do nothing**. Defined risk trades are binary probabilities. Rolling often increases risk/capital requirement without enough credit benefit.
-*   **Exception:** You can roll the *entire* spread out in time if you can get a credit, but it's rare.
+*   **Defense:** Generally, **do nothing**. Defined risk trades are binary probabilities.
+    *   *Exception:* If implied volatility crushes and price is near strikes, you *might* roll out for a credit, but it's rare.
+
+### 7. Ratio Spread (Undefined Risk)
+*   **Setup:** Buy 1 ATM Option, Sell 2 OTM Options (same type).
+*   **Target:** 25-50% Profit.
+*   **Defense:**
+    *   *Tested (Short Strikes):* Massive risk. Roll the naked short unit out in time or close the whole trade.
+    *   *Tested (Long Strike):* This is the "sweet spot." Hold or take profit.
+
+### 8. Calendar / Diagonal Spread (Time Spread)
+*   **Setup:** Short Front Month, Long Back Month.
+*   **Target:** 25% Profit (Debit trade).
+*   **Defense:**
+    *   If the Short Front Month goes ITM: Roll it out to the next week/month to reduce cost basis.
+    *   *Goal:* Reduce the debit paid to zero (Free trade).
+
+### 9. Covered Call (Bullish)
+*   **Setup:** Long Stock + Short OTM Call.
+*   **Target:** Campaign mode (Reduce cost basis).
+*   **Defense:**
+    *   *Call ITM:* Roll the Call **up and out** (higher strike, later date) for a Net Credit.
+    *   *Stock Drops:* Roll the Call **down** to generate more credit (reduce basis), but be careful of locking in a loss on the stock rebound.
+
+### 10. Long Options (Speculative)
+*   **Setup:** Buy Call or Put.
+*   **Target:** 50% Profit.
+*   **Defense:** None. Defined Risk.
+*   **Stop:** 50% Loss. (Do not hold to zero).
 
 ## Interaction Guidelines
 * **Tone:** Professional but accessible. "Let the math do the work."
