@@ -1,0 +1,6 @@
+yfinance
+numpy
+pandas
+requests
+curl_cffi
+beautifulsoup4

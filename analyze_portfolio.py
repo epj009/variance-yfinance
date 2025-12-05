@@ -38,8 +38,6 @@ class PortfolioParser:
                 normalized[internal_key] = ""
         
         # Special Handling for Type/Call/Put overlap
-        # If 'Type' in CSV contains 'Call' or 'Put', mapping might be messy.
-        # Trust the explicit columns if they exist.
         return normalized
 
     @staticmethod
@@ -118,7 +116,6 @@ def cluster_strategies(positions):
             qty = parse_currency(leg['Quantity'])
             otype = leg['Call/Put']
             if leg['Type'] == 'STOCK' or (not otype and 'STOCK' in leg.get('Symbol', '').upper()): 
-                # Fallback if Type is missing but Symbol looks like stock? No, reliance on Type is safer.
                 if leg['Type'] == 'STOCK':
                     clusters.append([leg])
                     used_indices.add(i)
@@ -348,9 +345,19 @@ def analyze_portfolio(file_path):
         elif net_cost > 0: # Debit Trade (Paid money)
             pl_pct = net_pl / net_cost
         
-        # Triage Logic
+        # --- FIX: Initialize variables before conditional logic ---
+        action = ""
+        logic = ""
         is_winner = False
         
+        # --- FIX: Safely retrieve live data with defaults ---
+        m_data = market_data.get(root, {})
+        vol_bias = m_data.get('vol_bias', 0)
+        if vol_bias is None: vol_bias = 0 # Handle potential None
+        
+        earnings_date = m_data.get('earnings_date')
+        # ----------------------------------------------------------
+
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct >= 0.50:
             action = "✅ Harvest"
@@ -359,7 +366,7 @@ def analyze_portfolio(file_path):
         
         # 2. Defense
         underlying_price = parse_currency(legs[0]['Underlying Last Price'])
-        # Try to use live price if available? 
+        # Try to use live price if available
         if m_data.get('price'):
             underlying_price = m_data.get('price')
             

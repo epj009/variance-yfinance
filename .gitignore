@@ -10,7 +10,6 @@ env/
 
 # Project specific
 .market_cache.db
-watchlists/
 positions/
 *.csv
 *.pdf
