@@ -399,15 +399,15 @@ def analyze_portfolio(file_path):
             action = "☢️ Gamma"
             logic = "< 21 DTE Risk"
             
-        # 4. Zombie (Enhanced with Real-time Vol Bias)
+        # 4. Dead Money (Enhanced with Real-time Vol Bias)
         if not is_winner and not is_tested and min_dte > 21:
             if pl_pct is not None and -0.10 <= pl_pct <= 0.10:
                 if vol_bias > 0 and vol_bias < 0.80:
-                    action = "🗑️ Zombie"
+                    action = "🗑️ Dead Money"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
                 elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < 20:
                      # Fallback if no live data
-                     action = "🗑️ Zombie"
+                     action = "🗑️ Dead Money"
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning
@@ -490,7 +490,7 @@ def analyze_portfolio(file_path):
         print("✅ **Status:** Delta Neutral-ish")
 
     if missing_ivr_legs > 0:
-        print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Zombie checks may fall back to live Vol Bias only.")
+        print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
 
 if __name__ == "__main__":
     file_path = "util/sample_positions.csv"
