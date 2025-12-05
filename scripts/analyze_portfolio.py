@@ -363,6 +363,7 @@ def analyze_portfolio(file_path):
         live_price = m_data.get('price', 0)
         is_stale = m_data.get('is_stale', False)
         earnings_date = m_data.get('earnings_date')
+        sector = m_data.get('sector', 'Unknown')
         proxy_note = m_data.get('proxy')
 
         # 1. Harvest (Short Premium only)
@@ -452,13 +453,14 @@ def analyze_portfolio(file_path):
             'min_dte': min_dte,
             'action': action,
             'logic': logic,
+            'sector': sector
         })
 
     actionable_reports = [r for r in all_position_reports if r['action']]
     non_actionable_reports = [r for r in all_position_reports if not r['action']]
 
-    # Print Morning Triage Report
-    print("\n### Morning Triage Report")
+    # Print Triage Report
+    print("\n### Triage Report")
     print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
     print("|---|---|---|---|---|---|---|---|---|")
     if actionable_reports:
@@ -489,8 +491,30 @@ def analyze_portfolio(file_path):
     else:
         print("✅ **Status:** Delta Neutral-ish")
 
+    # Sector Allocation Summary
+    sector_counts = defaultdict(int)
+    total_positions = len(all_position_reports)
+    for r in all_position_reports:
+        sector_counts[r['sector']] += 1
+    
+    print("\n### Sector Balance (Rebalancing Context)")
+    sorted_sectors = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    # Identify heavy concentrations (>25% of portfolio)
+    concentrations = []
+    for sec, count in sorted_sectors:
+        pct = count / total_positions if total_positions > 0 else 0
+        if pct > 0.25:
+            concentrations.append(f"**{sec}** ({count} pos, {pct:.0%})")
+            
+    if concentrations:
+        print(f"⚠️ **Concentration Risk:** High exposure to {', '.join(concentrations)}.")
+        print("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
+    else:
+        print("✅ **Sector Balance:** Good. No single sector exceeds 25% of the portfolio.")
+
     if missing_ivr_legs > 0:
-        print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
+        print(f"\nNote: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
     
     # Caution tape
     caution_items = []

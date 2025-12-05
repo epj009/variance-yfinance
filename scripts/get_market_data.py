@@ -57,6 +57,62 @@ SYMBOL_MAP = {
     'RUT': '^RUT'
 }
 
+# Hardcoded sector overrides for common ETFs/Futures/Indexes
+SECTOR_OVERRIDES = {
+    # Futures / Commodities
+    '/CL': 'Energy',
+    '/NG': 'Energy',
+    '/GC': 'Basic Materials',
+    '/SI': 'Basic Materials',
+    '/HG': 'Basic Materials',
+    '/ZC': 'Consumer Defensive',
+    '/ZS': 'Consumer Defensive',
+    '/LE': 'Consumer Defensive',
+    '/HE': 'Consumer Defensive',
+    '/ES': 'Index',
+    '/NQ': 'Index',
+    '/RTY': 'Index',
+    '/YM': 'Index',
+    '/ZN': 'Fixed Income',
+    '/ZB': 'Fixed Income',
+    '/ZF': 'Fixed Income',
+    '/ZT': 'Fixed Income',
+    '/6E': 'Currencies',
+    '/6B': 'Currencies',
+    '/6J': 'Currencies',
+    '/6A': 'Currencies',
+    # ETFs
+    'GLD': 'Basic Materials',
+    'SLV': 'Basic Materials',
+    'USO': 'Energy',
+    'UNG': 'Energy',
+    'IBIT': 'Financial Services',
+    'GBTC': 'Financial Services',
+    'ETHA': 'Financial Services',
+    'ARKG': 'Healthcare',
+    'ARKK': 'Technology',
+    'SMH': 'Technology',
+    'XLE': 'Energy',
+    'XLF': 'Financial Services',
+    'XLK': 'Technology',
+    'XLU': 'Utilities',
+    'XLV': 'Healthcare',
+    'XLY': 'Consumer Cyclical',
+    'XLP': 'Consumer Defensive',
+    'XBI': 'Healthcare',
+    'GDX': 'Basic Materials',
+    'SILJ': 'Basic Materials',
+    'EWZ': 'International',
+    'FXI': 'International',
+    'SPY': 'Index',
+    'QQQ': 'Index',
+    'IWM': 'Index',
+    'DIA': 'Index',
+    'TLT': 'Fixed Income',
+    'SHY': 'Fixed Income',
+    'IEF': 'Fixed Income',
+}
+
 # Futures proxy map: provide IV/HV sources for futures roots
 # type: 'vol_index' uses index price as IV30 proxy; 'etf' uses ETF options for IV30 and ETF prices for HV
 FUTURES_PROXY = {
@@ -392,13 +448,57 @@ def get_earnings_date(ticker_obj, symbol_key):
     except Exception:
         return None
 
+def get_sector(ticker_obj, symbol_key):
+    # Check overrides first (handle raw symbols like /CL or mapped ETFs)
+    # Note: symbol_key passed here is usually the mapped YF symbol (e.g., CL=F)
+    # We need to check the raw symbol if possible, but here we only have ticker_obj and symbol_key.
+    # Ideally, we check overrides in process_single_symbol using the raw_symbol.
+    # But let's try to match mapped symbols back or just check known YF symbols in overrides.
+    
+    # However, let's keep it simple: check overrides in process_single_symbol instead.
+    # This function will remain focused on fetching from YF if no override exists.
+    
+    cache_key = f"sector_{symbol_key}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    def _fetch():
+        try:
+            # .info can be slow/flaky, but it's the only place for sector
+            info = ticker_obj.info
+            return info.get('sector', 'Unknown')
+        except:
+            return "Unknown"
+
+    try:
+        # Cache for 30 days (sector unlikely to change)
+        val = retry_fetch(_fetch, retries=1)
+        if val is not None:
+            cache.set(cache_key, val, 2592000)
+        return val
+    except:
+        return "Unknown"
+
 def process_single_symbol(raw_symbol):
     if raw_symbol in SKIP_SYMBOLS:
         return raw_symbol, {'error': 'Skipped symbol (no reliable pricing)'}
 
+    # CHECK OVERRIDES FIRST using raw_symbol
+    override_sector = SECTOR_OVERRIDES.get(raw_symbol)
+    if not override_sector:
+        # Try checking the root for futures (e.g. /CLZ4 -> /CL)
+        if raw_symbol.startswith('/'):
+             root = raw_symbol[:3]
+             override_sector = SECTOR_OVERRIDES.get(root)
+
     yf_symbol = map_symbol(raw_symbol)
     if yf_symbol is None:
         return raw_symbol, {'error': 'Unmapped/unsupported futures code'}
+    
+    # Also check override for the mapped symbol (e.g., GLD)
+    if not override_sector:
+        override_sector = SECTOR_OVERRIDES.get(yf_symbol)
 
     # Futures proxy path: try to supply IV/HV via proxies before standard chain
     proxy_iv = proxy_hv = None
@@ -422,12 +522,18 @@ def process_single_symbol(raw_symbol):
         iv = proxy_iv if is_proxy and proxy_iv is not None else get_current_iv(ticker, price, yf_symbol)
         earnings_date = "N/A" if should_skip_earnings(raw_symbol, yf_symbol) else get_earnings_date(ticker, yf_symbol)
         
+        if override_sector:
+            sector = override_sector
+        else:
+            sector = get_sector(ticker, yf_symbol)
+        
         data = {
             'price': price,
             'is_stale': is_stale,
             'hv100': hv,
             'iv30': iv,
-            'earnings_date': earnings_date
+            'earnings_date': earnings_date,
+            'sector': sector
         }
         
         if hv and iv:
