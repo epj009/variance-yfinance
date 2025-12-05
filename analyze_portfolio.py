@@ -82,181 +82,69 @@ def get_root_symbol(raw_symbol):
     parts = raw_symbol.split('  ')
     return parts[0].strip()
 
-def cluster_strategies(positions):
-    # 1. Group by Root Symbol
-    by_root = defaultdict(list)
-    for row in positions:
-        root = get_root_symbol(row['Symbol'])
-        by_root[root].append(row)
-
-    clusters = [] 
-
-    for root, legs in by_root.items():
-        by_exp = defaultdict(list)
-        for leg in legs:
-            by_exp[leg['Exp Date']].append(leg)
-        
-        fragments = []
-        
-        for exp, exp_legs in by_exp.items():
-            strat_name = identify_strategy(exp_legs)
-            if strat_name not in ["Single Option", "Stock"]:
-                 clusters.append(exp_legs)
-            else:
-                fragments.extend(exp_legs)
-
-        used_indices = set()
-        long_calls = []
-        short_calls = []
-        long_puts = []
-        short_puts = []
-        
-        for i, leg in enumerate(fragments):
-            qty = parse_currency(leg['Quantity'])
-            otype = leg['Call/Put']
-            # Improved check: Ensure it is actually stock
-            if leg['Type'] == 'STOCK':
-                clusters.append([leg])
-                used_indices.add(i)
-                continue
-
-            if otype == 'Call':
-                if qty > 0: long_calls.append((i, leg))
-                else: short_calls.append((i, leg))
-            elif otype == 'Put':
-                if qty > 0: long_puts.append((i, leg))
-                else: short_puts.append((i, leg))
-
-        # Match Time Spreads (Call)
-        for si, s_leg in short_calls:
-            if si in used_indices: continue
-            s_strike = parse_currency(s_leg['Strike Price'])
-            best_match = -1
-            for li, l_leg in long_calls:
-                if li in used_indices: continue
-                l_strike = parse_currency(l_leg['Strike Price'])
-                if s_strike == l_strike and s_leg['Exp Date'] != l_leg['Exp Date']:
-                    best_match = li
-                    break
-            
-            if best_match != -1:
-                used_indices.add(si)
-                used_indices.add(best_match)
-                clusters.append([s_leg, fragments[best_match]])
-            else:
-                # Try Diagonals
-                for li, l_leg in long_calls:
-                    if li in used_indices: continue
-                    if s_leg['Exp Date'] != l_leg['Exp Date']:
-                         best_match = li
-                         break
-                if best_match != -1:
-                    used_indices.add(si)
-                    used_indices.add(best_match)
-                    clusters.append([s_leg, fragments[best_match]])
-
-        # Match Time Spreads (Put)
-        for si, s_leg in short_puts:
-            if si in used_indices: continue
-            s_strike = parse_currency(s_leg['Strike Price'])
-            best_match = -1
-            for li, l_leg in long_puts:
-                if li in used_indices: continue
-                l_strike = parse_currency(l_leg['Strike Price'])
-                if s_strike == l_strike and s_leg['Exp Date'] != l_leg['Exp Date']:
-                    best_match = li
-                    break
-            
-            if best_match != -1:
-                used_indices.add(si)
-                used_indices.add(best_match)
-                clusters.append([s_leg, fragments[best_match]])
-            else:
-                # Try Diagonals
-                for li, l_leg in long_puts:
-                    if li in used_indices: continue
-                    if s_leg['Exp Date'] != l_leg['Exp Date']:
-                         best_match = li
-                         break
-                if best_match != -1:
-                    used_indices.add(si)
-                    used_indices.add(best_match)
-                    clusters.append([s_leg, fragments[best_match]])
-
-        for i, leg in enumerate(fragments):
-            if i not in used_indices:
-                clusters.append([leg])
-
-    return clusters
-
 def identify_strategy(legs):
+    # This function now expects a list of legs that are already grouped as a potential strategy.
+    # It will also be called with stock legs included for Covered strategies.
+
+    if not legs: return "Empty"
+
+    stock_legs = [l for l in legs if l['Type'] == 'STOCK']
+    option_legs = [l for l in legs if l['Type'] != 'STOCK']
+    total_opt_legs = len(option_legs)
+
     if len(legs) == 1:
         leg = legs[0]
         if leg['Type'] == 'STOCK': return "Stock"
-        return "Single Option"
-    
-    expirations = set(l['Exp Date'] for l in legs if l['Type'] != 'STOCK')
+        
+        # Specific identification for single options
+        qty = parse_currency(leg['Quantity'])
+        otype = leg['Call/Put']
+        if otype == 'Call':
+            if qty > 0: return "Long Call"
+            else: return "Short Call"
+        elif otype == 'Put':
+            if qty > 0: return "Long Put"
+            else: return "Short Put"
+        return "Single Option (Unknown Type)" # Fallback, should not happen if Call/Put is present
+
+    # Metrics for option legs only
+    expirations = set(l['Exp Date'] for l in option_legs)
     is_multi_exp = len(expirations) > 1
 
-    long_calls = 0
-    short_calls = 0
-    long_puts = 0
-    short_puts = 0
+    long_calls = sum(1 for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0)
+    short_calls = sum(1 for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0)
+    long_puts = sum(1 for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0)
+    short_puts = sum(1 for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0)
     
-    long_call_qty = 0
-    short_call_qty = 0
-    long_put_qty = 0
-    short_put_qty = 0
+    long_call_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0)
+    short_call_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0)
+    long_put_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0)
+    short_put_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0)
     
-    stock_legs = 0
-    
-    short_call_strikes = []
-    short_put_strikes = []
-    long_call_strikes = []
-    long_put_strikes = []
+    short_call_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0])
+    short_put_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0])
 
-    for leg in legs:
-        try:
-            qty = parse_currency(leg['Quantity'])
-        except ValueError:
-            qty = 0
-        
-        if leg['Type'] == 'STOCK':
-            stock_legs += 1
-            continue
+    # --- Stock-Option Combinations ---
+    if stock_legs:
+        if len(stock_legs) == 1:
+            if total_opt_legs == 1:
+                if short_calls == 1: return "Covered Call"
+                if short_puts == 1: return "Covered Put" # This is usually a Cash-Secured Put, not a Covered Put
+            if total_opt_legs == 2:
+                if short_calls == 1 and short_puts == 1: return "Covered Strangle"
+                if short_calls == 1 and long_puts == 1: return "Collar" # Assumes short call to offset long put
+        # Add more complex stock-option combos here if needed
+        return "Custom/Combo (Stock)" # Fallback for complex stock options
 
-        otype = leg['Call/Put']
-        strike = parse_currency(leg.get('Strike Price', '0'))
-
-        if otype == 'Call':
-            if qty > 0: 
-                long_calls += 1
-                long_call_qty += abs(qty)
-                long_call_strikes.append(strike)
-            else: 
-                short_calls += 1
-                short_call_qty += abs(qty)
-                short_call_strikes.append(strike)
-        elif otype == 'Put':
-            if qty > 0: 
-                long_puts += 1
-                long_put_qty += abs(qty)
-                long_put_strikes.append(strike)
-            else: 
-                short_puts += 1
-                short_put_qty += abs(qty)
-                short_put_strikes.append(strike)
-            
-    total_opt_legs = len([l for l in legs if l['Type'] != 'STOCK'])
-    
+    # --- Pure Option Strategies ---
     if is_multi_exp:
         if total_opt_legs == 2:
             if short_calls == 1 and long_calls == 1:
-                if short_call_strikes and long_call_strikes and short_call_strikes[0] == long_call_strikes[0]:
+                if short_call_strikes and short_call_strikes[0] == long_call_strikes[0]:
                     return "Calendar Spread (Call)"
                 return "Diagonal Spread (Call)"
             if short_puts == 1 and long_puts == 1:
-                if short_put_strikes and long_put_strikes and short_put_strikes[0] == long_put_strikes[0]:
+                if short_put_strikes and short_put_strikes[0] == long_put_strikes[0]:
                     return "Calendar Spread (Put)"
                 return "Diagonal Spread (Put)"
         if total_opt_legs == 4:
@@ -264,7 +152,7 @@ def identify_strategy(legs):
         return "Custom/Combo (Multi-Exp)"
 
     if total_opt_legs == 4:
-        if short_calls > 0 and short_puts > 0 and long_calls > 0 and long_puts > 0:
+        if short_calls == 1 and long_calls == 1 and short_puts == 1 and long_puts == 1:
             if short_call_strikes and short_put_strikes and short_call_strikes[0] == short_put_strikes[0]:
                  return "Iron Butterfly"
             return "Iron Condor"
@@ -274,10 +162,10 @@ def identify_strategy(legs):
             return "Jade Lizard"
         if short_calls >= 1 and short_puts >= 1 and long_puts >= 1 and long_calls == 0:
             return "Twisted Sister"
-        if long_calls == 2 and short_calls == 1: return "Long Call Butterfly"
-        if long_puts == 2 and short_puts == 1: return "Long Put Butterfly"
+        if long_calls == 2 and short_calls == 1 and long_call_qty == abs(short_call_qty): return "Long Call Butterfly"
+        if long_puts == 2 and short_puts == 1 and long_put_qty == abs(short_put_qty): return "Long Put Butterfly"
 
-    if total_opt_legs == 2 and stock_legs == 0:
+    if total_opt_legs == 2:
         if short_calls >= 1 and short_puts >= 1: return "Strangle"
         if (long_calls >= 1 and short_calls >= 1):
             if long_call_qty != short_call_qty: return "Ratio Spread (Call)"
@@ -286,18 +174,124 @@ def identify_strategy(legs):
             if long_put_qty != short_put_qty: return "Ratio Spread (Put)"
             return "Vertical Spread (Put)"
 
-    if stock_legs > 0:
-        if total_opt_legs == 1:
-            if short_calls > 0: return "Covered Call"
-            if short_puts > 0: return "Covered Put"
-        if total_opt_legs == 2:
-            if short_calls > 0 and short_puts > 0: return "Covered Strangle"
-            if long_puts > 0 and short_calls > 0: return "Collar"
-
-    if total_opt_legs == 0 and stock_legs > 0:
-        return "Stock Position"
-
     return "Custom/Combo"
+
+def cluster_strategies(positions):
+    """
+    Groups positions by Root, then identifies multi-leg strategies,
+    including stock-option combinations like Covered Calls.
+    """
+    by_root_all_legs = defaultdict(list)
+    for row in positions:
+        root = get_root_symbol(row['Symbol'])
+        if root: # Ensure root is not empty
+            by_root_all_legs[root].append(row)
+
+    final_clusters = [] 
+
+    for root, root_legs_original in by_root_all_legs.items():
+        # Make a mutable copy for this root's legs
+        root_legs = list(root_legs_original)
+        
+        stock_legs = [l for l in root_legs if l['Type'] == 'STOCK']
+        option_legs = [l for l in root_legs if l['Type'] != 'STOCK']
+        
+        # Used flags for options within this root
+        option_used_flags = [False] * len(option_legs)
+        stock_used_flags = [False] * len(stock_legs) # Keep track of used stocks
+        
+        # Phase 1: Identify pure option strategies (grouped by expiration)
+        # Use a list of lists to build clusters within this root
+        
+        # Group options by expiration date to find standard spreads first
+        by_exp_options = defaultdict(list)
+        for i, leg in enumerate(option_legs):
+            by_exp_options[leg['Exp Date']].append((i, leg))
+
+        for exp, exp_legs_with_indices in by_exp_options.items():
+            current_exp_options = [leg for idx, leg in exp_legs_with_indices if not option_used_flags[idx]] # Only consider unused options
+            
+            if len(current_exp_options) > 1: # Only look for strategies if > 1 option in this expiration
+                # Temporarily create a sub-cluster
+                temp_cluster = list(current_exp_options)
+                strat_name = identify_strategy(temp_cluster)
+                
+                # If it's a known multi-leg strategy (not single option or custom/combo or stock)
+                if strat_name not in ["Single Option (Unknown Type)", "Custom/Combo", "Stock", "Empty", "Custom/Combo (Stock)"]:
+                    final_clusters.append(temp_cluster)
+                    # Mark all legs in this temp_cluster as used
+                    for leg in temp_cluster:
+                        # Find original index for this leg in option_legs and mark as used
+                        original_idx = next((j for j, l in enumerate(option_legs) if l == leg), None)
+                        if original_idx is not None:
+                            option_used_flags[original_idx] = True
+        
+        # Phase 2: Handle stock-option combinations with remaining options
+        unclustered_options_after_phase1 = [leg for i, leg in enumerate(option_legs) if not option_used_flags[i]]
+        
+        if stock_legs:
+            # First, try 3-leg combinations: Covered Strangle, Collar
+            
+            # Covered Strangle (1 Stock + 1 Short Call + 1 Short Put)
+            for s_idx, s_leg in enumerate(stock_legs):
+                if stock_used_flags[s_idx]: continue
+                
+                temp_short_calls = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0]
+                temp_short_puts = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0]
+                
+                if temp_short_calls and temp_short_puts:
+                    # Greedily take the first available
+                    current_combo = [s_leg, temp_short_calls[0], temp_short_puts[0]]
+                    if identify_strategy(current_combo) == "Covered Strangle":
+                        final_clusters.append(current_combo)
+                        stock_used_flags[s_idx] = True
+                        unclustered_options_after_phase1.remove(temp_short_calls[0])
+                        unclustered_options_after_phase1.remove(temp_short_puts[0])
+                        break # Break from stock loop, move to next
+            
+            # Collar (1 Stock + 1 Short Call + 1 Long Put)
+            for s_idx, s_leg in enumerate(stock_legs):
+                if stock_used_flags[s_idx]: continue
+                
+                temp_short_calls = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0]
+                temp_long_puts = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0]
+                
+                if temp_short_calls and temp_long_puts:
+                    current_combo = [s_leg, temp_short_calls[0], temp_long_puts[0]]
+                    if identify_strategy(current_combo) == "Collar":
+                        final_clusters.append(current_combo)
+                        stock_used_flags[s_idx] = True
+                        unclustered_options_after_phase1.remove(temp_short_calls[0])
+                        unclustered_options_after_phase1.remove(temp_long_puts[0])
+                        break
+            
+            # Now, try 2-leg combinations: Covered Call / Covered Put
+            for s_idx, s_leg in enumerate(stock_legs):
+                if stock_used_flags[s_idx]: continue
+                
+                for o_idx, o_leg in enumerate(unclustered_options_after_phase1):
+                    current_combo = [s_leg, o_leg]
+                    strat_name = identify_strategy(current_combo)
+                    if strat_name in ["Covered Call", "Covered Put"]:
+                        final_clusters.append(current_combo)
+                        stock_used_flags[s_idx] = True
+                        unclustered_options_after_phase1.remove(o_leg)
+                        break # Move to next stock or stop trying for this stock
+
+            # Add any remaining stock legs as single stock positions
+            for s_idx, s_leg in enumerate(stock_legs):
+                if not stock_used_flags[s_idx]:
+                    final_clusters.append([s_leg])
+            
+            # Add any remaining (truly single) options
+            for o_leg in unclustered_options_after_phase1:
+                final_clusters.append([o_leg])
+
+        else: # No stock legs, just add all option legs to final clusters
+            for leg in unclustered_options_after_phase1: # Use the already processed ones
+                final_clusters.append([leg])
+            
+    return final_clusters
 
 def analyze_portfolio(file_path):
     # 1. Parse CSV
@@ -327,7 +321,10 @@ def analyze_portfolio(file_path):
     
     for legs in clusters:
         root = get_root_symbol(legs[0]['Symbol'])
-        dtes = [parse_dte(l['DTE']) for l in legs]
+        
+        # Calculate min_dte only for option legs
+        option_legs = [l for l in legs if l['Type'] != 'STOCK']
+        dtes = [parse_dte(l['DTE']) for l in option_legs]
         min_dte = min(dtes) if dtes else 0
         
         strategy_name = identify_strategy(legs)
@@ -374,6 +371,8 @@ def analyze_portfolio(file_path):
             
         is_tested = False
         for l in legs:
+            # Only check option legs for "tested" status
+            if l['Type'] == 'STOCK': continue 
             qty = parse_currency(l['Quantity'])
             otype = l['Call/Put']
             strike = parse_currency(l['Strike Price'])
@@ -402,7 +401,7 @@ def analyze_portfolio(file_path):
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning
-        if earnings_date:
+        if earnings_date and earnings_date != "Unavailable":
             try:
                 edate = datetime.fromisoformat(earnings_date).date()
                 days_to_earn = (edate - datetime.now().date()).days
