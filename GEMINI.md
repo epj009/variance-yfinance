@@ -134,6 +134,11 @@ Analyze grouped strategies in this order:
     *   *Tested (Short Strikes):* Massive risk. Roll the naked short unit out in time or close the whole trade.
     *   *Tested (Long Strike):* This is the "sweet spot." Hold or take profit.
 
+### 7b. Broken Wing Butterfly (Defined/Skewed Risk)
+*   **Setup:** Traditional butterfly with one wing wider to reduce/offset the debit (ideally for a small credit).
+*   **Target:** 25-50% Profit.
+*   **Defense:** Defined risk; usually do nothing. If tested and near max loss, close or roll the tested short strike out in time for a credit if available.
+
 ### 8. Calendar / Diagonal Spread (Time Spread)
 *   **Setup:** Short Front Month, Long Back Month.
 *   **Target:** 25% Profit (Debit trade).
@@ -153,6 +158,19 @@ Analyze grouped strategies in this order:
 *   **Target:** 50% Profit.
 *   **Defense:** None. Defined Risk.
 *   **Stop:** 50% Loss. (Do not hold to zero).
+
+### 11. Naked Short Call / Naked Short Put (Undefined Risk)
+*   **Setup:** Sell OTM call or put. Sized for buying power and risk tolerance.
+*   **Target:** 50% Profit.
+*   **Defense:**
+    *   *Tested & <21 DTE:* Roll out in time for a credit. For calls, consider rolling up/out; for puts, roll down/out.
+    *   *Deep tested / cannot roll for credit:* Close or convert to defined risk (buy a wing) to cap loss.
+    *   *Stop:* Consider 2x–3x initial credit as a risk guardrail; avoid rolling for a debit.
+
+### 12. ZEBRA (Zero Extrinsic Back Ratio)
+*   **Setup:** Buy 2 ITM options, sell 1 ATM/near-ATM option (same type/expiry) to create a ~1:1 stock proxy with minimal extrinsic.
+*   **Target:** 25-50% Profit or directional move similar to stock.
+*   **Defense:** Defined risk to near zero; typically do nothing. If badly tested and P/L deteriorates, close or roll the entire structure out in time for a credit if available.
 
 ## Agent Workflow Preferences
 
