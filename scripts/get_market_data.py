@@ -372,7 +372,7 @@ def get_price(ticker_obj, symbol_key):
 
 def get_proxy_iv_and_hv(raw_symbol):
     """
-    Return (iv30, hv100, proxy_note) for futures using proxy definitions.
+    Return (iv30, hv252, proxy_note) for futures using proxy definitions.
     """
     proxy = FUTURES_PROXY.get(raw_symbol[:3])
     if not proxy:
@@ -530,7 +530,7 @@ def process_single_symbol(raw_symbol):
         data = {
             'price': price,
             'is_stale': is_stale,
-            'hv100': hv,
+            'hv252': hv,
             'iv30': iv,
             'earnings_date': earnings_date,
             'sector': sector

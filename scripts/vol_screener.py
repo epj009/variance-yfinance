@@ -51,7 +51,7 @@ def screen_volatility(limit=None, show_all=False):
             continue
         
         iv30 = metrics.get('iv30')
-        hv100 = metrics.get('hv100')
+        hv252 = metrics.get('hv252')
         vol_bias = metrics.get('vol_bias')
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
@@ -70,7 +70,7 @@ def screen_volatility(limit=None, show_all=False):
             'Symbol': sym,
             'Price': price,
             'IV30': iv30,
-            'HV100': hv100,
+            'HV252': hv252,
             'Vol Bias': vol_bias,
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy')
@@ -91,7 +91,7 @@ def screen_volatility(limit=None, show_all=False):
     print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
     filter_note = "All symbols (no bias filter)" if show_all else "Vol Bias (IV / HV) > 0.85"
     print(f"**Filter:** {filter_note}\n")
-    print("| Symbol | Price | IV30 | HV100 | Vol Bias | Earn | Status |")
+    print("| Symbol | Price | IV30 | HV252 | Vol Bias | Earn | Status |")
     print("|---|---|---|---|---|---|---|")
     
     for c in candidates:
@@ -118,7 +118,7 @@ def screen_volatility(limit=None, show_all=False):
 
         price_str = f"${c['Price']:.2f}" if c['Price'] is not None else "N/A"
         iv_str = f"{c['IV30']:.1f}%" if c['IV30'] is not None else "N/A"
-        hv_str = f"{c['HV100']:.1f}%" if c['HV100'] is not None else "N/A"
+        hv_str = f"{c['HV252']:.1f}%" if c['HV252'] is not None else "N/A"
         bias_str = f"{bias:.2f}" if bias is not None else "N/A"
         
         note = f" ({proxy_note})" if proxy_note else ""
