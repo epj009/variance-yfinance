@@ -491,6 +491,18 @@ def analyze_portfolio(file_path):
 
     if missing_ivr_legs > 0:
         print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
+    
+    # Caution tape
+    caution_items = []
+    for r in all_position_reports:
+        if "stale" in r['logic'].lower():
+            caution_items.append(f"{r['root']}: price stale/absent; tested status uncertain")
+        if "Earnings" in r.get('action', "") or "Binary Event" in r.get('logic', ""):
+            caution_items.append(f"{r['root']}: earnings soon (see action/logic)")
+    if caution_items:
+        print("\n### Caution")
+        for c in caution_items:
+            print(f"- {c}")
 
 if __name__ == "__main__":
     file_path = "util/sample_positions.csv"
