@@ -21,7 +21,7 @@ The `analyze_portfolio.py` script automates the daily "check-up":
 *   **Grouping:** Automatically groups individual option legs into complex strategies (Iron Condors, Strangles, etc.).
 *   **Status Checks:**
     *   ✅ **Harvest:** Profit > 50%? Close it.
-    *   🛠️ **Defense:** Tested & < 21 DTE? Roll it.
+    *   🛡️ **Defense:** Tested & < 21 DTE? Roll it.
     *   ☢️ **Gamma:** < 21 DTE & Loser? Close it.
     *   🗑️ **Zombie:** Low Vol & Flat P/L? Kill it.
 *   **Portfolio Delta:** Sums Beta-Weighted Deltas to warn if you are "Too Long" (>75) or "Too Short" (<-50).
