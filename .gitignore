@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# Project specific
+.market_cache.db
+watchlists/
+positions/
+*.csv
+*.pdf
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
