@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-import concurrent.futures
+import concurrent.futures # Still needed for retry_fetch but not for parallel symbol fetching
 import sqlite3
 import time
 import os
@@ -185,18 +185,18 @@ def get_price(ticker_obj, symbol_key):
         return cached
         
     def _fetch():
-        # Prioritize fast_info
+        # Prioritize fast_info (Real-timeish)
         try:
             p = ticker_obj.fast_info.last_price
-            if p: return p
+            if p: return (p, False) # Price, is_stale
         except:
             pass
         
-        # Fallback to history
+        # Fallback to history (Stale if market closed/pre-market)
         try:
             hist = ticker_obj.history(period="1d", interval="1m")
             if not hist.empty:
-                return hist['Close'].iloc[-1]
+                return (hist['Close'].iloc[-1], True)
         except:
             pass
         
@@ -247,9 +247,11 @@ def process_single_symbol(raw_symbol):
     try:
         ticker = yf.Ticker(yf_symbol)
         
-        price = get_price(ticker, yf_symbol)
-        if price is None:
+        price_data = get_price(ticker, yf_symbol)
+        if price_data is None:
             return raw_symbol, {'error': 'No price found'}
+            
+        price, is_stale = price_data
             
         hv = calculate_hv(ticker, yf_symbol)
         iv = get_current_iv(ticker, price, yf_symbol)
@@ -257,6 +259,7 @@ def process_single_symbol(raw_symbol):
         
         data = {
             'price': price,
+            'is_stale': is_stale,
             'hv100': hv,
             'iv30': iv,
             'earnings_date': earnings_date
@@ -272,7 +275,8 @@ def process_single_symbol(raw_symbol):
 
 def get_market_data(symbols):
     results = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    # Use ThreadPoolExecutor for parallel fetching, with a conservative worker count
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_to_symbol = {executor.submit(process_single_symbol, sym): sym for sym in symbols}
         for future in concurrent.futures.as_completed(future_to_symbol):
             sym, data = future.result()

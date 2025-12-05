@@ -16,7 +16,8 @@ class PortfolioParser:
         'Exp Date': ['Exp Date', 'Expiration', 'Expiry'],
         'DTE': ['DTE', 'Days To Expiration', 'Days to Exp'],
         'Strike Price': ['Strike Price', 'Strike'],
-        'Call/Put': ['Call/Put', 'Type'], # 'Type' is ambiguous, handled in logic
+        # FIX: Removed 'Type' from Call/Put to avoid collision with Asset Class
+        'Call/Put': ['Call/Put', 'Side', 'C/P'], 
         'Underlying Last Price': ['Underlying Last Price', 'Underlying Price', 'Current Price'],
         'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
         'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
@@ -36,8 +37,6 @@ class PortfolioParser:
                     break
             if not found:
                 normalized[internal_key] = ""
-        
-        # Special Handling for Type/Call/Put overlap
         return normalized
 
     @staticmethod
@@ -115,11 +114,11 @@ def cluster_strategies(positions):
         for i, leg in enumerate(fragments):
             qty = parse_currency(leg['Quantity'])
             otype = leg['Call/Put']
-            if leg['Type'] == 'STOCK' or (not otype and 'STOCK' in leg.get('Symbol', '').upper()): 
-                if leg['Type'] == 'STOCK':
-                    clusters.append([leg])
-                    used_indices.add(i)
-                    continue
+            # Improved check: Ensure it is actually stock
+            if leg['Type'] == 'STOCK':
+                clusters.append([leg])
+                used_indices.add(i)
+                continue
 
             if otype == 'Call':
                 if qty > 0: long_calls.append((i, leg))
@@ -319,10 +318,12 @@ def analyze_portfolio(file_path):
         
     # 4. Analysis Loop
     print("\n### Morning Triage Report")
-    print("| Symbol | Strat | Net P/L | P/L % | DTE | Action | Logic |")
-    print("|---|---|---|---|---|---|---|")
+    # Expanded Header
+    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
+    print("|---|---|---|---|---|---|---|---|---|")
     
     total_beta_delta = 0.0
+    has_actions = False # Initialize flag
     
     for legs in clusters:
         root = get_root_symbol(legs[0]['Symbol'])
@@ -345,18 +346,19 @@ def analyze_portfolio(file_path):
         elif net_cost > 0: # Debit Trade (Paid money)
             pl_pct = net_pl / net_cost
         
-        # --- FIX: Initialize variables before conditional logic ---
+        # Initialize variables
         action = ""
         logic = ""
         is_winner = False
         
-        # --- FIX: Safely retrieve live data with defaults ---
+        # Retrieve live data
         m_data = market_data.get(root, {})
         vol_bias = m_data.get('vol_bias', 0)
-        if vol_bias is None: vol_bias = 0 # Handle potential None
+        if vol_bias is None: vol_bias = 0
         
+        live_price = m_data.get('price', 0)
+        is_stale = m_data.get('is_stale', False)
         earnings_date = m_data.get('earnings_date')
-        # ----------------------------------------------------------
 
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct >= 0.50:
@@ -366,9 +368,9 @@ def analyze_portfolio(file_path):
         
         # 2. Defense
         underlying_price = parse_currency(legs[0]['Underlying Last Price'])
-        # Try to use live price if available
-        if m_data.get('price'):
-            underlying_price = m_data.get('price')
+        # Use live price if available
+        if live_price:
+            underlying_price = live_price
             
         is_tested = False
         for l in legs:
@@ -393,7 +395,7 @@ def analyze_portfolio(file_path):
             if -0.10 <= pl_pct <= 0.10:
                 if vol_bias > 0 and vol_bias < 0.80:
                     action = "🗑️ Zombie"
-                    logic = f"Vol Bias {vol_bias:.2f} & Flat P/L"
+                    logic = f"Bias {vol_bias:.2f} & Flat P/L"
                 elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < 20:
                      # Fallback if no live data
                      action = "🗑️ Zombie"
@@ -411,7 +413,15 @@ def analyze_portfolio(file_path):
                 pass
 
         if action:
-            print(f"| {root} | {strategy_name} | ${net_pl:.2f} | {pl_pct:.1%} | {min_dte}d | {action} | {logic} |")
+            price_str = f"${live_price:.2f}" if live_price else "N/A"
+            if is_stale:
+                price_str += "*"
+            bias_str = f"{vol_bias:.2f}" if vol_bias else "N/A"
+            print(f"| {root} | {strategy_name} | {price_str} | {bias_str} | ${net_pl:.2f} | {pl_pct:.1%} | {min_dte}d | {action} | {logic} |")
+            has_actions = True # Set flag if an action was printed
+
+    if not has_actions:
+        print("No specific triage actions triggered for current positions.")
 
     print("\n")
     print(f"**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
