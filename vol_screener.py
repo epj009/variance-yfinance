@@ -27,9 +27,8 @@ def screen_volatility(limit=None):
                 if row and row[0] != 'Symbol':
                     symbols.append(row[0])
     except FileNotFoundError:
-        print(f"Error: Watchlist file '{WATCHLIST_PATH}' not found.")
-        print("Please create 'watchlists/tasty-default.csv' with a list of symbols.")
-        return
+        print(f"Warning: Watchlist file '{WATCHLIST_PATH}' not found. Using default symbols (SPY, QQQ, IWM).")
+        symbols = ['SPY', 'QQQ', 'IWM']
     except Exception as e:
         print(f"Error reading watchlist: {e}")
         return

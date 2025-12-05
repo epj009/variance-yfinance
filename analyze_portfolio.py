@@ -72,15 +72,22 @@ def parse_dte(value):
         return 0
 
 def get_root_symbol(raw_symbol):
+    # Normalize multi-space and single-space separated symbols
+    token = raw_symbol.strip().split()[0] if raw_symbol else ""
+
     # Handle Futures: ./CLG6 LOG6 ... -> /CL
-    if raw_symbol.startswith('./'):
-        parts = raw_symbol.split(' ')
-        base = parts[0]
-        base = base.replace('./', '/')
-        return base[:3] 
-    
-    parts = raw_symbol.split('  ')
-    return parts[0].strip()
+    if token.startswith('./'):
+        token = token.replace('./', '/')
+
+    # Futures roots like /ESZ4 -> /ES
+    if token.startswith('/') and len(token) >= 3:
+        return token[:3]
+
+    return token
+
+def is_stock_type(type_str):
+    normalized = type_str.strip().lower()
+    return normalized in {"stock", "equity", "equities", "equity stock"}
 
 def identify_strategy(legs):
     # This function now expects a list of legs that are already grouped as a potential strategy.
@@ -88,8 +95,8 @@ def identify_strategy(legs):
 
     if not legs: return "Empty"
 
-    stock_legs = [l for l in legs if l['Type'] == 'STOCK']
-    option_legs = [l for l in legs if l['Type'] != 'STOCK']
+    stock_legs = [l for l in legs if is_stock_type(l['Type'])]
+    option_legs = [l for l in legs if not is_stock_type(l['Type'])]
     total_opt_legs = len(option_legs)
 
     if len(legs) == 1:
@@ -123,6 +130,8 @@ def identify_strategy(legs):
     
     short_call_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0])
     short_put_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0])
+    long_call_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0])
+    long_put_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0])
 
     # --- Stock-Option Combinations ---
     if stock_legs:
@@ -318,20 +327,23 @@ def analyze_portfolio(file_path):
     
     total_beta_delta = 0.0
     has_actions = False # Initialize flag
+    missing_ivr_legs = 0
     
     for legs in clusters:
         root = get_root_symbol(legs[0]['Symbol'])
         
         # Calculate min_dte only for option legs
-        option_legs = [l for l in legs if l['Type'] != 'STOCK']
+        option_legs = [l for l in legs if not is_stock_type(l['Type'])]
         dtes = [parse_dte(l['DTE']) for l in option_legs]
         min_dte = min(dtes) if dtes else 0
         
         strategy_name = identify_strategy(legs)
         net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
-        
+
         for l in legs:
             total_beta_delta += parse_currency(l['beta_delta'])
+            if not str(l['IV Rank']).strip():
+                missing_ivr_legs += 1
 
         net_cost = sum(parse_currency(l['Cost']) for l in legs)
         
@@ -372,7 +384,7 @@ def analyze_portfolio(file_path):
         is_tested = False
         for l in legs:
             # Only check option legs for "tested" status
-            if l['Type'] == 'STOCK': continue 
+            if is_stock_type(l['Type']): continue 
             qty = parse_currency(l['Quantity'])
             otype = l['Call/Put']
             strike = parse_currency(l['Strike Price'])
@@ -431,6 +443,9 @@ def analyze_portfolio(file_path):
         print("⚠️ **Status:** Too Short (Delta < -50)")
     else:
         print("✅ **Status:** Delta Neutral-ish")
+
+    if missing_ivr_legs > 0:
+        print(f"Note: IV Rank data missing for {missing_ivr_legs} legs; Zombie checks may fall back to live Vol Bias only.")
 
 if __name__ == "__main__":
     file_path = "sample_positions.csv"
