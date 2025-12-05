@@ -228,9 +228,9 @@ def get_earnings_date(ticker_obj, symbol_key):
                 dates = cal.get('Earnings Date')
                 if dates and isinstance(dates, list) and len(dates) > 0:
                     return dates[0].isoformat()
-            return None
+            return "Unavailable"
         except Exception: 
-            return None
+            return "Unavailable"
         finally:
             sys.stderr = original_stderr # Restore stderr
 

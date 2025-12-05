@@ -6,15 +6,15 @@ from get_market_data import get_market_data
 WATCHLIST_PATH = 'watchlists/tasty-default.csv'
 
 def get_days_to_date(date_str):
-    if not date_str:
-        return 999
+    if not date_str or date_str == "Unavailable":
+        return "N/A" # Return a string for unavailable
     try:
         target = datetime.fromisoformat(date_str).date()
         today = datetime.now().date()
         delta = (target - today).days
         return delta
     except:
-        return 999
+        return "N/A"
 
 def screen_volatility(limit=None):
     # 1. Read Watchlist
@@ -26,6 +26,10 @@ def screen_volatility(limit=None):
             for row in reader:
                 if row and row[0] != 'Symbol':
                     symbols.append(row[0])
+    except FileNotFoundError:
+        print(f"Error: Watchlist file '{WATCHLIST_PATH}' not found.")
+        print("Please create 'watchlists/tasty-default.csv' with a list of symbols.")
+        return
     except Exception as e:
         print(f"Error reading watchlist: {e}")
         return
@@ -81,11 +85,9 @@ def screen_volatility(limit=None):
         elif bias > 0.85: status_icons.append("✨ Fair/High")
         else: status_icons.append("❄️ Cheap")
         
-        earn_str = "-"
-        if dte < 999:
-            earn_str = f"{dte}d"
-            if dte <= 5 and dte >= 0:
-                status_icons.append("⚠️ Earn")
+        earn_str = dte # Direct assignment now
+        if isinstance(dte, int) and dte <= 5 and dte >= 0:
+            status_icons.append("⚠️ Earn")
         
         status = " ".join(status_icons)
         
