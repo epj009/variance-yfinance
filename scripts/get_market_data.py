@@ -13,138 +13,22 @@ import io # Added for stderr redirection
 import threading
 import contextlib
 
-# Symbols where earnings are meaningless or unavailable (ETFs, indexes, futures)
-SKIP_EARNINGS = {
-    # Indexes/ETPs/commodities
-    'SPY', 'QQQ', 'IWM', 'DIA', 'VXX', 'TQQQ', 'TLT', 'USO', 'GLD', 'SLV',
-    'XLE', 'XLU', 'XBI', 'SMH', 'VIX', 'FXE', 'EWZ', 'EEM', 'FXI', 'GDX',
-    'XLF', 'UVIX', 'UVXY', 'KRE', 'SILJ', 'IBB', 'KWEB', 'EWJ',
-    'IBIT', 'ETHA',
-}
-
-# Symbols to skip entirely (no reliable Yahoo pricing)
-SKIP_SYMBOLS = {
-    'XSP', 'LTHM',
-}
-
-# Mapping from Tasty/CLI format to Yahoo Finance
-SYMBOL_MAP = {
-    '/ES': 'ES=F',
-    '/NQ': 'NQ=F',
-    '/CL': 'CL=F',
-    '/GC': 'GC=F',
-    '/SI': 'SI=F',
-    '/HG': 'HG=F',   # Copper
-    '/HE': 'HE=F',   # Lean Hogs
-    '/LE': 'LE=F',   # Live Cattle
-    '/6E': '6E=F',
-    '/6B': '6B=F',
-    '/6J': '6J=F',
-    '/6A': '6A=F',
-    '/ZN': 'ZN=F',
-    '/ZB': 'ZB=F',
-    '/ZC': 'ZC=F',   # Corn
-    '/ZS': 'ZS=F',   # Soybeans
-    '/ZF': 'ZF=F',   # 5Y Note
-    '/ZT': 'ZT=F',   # 2Y Note
-    '/NG': 'NG=F',
-    '/RTY': 'RTY=F',
-    '/YM': 'YM=F',
-    'SPX': '^SPX',
-    'VIX': '^VIX',
-    'DJX': '^DJI',
-    'NDX': '^NDX',
-    'RUT': '^RUT'
-}
-
-# Hardcoded sector overrides for common ETFs/Futures/Indexes
-SECTOR_OVERRIDES = {
-    # Futures / Commodities
-    '/CL': 'Energy',
-    '/NG': 'Energy',
-    '/GC': 'Basic Materials',
-    '/SI': 'Basic Materials',
-    '/HG': 'Basic Materials',
-    '/ZC': 'Consumer Defensive',
-    '/ZS': 'Consumer Defensive',
-    '/LE': 'Consumer Defensive',
-    '/HE': 'Consumer Defensive',
-    '/ES': 'Index',
-    '/NQ': 'Index',
-    '/RTY': 'Index',
-    '/YM': 'Index',
-    '/ZN': 'Fixed Income',
-    '/ZB': 'Fixed Income',
-    '/ZF': 'Fixed Income',
-    '/ZT': 'Fixed Income',
-    '/6E': 'Currencies',
-    '/6B': 'Currencies',
-    '/6J': 'Currencies',
-    '/6A': 'Currencies',
-    # ETFs
-    'GLD': 'Basic Materials',
-    'SLV': 'Basic Materials',
-    'USO': 'Energy',
-    'UNG': 'Energy',
-    'IBIT': 'Financial Services',
-    'GBTC': 'Financial Services',
-    'ETHA': 'Financial Services',
-    'ARKG': 'Healthcare',
-    'ARKK': 'Technology',
-    'SMH': 'Technology',
-    'XLE': 'Energy',
-    'XLF': 'Financial Services',
-    'XLK': 'Technology',
-    'XLU': 'Utilities',
-    'XLV': 'Healthcare',
-    'XLY': 'Consumer Cyclical',
-    'XLP': 'Consumer Defensive',
-    'XBI': 'Healthcare',
-    'GDX': 'Basic Materials',
-    'SILJ': 'Basic Materials',
-    'EWZ': 'International',
-    'FXI': 'International',
-    'SPY': 'Index',
-    'QQQ': 'Index',
-    'IWM': 'Index',
-    'DIA': 'Index',
-    'TLT': 'Fixed Income',
-    'SHY': 'Fixed Income',
-    'IEF': 'Fixed Income',
-}
-
-# Futures proxy map: provide IV/HV sources for futures roots
-# type: 'vol_index' uses index price as IV30 proxy; 'etf' uses ETF options for IV30 and ETF prices for HV
-FUTURES_PROXY = {
-    # Equity index
-    '/ES': {'type': 'vol_index', 'iv_symbol': '^VIX', 'hv_symbol': 'ES=F'},
-    '/NQ': {'type': 'vol_index', 'iv_symbol': '^VXN', 'hv_symbol': 'NQ=F'},
-    '/RTY': {'type': 'etf', 'iv_symbol': 'IWM', 'hv_symbol': 'RTY=F'},  # RVX unreliable on Yahoo
-    '/YM': {'type': 'vol_index', 'iv_symbol': '^VXD', 'hv_symbol': 'YM=F'},
-    # FX
-    '/6E': {'type': 'etf', 'iv_symbol': 'FXE', 'hv_symbol': 'FXE'},
-    '/6B': {'type': 'etf', 'iv_symbol': 'FXB', 'hv_symbol': 'FXB'},
-    '/6C': {'type': 'etf', 'iv_symbol': 'FXC', 'hv_symbol': 'FXC'},
-    '/6J': {'type': 'etf', 'iv_symbol': 'FXY', 'hv_symbol': 'FXY'},
-    '/6A': {'type': 'etf', 'iv_symbol': 'FXA', 'hv_symbol': 'FXA'},
-    # Rates/Treasuries
-    '/ZN': {'type': 'etf', 'iv_symbol': 'IEF', 'hv_symbol': 'IEF'},
-    '/ZB': {'type': 'etf', 'iv_symbol': 'TLT', 'hv_symbol': 'TLT'},
-    '/ZF': {'type': 'etf', 'iv_symbol': 'IEF', 'hv_symbol': 'IEF'},
-    '/ZT': {'type': 'etf', 'iv_symbol': 'SHY', 'hv_symbol': 'SHY'},
-    '/SR3': {'type': 'etf', 'iv_symbol': 'SHV', 'hv_symbol': 'SHV'},  # low IV; best-effort proxy
-    # Energy/Metals
-    '/CL': {'type': 'etf', 'iv_symbol': 'USO', 'hv_symbol': 'USO'},
-    '/NG': {'type': 'etf', 'iv_symbol': 'UNG', 'hv_symbol': 'UNG'},
-    '/GC': {'type': 'etf', 'iv_symbol': 'GLD', 'hv_symbol': 'GLD'},
-    '/SI': {'type': 'etf', 'iv_symbol': 'SLV', 'hv_symbol': 'SLV'},
-    '/HG': {'type': 'etf', 'iv_symbol': 'CPER', 'hv_symbol': 'CPER'},
-    # Ags/Livestock
-    '/ZC': {'type': 'etf', 'iv_symbol': 'CORN', 'hv_symbol': 'CORN'},
-    '/ZS': {'type': 'etf', 'iv_symbol': 'SOYB', 'hv_symbol': 'SOYB'},
-    '/HE': {'type': 'hv_only'},  # no liquid proxy
-    '/LE': {'type': 'hv_only'},
-}
+# Load Market Config
+try:
+    with open('config/market_config.json', 'r') as f:
+        _config = json.load(f)
+    SKIP_EARNINGS = set(_config.get('SKIP_EARNINGS', []))
+    SKIP_SYMBOLS = set(_config.get('SKIP_SYMBOLS', []))
+    SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
+    SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
+    FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
+except FileNotFoundError:
+    print("Warning: config/market_config.json not found. Using empty defaults.", file=sys.stderr)
+    SKIP_EARNINGS = set()
+    SKIP_SYMBOLS = set()
+    SYMBOL_MAP = {}
+    SECTOR_OVERRIDES = {}
+    FUTURES_PROXY = {}
 
 class MarketCache:
     def __init__(self, db_path='.market_cache.db'):

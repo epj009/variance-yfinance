@@ -1,10 +1,22 @@
 import sys
 import csv
+import json
 from datetime import datetime
 from get_market_data import get_market_data
 
 # Default to the broader house list
 WATCHLIST_PATH = 'watchlists/default-watchlist.csv'
+
+# Load Trading Rules
+try:
+    with open('config/trading_rules.json', 'r') as f:
+        RULES = json.load(f)
+except FileNotFoundError:
+    print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
+    RULES = {
+        "vol_bias_threshold": 0.85,
+        "earnings_days_threshold": 5
+    }
 
 def get_days_to_date(date_str):
     if not date_str or date_str == "Unavailable":
@@ -62,7 +74,7 @@ def screen_volatility(limit=None, show_all=False):
             missing_bias += 1
             if not show_all:
                 continue
-        elif vol_bias <= 0.85 and not show_all:
+        elif vol_bias <= RULES['vol_bias_threshold'] and not show_all:
             low_bias_skipped += 1
             continue
 
@@ -89,7 +101,7 @@ def screen_volatility(limit=None, show_all=False):
     
     # 5. Print Report
     print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
-    filter_note = "All symbols (no bias filter)" if show_all else "Vol Bias (IV / HV) > 0.85"
+    filter_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
     print(f"**Filter:** {filter_note}\n")
     print("| Symbol | Price | IV30 | HV252 | Vol Bias | Earn | Status |")
     print("|---|---|---|---|---|---|---|")
@@ -105,13 +117,13 @@ def screen_volatility(limit=None, show_all=False):
             status_icons.append("❓ No Bias")
         elif bias > 1.0:
             status_icons.append("🔥 Expensive")
-        elif bias > 0.85:
+        elif bias > RULES['vol_bias_threshold']:
             status_icons.append("✨ Fair/High")
         else:
             status_icons.append("❄️ Cheap")
         
         earn_str = dte # Direct assignment now
-        if isinstance(dte, int) and dte <= 5 and dte >= 0:
+        if isinstance(dte, int) and dte <= RULES['earnings_days_threshold'] and dte >= 0:
             status_icons.append("⚠️ Earn")
         
         status = " ".join(status_icons)

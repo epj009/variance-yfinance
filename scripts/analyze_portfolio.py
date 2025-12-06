@@ -1,8 +1,29 @@
 import csv
 import sys
+import json
 from collections import defaultdict
 from datetime import datetime
 from get_market_data import get_market_data
+
+# Load Trading Rules
+try:
+    with open('config/trading_rules.json', 'r') as f:
+        RULES = json.load(f)
+except FileNotFoundError:
+    print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
+    RULES = {
+        "vol_bias_threshold": 0.85,
+        "dead_money_vol_bias_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "low_ivr_threshold": 20,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25
+    }
 
 class PortfolioParser:
     """
@@ -367,7 +388,7 @@ def analyze_portfolio(file_path):
         proxy_note = m_data.get('proxy')
 
         # 1. Harvest (Short Premium only)
-        if net_cost < 0 and pl_pct is not None and pl_pct >= 0.50:
+        if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
             action = "🌾 Harvest"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
@@ -391,22 +412,22 @@ def analyze_portfolio(file_path):
                 if otype == 'Call' and underlying_price > strike: is_tested = True
                 elif otype == 'Put' and underlying_price < strike: is_tested = True
         
-        if not is_winner and is_tested and min_dte < 21:
+        if not is_winner and is_tested and min_dte < RULES['gamma_dte_threshold']:
             action = "🛡️ Defense"
-            logic = "Tested & < 21 DTE"
+            logic = f"Tested & < {RULES['gamma_dte_threshold']} DTE"
             
         # 3. Gamma Zone (apply even if P/L% is unknown)
-        if not is_winner and not is_tested and min_dte < 21 and min_dte > 0:
+        if not is_winner and not is_tested and min_dte < RULES['gamma_dte_threshold'] and min_dte > 0:
             action = "☢️ Gamma"
-            logic = "< 21 DTE Risk"
+            logic = f"< {RULES['gamma_dte_threshold']} DTE Risk"
             
         # 4. Dead Money (Enhanced with Real-time Vol Bias)
-        if not is_winner and not is_tested and min_dte > 21:
-            if pl_pct is not None and -0.10 <= pl_pct <= 0.10:
-                if vol_bias > 0 and vol_bias < 0.80:
+        if not is_winner and not is_tested and min_dte > RULES['gamma_dte_threshold']:
+            if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
+                if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
                     action = "🪦 Dead Money"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
-                elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < 20:
+                elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < RULES['low_ivr_threshold']:
                      # Fallback if no live data
                      action = "🪦 Dead Money"
                      logic = "Low IVR (Stale) & Flat P/L"
@@ -417,7 +438,7 @@ def analyze_portfolio(file_path):
             try:
                 edate = datetime.fromisoformat(earnings_date).date()
                 days_to_earn = (edate - datetime.now().date()).days
-                if 0 <= days_to_earn <= 5:
+                if 0 <= days_to_earn <= RULES['earnings_days_threshold']:
                     earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
                     if not action:
                         action = f"⚠️ Earnings ({days_to_earn}d)"
@@ -484,10 +505,10 @@ def analyze_portfolio(file_path):
     print("\n")
     print(f"**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
     
-    if total_beta_delta > 75:
-        print("⚠️ **Status:** Too Long (Delta > 75)")
-    elif total_beta_delta < -50:
-        print("⚠️ **Status:** Too Short (Delta < -50)")
+    if total_beta_delta > RULES['portfolio_delta_long_threshold']:
+        print(f"⚠️ **Status:** Too Long (Delta > {RULES['portfolio_delta_long_threshold']})")
+    elif total_beta_delta < RULES['portfolio_delta_short_threshold']:
+        print(f"⚠️ **Status:** Too Short (Delta < {RULES['portfolio_delta_short_threshold']})")
     else:
         print("✅ **Status:** Delta Neutral-ish")
 
@@ -504,14 +525,14 @@ def analyze_portfolio(file_path):
     concentrations = []
     for sec, count in sorted_sectors:
         pct = count / total_positions if total_positions > 0 else 0
-        if pct > 0.25:
+        if pct > RULES['concentration_risk_pct']:
             concentrations.append(f"**{sec}** ({count} pos, {pct:.0%})")
             
     if concentrations:
         print(f"⚠️ **Concentration Risk:** High exposure to {', '.join(concentrations)}.")
         print("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
     else:
-        print("✅ **Sector Balance:** Good. No single sector exceeds 25% of the portfolio.")
+        print(f"✅ **Sector Balance:** Good. No single sector exceeds {RULES['concentration_risk_pct']:.0%} of the portfolio.")
 
     if missing_ivr_legs > 0:
         print(f"\nNote: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
