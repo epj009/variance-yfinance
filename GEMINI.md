@@ -36,6 +36,11 @@ When the user provides raw CSV data or text, **assume it is a Tastytrade export*
 8.  **Input Validation:** If the positions/watchlist file is missing or empty, warn and fall back to defaults (e.g., SPY/QQQ/IWM for the screener). Mention expected columns when input is missing or malformed.
 9.  **Error Handling:** If a symbol fails to fetch live data, report the symbol and continue with others; do not abort the whole run.
 
+## Data & Proxies
+The system uses a **Proxy System** (defined in `config/market_config.json`) to fetch volatility data for Futures, as direct option chain data is often unavailable or costly.
+*   **Logic:** For a future like `/CL` (Crude Oil), the system fetches IV from its ETF equivalent (`USO`).
+*   **Implication:** You may see `/CL` data that perfectly mirrors `USO`. This is by design. Be aware that "Proxy IV" is an approximation of the futures' implied move.
+
 ## Operational Modes
 
 ### 1. Morning Triage (Daily Routine)
@@ -72,7 +77,11 @@ Analyze grouped strategies in this order:
 
 **Step 6: Rebalancing**
 * *Check:* Is Portfolio Status "Too Long" (> +75) or "Too Short" (< -50)?
-* *Action:* Run `vol_screener.py` to find counter-acting trades.
+* *Action:* Run `vol_screener.py` (with `--exclude-sectors` if needed) to find counter-acting trades.
+* *Strategy Selection:* Select a strategy from **The Strategy Playbook** below that matches your directional need:
+    *   **Too Long (> 75):** Need **Negative Delta** (Bias: Bearish).
+    *   **Too Short (< -50):** Need **Positive Delta** (Bias: Bullish).
+    *   **Neutral:** Bias: Neutral.
 
 ### 2. Vol Screener (New Positions)
 *   **Filter 1 (Balance):** Suggest Negative Delta if "Too Long", Positive Delta if "Too Short".
@@ -84,6 +93,7 @@ Analyze grouped strategies in this order:
 ## The Strategy Playbook (Management & Defense)
 
 ### 1. Short Strangle (Undefined Risk)
+*   **Bias:** Neutral (can be Skewed Bullish/Bearish).
 *   **Setup:** Sell ~16-20 Delta Call and ~16-20 Delta Put.
 *   **Target:** 50% Profit.
 *   **Defense (Tested):**
@@ -93,6 +103,7 @@ Analyze grouped strategies in this order:
 *   **Stop:** 2x the Initial Credit Received.
 
 ### 2. Iron Condor (Defined Risk)
+*   **Bias:** Neutral (can be Skewed Bullish/Bearish).
 *   **Setup:** Sell ~20 Delta Strangle, Buy ~5-10 Delta Wings.
 *   **Target:** 50% Profit.
 *   **Defense (Tested):**
@@ -101,6 +112,7 @@ Analyze grouped strategies in this order:
 *   **Stop:** Max Loss (defined).
 
 ### 3. Iron Butterfly (Defined Risk)
+*   **Bias:** Neutral.
 *   **Setup:** Sell ATM Call & Put, Buy Wings (Width determines risk).
 *   **Target:** 25% Profit (due to lower probability).
 *   **Defense (Tested):**
@@ -110,6 +122,7 @@ Analyze grouped strategies in this order:
 *   **Stop:** Max Loss (defined).
 
 ### 4. Jade Lizard (Bullish/Neutral)
+*   **Bias:** Bullish (Positive Delta).
 *   **Setup:** Sell Short Put + Sell Call Credit Spread. Net Credit > Width of Call Spread.
 *   **Target:** 50% Profit.
 *   **Defense:**
@@ -117,6 +130,7 @@ Analyze grouped strategies in this order:
     *   *Upside (Call ITM):* Do nothing. You have no risk to the upside if set up correctly.
 
 ### 5. Twisted Sister (Bearish/Neutral)
+*   **Bias:** Bearish (Negative Delta).
 *   **Setup:** Sell Short Call + Sell Put Credit Spread (Inverse Jade Lizard).
 *   **Target:** 50% Profit.
 *   **Defense:**
@@ -124,12 +138,14 @@ Analyze grouped strategies in this order:
     *   *Downside (Put ITM):* Do nothing (No risk if Credit > Width).
 
 ### 6. Vertical Spread (Defined Risk)
+*   **Bias:** Directional (Bullish: Short Put/Long Call; Bearish: Short Call/Long Put).
 *   **Setup:** Buy one, Sell one (same type).
 *   **Target:** 50% Profit.
 *   **Defense:** Generally, **do nothing**. Defined risk trades are binary probabilities.
     *   *Exception:* If implied volatility crushes and price is near strikes, you *might* roll out for a credit, but it's rare.
 
 ### 7. Ratio Spread (Undefined Risk)
+*   **Bias:** Directional (Bullish: Put Ratio; Bearish: Call Ratio).
 *   **Setup:** Buy 1 ATM Option, Sell 2 OTM Options (same type).
 *   **Target:** 25-50% Profit.
 *   **Defense:**
@@ -137,11 +153,13 @@ Analyze grouped strategies in this order:
     *   *Tested (Long Strike):* This is the "sweet spot." Hold or take profit.
 
 ### 7b. Broken Wing Butterfly (Defined/Skewed Risk)
+*   **Bias:** Directional (Bullish: Put BWB; Bearish: Call BWB).
 *   **Setup:** Traditional butterfly with one wing wider to reduce/offset the debit (ideally for a small credit).
 *   **Target:** 25-50% Profit.
 *   **Defense:** Defined risk; usually do nothing. If tested and near max loss, close or roll the tested short strike out in time for a credit if available.
 
 ### 8. Calendar / Diagonal Spread (Time Spread)
+*   **Bias:** Neutral (Calendar) or Directional (Diagonal).
 *   **Setup:** Short Front Month, Long Back Month.
 *   **Target:** 25% Profit (Debit trade).
 *   **Defense:**
@@ -149,6 +167,7 @@ Analyze grouped strategies in this order:
     *   *Goal:* Reduce the debit paid to zero (Free trade).
 
 ### 9. Covered Call (Bullish)
+*   **Bias:** Bullish (Positive Delta).
 *   **Setup:** Long Stock + Short OTM Call.
 *   **Target:** Campaign mode (Reduce cost basis).
 *   **Defense:**
@@ -156,12 +175,14 @@ Analyze grouped strategies in this order:
     *   *Stock Drops:* Roll the Call **down** to generate more credit (reduce basis), but be careful of locking in a loss on the stock rebound.
 
 ### 10. Long Options (Speculative)
+*   **Bias:** Directional (Bullish: Call; Bearish: Put).
 *   **Setup:** Buy Call or Put.
 *   **Target:** 50% Profit.
 *   **Defense:** None. Defined Risk.
 *   **Stop:** 50% Loss. (Do not hold to zero).
 
 ### 11. Naked Short Call / Naked Short Put (Undefined Risk)
+*   **Bias:** Directional (Bullish: Short Put; Bearish: Short Call).
 *   **Setup:** Sell OTM call or put. Sized for buying power and risk tolerance.
 *   **Target:** 50% Profit.
 *   **Defense:**
@@ -170,6 +191,7 @@ Analyze grouped strategies in this order:
     *   *Stop:* Consider 2x–3x initial credit as a risk guardrail; avoid rolling for a debit.
 
 ### 12. ZEBRA (Zero Extrinsic Back Ratio)
+*   **Bias:** Directional (Bullish: Call ZEBRA; Bearish: Put ZEBRA).
 *   **Setup:** Buy 2 ITM options, sell 1 ATM/near-ATM option (same type/expiry) to create a ~1:1 stock proxy with minimal extrinsic.
 *   **Target:** 25-50% Profit or directional move similar to stock.
 *   **Defense:** Defined risk to near zero; typically do nothing. If badly tested and P/L deteriorates, close or roll the entire structure out in time for a credit if available.
