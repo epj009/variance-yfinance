@@ -395,7 +395,7 @@ def cluster_strategies(positions):
             
     return final_clusters
 
-def analyze_portfolio(file_path):
+def analyze_portfolio(file_path, output_json=False):
     """
     Main entry point for Portfolio Analysis (Morning Triage).
     
@@ -407,11 +407,15 @@ def analyze_portfolio(file_path):
     
     Args:
         file_path (str): Path to the portfolio CSV file.
+        output_json (bool): If True, suppresses markdown output and returns structured data.
     """
+    # Output handler (suppresses prints for JSON mode)
+    out = print if not output_json else (lambda *args, **kwargs: None)
+
     # 1. Parse CSV
     positions = PortfolioParser.parse(file_path)
     if not positions:
-        return
+        return {} if output_json else None
 
     # 2. Cluster Strategies
     clusters = cluster_strategies(positions)
@@ -421,7 +425,7 @@ def analyze_portfolio(file_path):
     # Filter out empty roots
     unique_roots = [r for r in unique_roots if r]
     
-    print(f"Fetching live market data for {len(unique_roots)} symbols...")
+    out(f"Fetching live market data for {len(unique_roots)} symbols...")
     market_data = get_market_data(unique_roots)
     
     # --- Data Freshness Check ---
@@ -431,13 +435,15 @@ def analyze_portfolio(file_path):
     # Better yet, let's just print the current execution time so the user knows WHEN this ran.
     
     now = datetime.now()
-    print(f"\n**Analysis Time:** {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    analysis_time = now.strftime('%Y-%m-%d %H:%M:%S')
+    out(f"\n**Analysis Time:** {analysis_time}")
     
     # Check for widespread staleness (if > 50% of symbols are stale)
     stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
     if len(market_data) > 0 and (stale_count / len(market_data)) > 0.5:
-        print("🚨 **WARNING:** > 50% of data points are marked STALE. Markets may be closed or data delayed.")
-        print("   *Verify prices before executing trades.*")
+        out("🚨 **WARNING:** > 50% of data points are marked STALE. Markets may be closed or data delayed.")
+        out("   *Verify prices before executing trades.*")
+    stale_warning = len(market_data) > 0 and (stale_count / len(market_data)) > 0.5
         
     all_position_reports = []
     total_beta_delta = 0.0
@@ -588,60 +594,70 @@ def analyze_portfolio(file_path):
     non_actionable_reports = [r for r in all_position_reports if not r['action']]
 
     # Print Triage Report
-    print("\n### Triage Report")
-    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
-    print("|---|---|---|---|---|---|---|---|---|")
+    out("\n### Triage Report")
+    out("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
+    out("|---|---|---|---|---|---|---|---|---|")
     if actionable_reports:
         for r in actionable_reports:
             pl_pct_str = f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A"
-            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | {r['action']} | {r['logic']} |")
+            out(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | {r['action']} | {r['logic']} |")
     else:
-        print("No specific triage actions triggered for current positions.")
+        out("No specific triage actions triggered for current positions.")
 
     # Print Portfolio Overview (Non-Actionable Positions)
-    print("\n### Portfolio Overview (Non-Actionable Positions)")
-    print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Status |")
-    print("|---|---|---|---|---|---|---|---|")
+    out("\n### Portfolio Overview (Non-Actionable Positions)")
+    out("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Status |")
+    out("|---|---|---|---|---|---|---|---|")
     if non_actionable_reports:
         for r in non_actionable_reports:
             pl_pct_str = f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A"
-            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | Hold |")
+            out(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | Hold |")
     else:
-        print("No non-actionable positions to display.")
+        out("No non-actionable positions to display.")
 
     # Data Integrity Guardrail
     # If we have active options but tiny delta/theta sums, likely per-share data error
     if total_option_legs > 0 and abs(total_beta_delta) < 5.0 and total_portfolio_theta < 5.0:
-        print("\n🚨 **DATA INTEGRITY WARNING:**")
-        print("   Your Delta/Theta totals are suspiciously low. Ensure your CSV contains")
-        print("   TOTAL position values (Contract Qty * 100), not per-share Greeks.")
-        print("   Risk metrics (Stress Box) may be understated by 100x.")
+        out("\n🚨 **DATA INTEGRITY WARNING:**")
+        out("   Your Delta/Theta totals are suspiciously low. Ensure your CSV contains")
+        out("   TOTAL position values (Contract Qty * 100), not per-share Greeks.")
+        out("   Risk metrics (Stress Box) may be understated by 100x.")
 
-    print("\n")
-    print(f"\n**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
+    out("\n")
+    out(f"\n**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
     
     # Display Portfolio Theta and health check
-    print(f"**Total Portfolio Theta:** ${total_portfolio_theta:.2f}/day")
+    out(f"**Total Portfolio Theta:** ${total_portfolio_theta:.2f}/day")
     net_liq = RULES['net_liquidity']
+    theta_pct_of_nl = None
+    theta_status = "N/A"
+    theta_pct_of_nl = None
     if net_liq > 0:
         theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
-        print(f"**Theta/Net Liquidity:** {theta_as_pct_of_nl:.2f}%/day")
+        theta_pct_of_nl = theta_as_pct_of_nl
+        out(f"**Theta/Net Liquidity:** {theta_as_pct_of_nl:.2f}%/day")
         if 0.1 <= theta_as_pct_of_nl <= 0.5:
-            print("✅ **Theta Status:** Healthy (0.1% - 0.5% of Net Liq/day)")
+            theta_status = "healthy"
+            out("✅ **Theta Status:** Healthy (0.1% - 0.5% of Net Liq/day)")
         elif theta_as_pct_of_nl < 0.1:
-            print("⚠️ **Theta Status:** Low. Consider adding more short premium.")
+            theta_status = "low"
+            out("⚠️ **Theta Status:** Low. Consider adding more short premium.")
         else:
-            print("☢️ **Theta Status:** High. Consider reducing overall premium sold or managing gamma risk.")
+            theta_status = "high"
+            out("☢️ **Theta Status:** High. Consider reducing overall premium sold or managing gamma risk.")
     
+    delta_status = "neutral"
     if total_beta_delta > RULES['portfolio_delta_long_threshold']:
-        print(f"⚠️ **Status:** Too Long (Delta > {RULES['portfolio_delta_long_threshold']})")
+        delta_status = "too_long"
+        out(f"⚠️ **Status:** Too Long (Delta > {RULES['portfolio_delta_long_threshold']})")
     elif total_beta_delta < RULES['portfolio_delta_short_threshold']:
-        print(f"⚠️ **Status:** Too Short (Delta < {RULES['portfolio_delta_short_threshold']})")
+        delta_status = "too_short"
+        out(f"⚠️ **Status:** Too Short (Delta < {RULES['portfolio_delta_short_threshold']})")
     else:
-        print("✅ **Status:** Delta Neutral-ish")
+        out("✅ **Status:** Delta Neutral-ish")
 
     # Delta Spectrograph
-    print("\n### The Delta Spectrograph (Risk Visualization)")
+    out("\n### The Delta Spectrograph (Risk Visualization)")
     # Aggregate by root just in case of splits, though typically one root per report entry
     root_deltas = defaultdict(float)
     for r in all_position_reports:
@@ -661,7 +677,7 @@ def analyze_portfolio(file_path):
         bar = "█" * bar_len
         # Padding
         bar = bar.ljust(20)
-        print(f"{root:<6} [{bar}] {delta:+.1f}")
+        out(f"{root:<6} [{bar}] {delta:+.1f}")
 
     # Sector Allocation Summary
     sector_counts = defaultdict(int)
@@ -669,7 +685,7 @@ def analyze_portfolio(file_path):
     for r in all_position_reports:
         sector_counts[r['sector']] += 1
     
-    print("\n### Sector Balance (Rebalancing Context)")
+    out("\n### Sector Balance (Rebalancing Context)")
     sorted_sectors = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)
     
     # Identify heavy concentrations (>25% of portfolio)
@@ -680,13 +696,13 @@ def analyze_portfolio(file_path):
             concentrations.append(f"**{sec}** ({count} pos, {pct:.0%})")
             
     if concentrations:
-        print(f"⚠️ **Concentration Risk:** High exposure to {', '.join(concentrations)}.")
-        print("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
+        out(f"⚠️ **Concentration Risk:** High exposure to {', '.join(concentrations)}.")
+        out("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
     else:
-        print(f"✅ **Sector Balance:** Good. No single sector exceeds {RULES['concentration_risk_pct']:.0%} of the portfolio.")
+        out(f"✅ **Sector Balance:** Good. No single sector exceeds {RULES['concentration_risk_pct']:.0%} of the portfolio.")
 
     if missing_ivr_legs > 0:
-        print(f"\nNote: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
+        out(f"\nNote: IV Rank data missing for {missing_ivr_legs} legs; Dead Money checks may fall back to live Vol Bias only.")
     
     # Caution tape
     caution_items = []
@@ -696,12 +712,12 @@ def analyze_portfolio(file_path):
         if "Earnings" in r.get('action', "") or "Binary Event" in r.get('logic', ""):
             caution_items.append(f"{r['root']}: earnings soon (see action/logic)")
     if caution_items:
-        print("\n### Caution")
+        out("\n### Caution")
         for c in caution_items:
-            print(f"- {c}")
+            out(f"- {c}")
 
     # Stress Box (Scenario Simulator)
-    print("\n### 📉 The Stress Box (Scenario Simulator)")
+    out("\n### 📉 The Stress Box (Scenario Simulator)")
     
     beta_sym = RULES.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
     
@@ -719,9 +735,9 @@ def analyze_portfolio(file_path):
             pass
             
     if beta_price > 0:
-        print(f"Based on Portfolio Delta (assumed {beta_sym}-weighted) and {beta_sym} Price (${beta_price:.2f}):")
-        print(f"| Scenario | Est. {beta_sym} Move | Est. Portfolio P/L |")
-        print("|---|---|---|")
+        out(f"Based on Portfolio Delta (assumed {beta_sym}-weighted) and {beta_sym} Price (${beta_price:.2f}):")
+        out(f"| Scenario | Est. {beta_sym} Move | Est. Portfolio P/L |")
+        out("|---|---|")
         
         scenarios = [
             ("Crash (-5%)", -0.05),
@@ -734,9 +750,26 @@ def analyze_portfolio(file_path):
         for label, pct in scenarios:
             spy_points = beta_price * pct
             est_pl = total_beta_delta * spy_points
-            print(f"| {label:<11} | {spy_points:+.2f} pts | ${est_pl:+.2f} |")
+            out(f"| {label:<11} | {spy_points:+.2f} pts | ${est_pl:+.2f} |")
     else:
-        print(f"Could not fetch {beta_sym} price for stress testing.")
+        out(f"Could not fetch {beta_sym} price for stress testing.")
+
+    if output_json:
+        return {
+            "analysis_time": analysis_time,
+            "actionable_reports": actionable_reports,
+            "non_actionable_reports": non_actionable_reports,
+            "summary": {
+                "total_beta_delta": total_beta_delta,
+                "total_portfolio_theta": total_portfolio_theta,
+                "theta_pct_of_net_liq": theta_pct_of_nl,
+                "theta_status": theta_status,
+                "delta_status": delta_status,
+                "sector_concentrations": concentrations,
+                "stale_warning": stale_warning,
+                "caution": caution_items
+            }
+        }
 
 def analyze_portfolio(file_path):
     """
