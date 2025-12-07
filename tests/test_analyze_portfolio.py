@@ -115,5 +115,19 @@ def test_normalize_row_tasty_style():
     normalized = PortfolioParser.normalize_row(row)
     assert normalized['Symbol'] == 'XYZ'
     assert normalized['Type'] == 'Option'
-    assert normalized['Call/Put'] == 'CALL'
+    assert normalized['Call/Put'] == 'Call'
     assert normalized['Quantity'] == '-1'
+
+
+def test_normalize_row_put_lowercase():
+    row = {
+        'Symbol': 'ABC',
+        'Type': 'Option',
+        'Call/Put': 'put',
+        'Strike Price': '50',
+        'Quantity': '1',
+        'Exp Date': '1/17/25',
+        'DTE': '45'
+    }
+    normalized = PortfolioParser.normalize_row(row)
+    assert normalized['Call/Put'] == 'Put'

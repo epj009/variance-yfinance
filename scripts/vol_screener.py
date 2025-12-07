@@ -5,19 +5,33 @@ import argparse
 from datetime import datetime
 from get_market_data import get_market_data
 
-# Default to the broader house list
-WATCHLIST_PATH = 'watchlists/default-watchlist.csv'
+# Baseline trading rules to ensure CLI remains usable even if config is missing
+RULES_DEFAULT = {
+    "vol_bias_threshold": 0.85,
+    "earnings_days_threshold": 5,
+    "bats_efficiency_min_price": 15,
+    "bats_efficiency_max_price": 75,
+    "bats_efficiency_vol_bias": 1.0,
+}
+
+# Load System Config
+try:
+    with open('config/system_config.json', 'r') as f:
+        SYS_CONFIG = json.load(f)
+    WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
+    FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
+except FileNotFoundError:
+    print("Warning: config/system_config.json not found. Using defaults.", file=sys.stderr)
+    WATCHLIST_PATH = 'watchlists/default-watchlist.csv'
+    FALLBACK_SYMBOLS = ['SPY', 'QQQ', 'IWM']
 
 # Load Trading Rules
 try:
     with open('config/trading_rules.json', 'r') as f:
-        RULES = json.load(f)
+        RULES = {**RULES_DEFAULT, **json.load(f)}
 except FileNotFoundError:
     print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
-    RULES = {
-        "vol_bias_threshold": 0.85,
-        "earnings_days_threshold": 5
-    }
+    RULES = RULES_DEFAULT.copy()
 
 def get_days_to_date(date_str):
     """Calculate the number of days from today until the given date string (ISO format)."""
@@ -36,12 +50,15 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
     Scan the watchlist for high-volatility trading opportunities.
     
     Fetches market data, filters by Vol Bias threshold (unless show_all=True),
-    and optionally excludes specific sectors. Prints a formatted report.
+    and optionally excludes specific sectors. Returns a structured report.
     
     Args:
         limit (int, optional): Max number of symbols to scan.
         show_all (bool): If True, displays all symbols regardless of Vol Bias.
         exclude_sectors (list[str], optional): List of sector names to hide from results.
+        
+    Returns:
+        dict: A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
     """
     # 1. Read Watchlist
     symbols = []
@@ -53,25 +70,22 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
                 if row and row[0] != 'Symbol':
                     symbols.append(row[0])
     except FileNotFoundError:
-        print(f"Warning: Watchlist file '{WATCHLIST_PATH}' not found. Using default symbols (SPY, QQQ, IWM).")
-        symbols = ['SPY', 'QQQ', 'IWM']
+        # print(f"Warning: Watchlist file '{WATCHLIST_PATH}' not found. Using default symbols.", file=sys.stderr) # Will be handled in main
+        symbols = FALLBACK_SYMBOLS
     except Exception as e:
-        print(f"Error reading watchlist: {e}")
-        return
+        # print(f"Error reading watchlist: {e}", file=sys.stderr) # Will be handled in main
+        return {"error": f"Error reading watchlist: {e}"}
 
     if limit:
         symbols = symbols[:limit]
     
-    if exclude_sectors:
-        print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH} (Excluding: {', '.join(exclude_sectors)})...")
-    else:
-        print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH}...")
+    # print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH} (Excluding: {', '.join(exclude_sectors)})...") # Handled in main
     
     # 2. Get Market Data (Threaded)
     data = get_market_data(symbols)
     
     # 3. Process & Filter
-    candidates = []
+    candidates_with_status = []
     low_bias_skipped = 0
     missing_bias = 0
     sector_skipped = 0
@@ -103,15 +117,39 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
             low_bias_skipped += 1
             continue
 
-        candidates.append({
+        # --- Determine Status Icons ---
+        status_icons = []
+        
+        if vol_bias is None: # Use vol_bias here, not 'bias' from c (candidate)
+            status_icons.append("❓ No Bias")
+        elif vol_bias > 1.0:
+            status_icons.append("🔥 Rich")
+        elif vol_bias > RULES['vol_bias_threshold']:
+            status_icons.append("✨ Fair/High")
+        else:
+            status_icons.append("❄️ Low")
+
+        # Bats Efficiency Zone Check
+        if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias']:
+            status_icons.append("🦇 Bats Efficiency Zone")
+            bats_zone_count += 1
+        
+        if isinstance(days_to_earnings, int) and days_to_earnings <= RULES['earnings_days_threshold'] and days_to_earnings >= 0:
+            status_icons.append("⚠️ Earn")
+        
+        # Prepare candidate data for return
+        candidate_data = {
             'Symbol': sym,
             'Price': price,
             'IV30': iv30,
             'HV252': hv252,
             'Vol Bias': vol_bias,
             'Earnings In': days_to_earnings,
-            'Proxy': metrics.get('proxy')
-        })
+            'Proxy': metrics.get('proxy'),
+            'Status Icons': status_icons, # Raw icons for JSON, will be joined for Markdown
+            'Sector': sector # Include sector in candidate data for JSON output
+        }
+        candidates_with_status.append(candidate_data)
     
     # 4. Sort by signal quality: real bias first, proxy bias second, no-bias last; then bias desc within group
     def _signal_key(c):
@@ -126,68 +164,25 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
         if proxy:
             return (1, bias)
         return (0, bias)
-    candidates.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
+    candidates_with_status.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
     
-    # 5. Print Report
-    print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
-    filter_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
-    print(f"**Filter:** {filter_note}\n")
-    print("| Symbol | Price | IV30 | HV252 | Vol Bias | Earn | Status |")
-    print("|---|---|---|---|---|---|---|")
-    
-    for c in candidates:
-        bias = c['Vol Bias']
-        price = c['Price']
-        dte = c['Earnings In']
-        proxy_note = c.get('Proxy')
-        
-        status_icons = []
-        
-        if bias is None:
-            status_icons.append("❓ No Bias")
-        elif bias > 1.0:
-            status_icons.append("🔥 Rich")
-        elif bias > RULES['vol_bias_threshold']:
-            status_icons.append("✨ Fair/High")
-        else:
-            status_icons.append("❄️ Low")
+    summary = {
+        "scanned_symbols_count": len(symbols),
+        "low_bias_skipped_count": low_bias_skipped,
+        "sector_skipped_count": sector_skipped,
+        "missing_bias_count": missing_bias,
+        "bats_efficiency_zone_count": bats_zone_count,
+        "filter_note": "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
+    }
 
-        # Bats Efficiency Zone Check
-        if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and bias > RULES['bats_efficiency_vol_bias']:
-            status_icons.append("🦇 Bats Efficiency Zone")
-            bats_zone_count += 1
-        
-        earn_str = dte # Direct assignment now
-        if isinstance(dte, int) and dte <= RULES['earnings_days_threshold'] and dte >= 0:
-            status_icons.append("⚠️ Earn")
-        
-        status = " ".join(status_icons)
-
-        price_str = f"${c['Price']:.2f}" if c['Price'] is not None else "N/A"
-        iv_str = f"{c['IV30']:.1f}%" if c['IV30'] is not None else "N/A"
-        hv_str = f"{c['HV252']:.1f}%" if c['HV252'] is not None else "N/A"
-        bias_str = f"{bias:.2f}" if bias is not None else "N/A"
-        
-        note = f" ({proxy_note})" if proxy_note else ""
-        
-        # Only show interesting ones or top 10
-        print(f"| {c['Symbol']}{note} | {price_str} | {iv_str} | {hv_str} | {bias_str} | {earn_str} | {status} |")
-
-    # Summary of filtered symbols
-    if not show_all:
-        print(f"\nSkipped {low_bias_skipped} symbols below bias threshold, {sector_skipped} excluded by sector, and {missing_bias} with missing bias.")
-    elif missing_bias:
-        print(f"\nNote: {missing_bias} symbols missing bias (no IV/HV).")
-    
-    # Bats Efficiency Zone Summary
-    if bats_zone_count > 0:
-        print(f"\nFound {bats_zone_count} symbols in the 🦇 Bats Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
+    return {"candidates": candidates_with_status, "summary": summary}
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
     parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
+    parser.add_argument('--json', action='store_true', help='Output results in JSON format')
     
     args = parser.parse_args()
     
@@ -195,4 +190,42 @@ if __name__ == "__main__":
     if args.exclude_sectors:
         exclude_list = [s.strip() for s in args.exclude_sectors.split(',')]
 
-    screen_volatility(limit=args.limit, show_all=args.show_all, exclude_sectors=exclude_list)
+    report_data = screen_volatility(limit=args.limit, show_all=args.show_all, exclude_sectors=exclude_list)
+    
+    if "error" in report_data:
+        print(json.dumps(report_data, indent=2))
+        sys.exit(1)
+
+    if args.json:
+        print(json.dumps(report_data, indent=2))
+    else:
+        # --- Original Markdown Printing Logic ---
+        summary = report_data['summary']
+        candidates = report_data['candidates']
+        
+        print(f"Scanning {summary['scanned_symbols_count']} symbols from {WATCHLIST_PATH}" + (f" (Excluding: {', '.join(exclude_list)})" if exclude_list else "") + "...")
+        print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
+        print(f"**Filter:** {summary['filter_note']}\n")
+        print("| Symbol | Price | IV30 | HV252 | Vol Bias | Earn | Status |")
+        print("|---|---|---|---|---|---|---|")
+        
+        for c in candidates:
+            price_str = f"${c['Price']:.2f}" if c['Price'] is not None else "N/A"
+            iv_str = f"{c['IV30']:.1f}%" if c['IV30'] is not None else "N/A"
+            hv_str = f"{c['HV252']:.1f}%" if c['HV252'] is not None else "N/A"
+            bias_str = f"{c['Vol Bias']:.2f}" if c['Vol Bias'] is not None else "N/A"
+            
+            note = f" ({c['Proxy']})" if c['Proxy'] else ""
+            status = " ".join(c['Status Icons'])
+            
+            print(f"| {c['Symbol']}{note} | {price_str} | {iv_str} | {hv_str} | {bias_str} | {c['Earnings In']} | {status} |")
+
+        # Summary of filtered symbols
+        if not args.show_all:
+            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['sector_skipped_count']} excluded by sector, and {summary['missing_bias_count']} with missing bias.")
+        elif summary['missing_bias_count']:
+            print(f"\nNote: {summary['missing_bias_count']} symbols missing bias (no IV/HV).")
+        
+        # Bats Efficiency Zone Summary
+        if summary['bats_efficiency_zone_count'] > 0:
+            print(f"\nFound {summary['bats_efficiency_zone_count']} symbols in the 🦇 Bats Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")

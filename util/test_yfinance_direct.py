@@ -1,5 +1,9 @@
+import pytest
 import yfinance as yf
 import sys
+
+# This is a manual connectivity helper, not a unit test; skip under pytest collection
+pytestmark = pytest.mark.skip("network helper (not a unit test)")
 
 def test_single_symbol(symbol):
     """
@@ -20,4 +24,3 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         target = sys.argv[1]
     test_single_symbol(target)
-

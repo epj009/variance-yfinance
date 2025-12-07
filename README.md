@@ -3,6 +3,14 @@
 ## Overview
 The "Alchemist" is a CLI-based trading assistant designed to automate the mechanical trading philosophy of *The Unlucky Investor's Guide to Options Trading* (Tastytrade style). It helps retail traders separate luck from skill by analyzing portfolio mechanics and hunting for high-probability trades.
 
+## Quick Start
+- Create a virtualenv: `python3 -m venv venv && source venv/bin/activate`
+- Install deps: `pip install -r requirements.txt`
+- Run the tools:
+  - Screener: `python scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"]`
+  - Triage: `python scripts/analyze_portfolio.py positions/<tastytrade_export>.csv`
+- Run tests: `python -m pytest -q`
+
 ## Core Logic & Innovation
 
 ### 1. Vol Bias (The "Richness" Metric)
@@ -52,6 +60,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Calculates Vol Bias on the fly using `HV252`.
     *   Filters and ranks symbols by "Richness" based on `trading_rules.json`.
     *   Uses proxies for futures (e.g., `/CL` via USO, `/ES` via VIX) and labels them in the output.
+    *   Labels “🦇 Bats Efficiency Zone” when price is between `$15-$75` and Vol Bias > `1.0`.
     *   **Sector Exclusion:** Can filter out symbols from specified sectors using `--exclude-sectors`.
 *   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"]`
 *   **Watchlist:** `watchlists/default-watchlist.csv` (first column `Symbol`).
@@ -70,6 +79,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Loads symbol maps and sector overrides from `market_config.json`.
     *   Calculates HV252 and IV30 math, with option-chain guards to avoid runaway downloads.
     *   Provides proxy IV/HV for futures so Vol Bias is available even when chains are absent.
+    *   Caches results in `.market_cache.db` with periodic pruning to keep the cache small.
 
 ### `util/`
 *   **Purpose:** Contains helper scripts and internal development tools.
@@ -82,3 +92,8 @@ The system is driven by centralized configuration files in the `config/` directo
 1.  **Morning:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
 2.  **Rebalance:** If portfolio delta is skewed or sector concentration is high, run `source venv/bin/activate && python3 scripts/vol_screener.py` (using `--exclude-sectors` if applicable) to find contrarian candidates.
 3.  **Execution:** Use the "Vol Bias" report to select the most expensive premium to sell.
+
+## Operational Notes
+- Broker format: assumes Tastytrade exports. `Call/Put` casing is normalized internally, but supply the standard columns from Tastytrade for best results.
+- Config resilience: both scripts ship with safe defaults. If `config/trading_rules.json` or `config/system_config.json` are missing, the tools fall back to baseline thresholds and a small watchlist (`SPY/QQQ/IWM`) so the CLI keeps working.
+- Sectors: futures/indices are labeled explicitly (“Futures” / “Index”) and sector overrides take precedence over any provider lookups.

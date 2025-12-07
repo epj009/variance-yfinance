@@ -13,6 +13,17 @@ import io # Added for stderr redirection
 import threading
 import contextlib
 
+# Load System Config
+try:
+    with open('config/system_config.json', 'r') as f:
+        SYS_CONFIG = json.load(f)
+    DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
+    TTL = SYS_CONFIG.get('cache_ttl_seconds', {})
+except FileNotFoundError:
+    print("Warning: config/system_config.json not found. Using defaults.", file=sys.stderr)
+    DB_PATH = '.market_cache.db'
+    TTL = {'hv': 86400, 'iv': 900, 'price': 600, 'earnings': 604800, 'sector': 2592000}
+
 # Load Market Config
 try:
     with open('config/market_config.json', 'r') as f:
@@ -37,10 +48,11 @@ class MarketCache:
     Attributes:
         db_path (str): Path to the SQLite database file.
     """
-    def __init__(self, db_path='.market_cache.db'):
+    def __init__(self, db_path=None):
         """Initialize the cache with a database connection and a thread lock."""
-        self.db_path = db_path
+        self.db_path = db_path if db_path else DB_PATH
         self._lock = threading.Lock()
+        self._last_sweep = 0  # Throttle expiry pruning
         self._init_db()
 
     def _connect(self):
@@ -103,6 +115,11 @@ class MarketCache:
                 with self._connect() as conn:
                     conn.execute('INSERT OR REPLACE INTO cache (key, value, expiry) VALUES (?, ?, ?)', 
                                  (key, json.dumps(value), expiry))
+                    # Light-weight hygiene: periodically prune expired rows to keep DB small
+                    now = time.time()
+                    if now - self._last_sweep > 300:  # sweep every 5 minutes at most
+                        conn.execute('DELETE FROM cache WHERE expiry < ?', (now,))
+                        self._last_sweep = now
         except Exception as exc:
             print(f"[cache] set failed for {key}: {exc}", file=sys.stderr)
             pass
@@ -183,7 +200,7 @@ def calculate_hv(ticker_obj, symbol_key):
     try:
         val = retry_fetch(_fetch)
         if val is not None:
-            cache.set(cache_key, val, 86400)
+            cache.set(cache_key, val, TTL.get('hv', 86400))
         return val
     except Exception:
         return None
@@ -267,7 +284,7 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
     try:
         val = retry_fetch(_fetch)
         if val is not None:
-            cache.set(cache_key, val, 900)
+            cache.set(cache_key, val, TTL.get('iv', 900))
         return val
     except Exception:
         return None
@@ -305,7 +322,7 @@ def get_price(ticker_obj, symbol_key):
     try:
         val = retry_fetch(_fetch, retries=2)
         if val is not None:
-            cache.set(cache_key, val, 600)
+            cache.set(cache_key, val, TTL.get('price', 600))
         return val
     except:
         return None
@@ -386,7 +403,7 @@ def get_earnings_date(ticker_obj, symbol_key):
     try:
         val = retry_fetch(_fetch, retries=1)
         if val is not None:
-            cache.set(cache_key, val, 604800)
+            cache.set(cache_key, val, TTL.get('earnings', 604800))
         return val
     except Exception:
         return None
@@ -410,6 +427,11 @@ def get_sector(ticker_obj, symbol_key):
         return cached
 
     def _fetch():
+        # Avoid expensive/404-prone lookups for futures and indices; rely on overrides instead
+        if symbol_key.endswith("=F"):
+            return "Futures"
+        if symbol_key.startswith("^"):
+            return "Index"
         try:
             # .info can be slow/flaky, but it's the only place for sector
             info = ticker_obj.info
@@ -421,7 +443,7 @@ def get_sector(ticker_obj, symbol_key):
         # Cache for 30 days (sector unlikely to change)
         val = retry_fetch(_fetch, retries=1)
         if val is not None:
-            cache.set(cache_key, val, 2592000)
+            cache.set(cache_key, val, TTL.get('sector', 2592000))
         return val
     except:
         return "Unknown"

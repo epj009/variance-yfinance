@@ -5,25 +5,30 @@ from collections import defaultdict
 from datetime import datetime
 from get_market_data import get_market_data
 
+# Baseline trading rules so triage still runs if config is missing/malformed
+RULES_DEFAULT = {
+    "vol_bias_threshold": 0.85,
+    "dead_money_vol_bias_threshold": 0.80,
+    "dead_money_pl_pct_low": -0.10,
+    "dead_money_pl_pct_high": 0.10,
+    "low_ivr_threshold": 20,
+    "gamma_dte_threshold": 21,
+    "profit_harvest_pct": 0.50,
+    "earnings_days_threshold": 5,
+    "portfolio_delta_long_threshold": 75,
+    "portfolio_delta_short_threshold": -50,
+    "concentration_risk_pct": 0.25,
+    "net_liquidity": 50000,
+    "beta_weighted_symbol": "SPY"
+}
+
 # Load Trading Rules
 try:
     with open('config/trading_rules.json', 'r') as f:
-        RULES = json.load(f)
+        RULES = {**RULES_DEFAULT, **json.load(f)}
 except FileNotFoundError:
     print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
-    RULES = {
-        "vol_bias_threshold": 0.85,
-        "dead_money_vol_bias_threshold": 0.80,
-        "dead_money_pl_pct_low": -0.10,
-        "dead_money_pl_pct_high": 0.10,
-        "low_ivr_threshold": 20,
-        "gamma_dte_threshold": 21,
-        "profit_harvest_pct": 0.50,
-        "earnings_days_threshold": 5,
-        "portfolio_delta_long_threshold": 75,
-        "portfolio_delta_short_threshold": -50,
-        "concentration_risk_pct": 0.25
-    }
+    RULES = RULES_DEFAULT.copy()
 
 class PortfolioParser:
     """
@@ -63,7 +68,15 @@ class PortfolioParser:
             found = False
             for alias in aliases:
                 if alias in row:
-                    normalized[internal_key] = row[alias]
+                    val = row[alias]
+                    # Canonicalize option side to keep strategy detection stable across casing
+                    if internal_key == 'Call/Put' and val:
+                        upper_val = str(val).strip().upper()
+                        if upper_val == 'CALL':
+                            val = 'Call'
+                        elif upper_val == 'PUT':
+                            val = 'Put'
+                    normalized[internal_key] = val
                     found = True
                     break
             if not found:
@@ -130,6 +143,8 @@ def get_root_symbol(raw_symbol):
 
 def is_stock_type(type_str):
     """Determine if a position leg is underlying stock/equity."""
+    if not type_str:
+        return False
     normalized = type_str.strip().lower()
     return normalized in {"stock", "equity", "equities", "equity stock"}
 
