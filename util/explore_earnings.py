@@ -2,6 +2,12 @@ import yfinance as yf
 import sys
 
 def check_earnings(symbol):
+    """
+    Fetch and print earnings calendar information for a symbol.
+    
+    Prints the standard 'calendar' dict and the 'earnings_dates' dataframe.
+    Used to verify if earnings data is available for a specific ticker.
+    """
     print(f"Checking {symbol}...")
     t = yf.Ticker(symbol)
     

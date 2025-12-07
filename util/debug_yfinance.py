@@ -1,10 +1,12 @@
 import yfinance as yf
 
-symbols = ["GLD", "CL=F", "IBIT", "SPY"]
-
-print("--- Starting Diagnostic ---")
-
-for sym in symbols:
+def check_symbol(sym):
+    """
+    Fetch and print debug information for a single symbol using yfinance.
+    
+    Displays fast_info price, last 1m price, options expirations, and option chain details.
+    Useful for verifying data availability and diagnosing API issues.
+    """
     print(f"\nTesting {sym}...")
     t = yf.Ticker(sym)
     
@@ -32,3 +34,9 @@ for sym in symbols:
         print(f"  [Info] Price: {info.get('regularMarketPrice')}")
     except Exception as e:
         print(f"  [Info] Failed: {e}")
+
+if __name__ == "__main__":
+    symbols = ["GLD", "CL=F", "IBIT", "SPY"]
+    print("--- Starting Diagnostic ---")
+    for s in symbols:
+        check_symbol(s)

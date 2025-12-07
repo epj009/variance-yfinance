@@ -1,6 +1,7 @@
 import sys
 import csv
 import json
+import argparse
 from datetime import datetime
 from get_market_data import get_market_data
 
@@ -19,6 +20,7 @@ except FileNotFoundError:
     }
 
 def get_days_to_date(date_str):
+    """Calculate the number of days from today until the given date string (ISO format)."""
     if not date_str or date_str == "Unavailable":
         return "N/A" # Return a string for unavailable
     try:
@@ -29,7 +31,18 @@ def get_days_to_date(date_str):
     except:
         return "N/A"
 
-def screen_volatility(limit=None, show_all=False):
+def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
+    """
+    Scan the watchlist for high-volatility trading opportunities.
+    
+    Fetches market data, filters by Vol Bias threshold (unless show_all=True),
+    and optionally excludes specific sectors. Prints a formatted report.
+    
+    Args:
+        limit (int, optional): Max number of symbols to scan.
+        show_all (bool): If True, displays all symbols regardless of Vol Bias.
+        exclude_sectors (list[str], optional): List of sector names to hide from results.
+    """
     # 1. Read Watchlist
     symbols = []
     try:
@@ -48,8 +61,11 @@ def screen_volatility(limit=None, show_all=False):
 
     if limit:
         symbols = symbols[:limit]
-        
-    print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH}...")
+    
+    if exclude_sectors:
+        print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH} (Excluding: {', '.join(exclude_sectors)})...")
+    else:
+        print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH}...")
     
     # 2. Get Market Data (Threaded)
     data = get_market_data(symbols)
@@ -58,6 +74,8 @@ def screen_volatility(limit=None, show_all=False):
     candidates = []
     low_bias_skipped = 0
     missing_bias = 0
+    sector_skipped = 0
+
     for sym, metrics in data.items():
         if 'error' in metrics:
             continue
@@ -67,7 +85,13 @@ def screen_volatility(limit=None, show_all=False):
         vol_bias = metrics.get('vol_bias')
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
+        sector = metrics.get('sector', 'Unknown')
         
+        # Sector Filter
+        if exclude_sectors and sector in exclude_sectors:
+            sector_skipped += 1
+            continue
+
         days_to_earnings = get_days_to_date(earnings_date)
         
         if vol_bias is None:
@@ -90,6 +114,10 @@ def screen_volatility(limit=None, show_all=False):
     
     # 4. Sort by signal quality: real bias first, proxy bias second, no-bias last; then bias desc within group
     def _signal_key(c):
+        # Sorting Logic:
+        # 1. Primary Key: Data Quality (0=Real Bias, 1=Proxy Bias, 2=No Bias). Lower is better.
+        # 2. Secondary Key: Vol Bias (Descending). Higher is better.
+        # Returns a tuple for comparison.
         bias = c['Vol Bias']
         proxy = c.get('Proxy')
         if bias is None:
@@ -140,19 +168,20 @@ def screen_volatility(limit=None, show_all=False):
 
     # Summary of filtered symbols
     if not show_all:
-        print(f"\nSkipped {low_bias_skipped} symbols below bias threshold and {missing_bias} with missing bias.")
+        print(f"\nSkipped {low_bias_skipped} symbols below bias threshold, {sector_skipped} excluded by sector, and {missing_bias} with missing bias.")
     elif missing_bias:
         print(f"\nNote: {missing_bias} symbols missing bias (no IV/HV).")
 
 if __name__ == "__main__":
-    limit = None
-    show_all = False
-    for arg in sys.argv[1:]:
-        if arg == "--show-all":
-            show_all = True
-        else:
-            try:
-                limit = int(arg)
-            except:
-                pass
-    screen_volatility(limit, show_all)
+    parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
+    parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
+    parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')
+    parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
+    
+    args = parser.parse_args()
+    
+    exclude_list = None
+    if args.exclude_sectors:
+        exclude_list = [s.strip() for s in args.exclude_sectors.split(',')]
+
+    screen_volatility(limit=args.limit, show_all=args.show_all, exclude_sectors=exclude_list)

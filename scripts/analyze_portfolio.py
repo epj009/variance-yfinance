@@ -49,6 +49,15 @@ class PortfolioParser:
 
     @staticmethod
     def normalize_row(row):
+        """
+        Convert a raw CSV row into a normalized dictionary using MAPPING.
+        
+        Args:
+            row (dict): A single row from the CSV reader.
+            
+        Returns:
+            dict: A dictionary with standard keys (Symbol, Type, etc.) and normalized values.
+        """
         normalized = {}
         for internal_key, aliases in PortfolioParser.MAPPING.items():
             found = False
@@ -63,6 +72,15 @@ class PortfolioParser:
 
     @staticmethod
     def parse(file_path):
+        """
+        Read and parse the CSV file at the given path.
+        
+        Args:
+            file_path (str): Path to the CSV file.
+            
+        Returns:
+            list[dict]: A list of normalized position rows.
+        """
         positions = []
         try:
             with open(file_path, 'r', encoding='utf-8-sig') as f:
@@ -74,6 +92,7 @@ class PortfolioParser:
         return positions
 
 def parse_currency(value):
+    """Clean and convert currency strings (e.g., '$1,234.56') to floats."""
     if not value:
         return 0.0
     clean = value.replace(',', '').replace('$', '').replace('%', '').strip()
@@ -85,6 +104,7 @@ def parse_currency(value):
         return 0.0
 
 def parse_dte(value):
+    """Clean and convert DTE strings (e.g., '45d') to integers."""
     if not value:
         return 0
     clean = value.replace('d', '').strip()
@@ -94,6 +114,7 @@ def parse_dte(value):
         return 0
 
 def get_root_symbol(raw_symbol):
+    """Extract the root symbol from a ticker, handling futures (e.g., /ESZ4 -> /ES)."""
     # Normalize multi-space and single-space separated symbols
     token = raw_symbol.strip().split()[0] if raw_symbol else ""
 
@@ -108,10 +129,23 @@ def get_root_symbol(raw_symbol):
     return token
 
 def is_stock_type(type_str):
+    """Determine if a position leg is underlying stock/equity."""
     normalized = type_str.strip().lower()
     return normalized in {"stock", "equity", "equities", "equity stock"}
 
 def identify_strategy(legs):
+    """
+    Identify the option strategy based on a list of position legs.
+    
+    Analyzes the combination of Calls/Puts, Long/Short quantities, and strike prices
+    to name the complex strategy (e.g., 'Iron Condor', 'Strangle', 'Covered Call').
+    
+    Args:
+        legs (list[dict]): A list of normalized position legs belonging to one symbol group.
+        
+    Returns:
+        str: The name of the strategy.
+    """
     # This function now expects a list of legs that are already grouped as a potential strategy.
     # It will also be called with stock legs included for Covered strategies.
 
@@ -171,6 +205,7 @@ def identify_strategy(legs):
     if is_multi_exp:
         if total_opt_legs == 2:
             if short_calls == 1 and long_calls == 1:
+                # Same strike = Calendar, Different strike = Diagonal
                 if short_call_strikes and short_call_strikes[0] == long_call_strikes[0]:
                     return "Calendar Spread (Call)"
                 return "Diagonal Spread (Call)"
@@ -183,24 +218,27 @@ def identify_strategy(legs):
         return "Custom/Combo (Multi-Exp)"
 
     if total_opt_legs == 4:
+        # Standard 4-leg defined risk strategies
         if short_calls == 1 and long_calls == 1 and short_puts == 1 and long_puts == 1:
             if short_call_strikes and short_put_strikes and short_call_strikes[0] == short_put_strikes[0]:
-                 return "Iron Butterfly"
-            return "Iron Condor"
+                 return "Iron Butterfly" # Shorts share the same strike (ATM)
+            return "Iron Condor" # Shorts are at different strikes (OTM)
     
     if total_opt_legs == 3:
+        # 3-Leg strategies: Jade Lizard, Twisted Sister, Butterflies
         if short_puts >= 1 and short_calls >= 1 and long_calls >= 1 and long_puts == 0:
-            return "Jade Lizard"
+            return "Jade Lizard" # Short Put + Short Call Spread
         if short_calls >= 1 and short_puts >= 1 and long_puts >= 1 and long_calls == 0:
-            return "Twisted Sister"
+            return "Twisted Sister" # Short Call + Short Put Spread
         if long_calls == 2 and short_calls == 1 and long_call_qty == abs(short_call_qty): return "Long Call Butterfly"
         if long_puts == 2 and short_puts == 1 and long_put_qty == abs(short_put_qty): return "Long Put Butterfly"
 
     if total_opt_legs == 2:
-        if short_calls >= 1 and short_puts >= 1: return "Strangle"
+        # Standard 2-leg strategies
+        if short_calls >= 1 and short_puts >= 1: return "Strangle" # Short Call + Short Put
         if (long_calls >= 1 and short_calls >= 1):
-            if long_call_qty != short_call_qty: return "Ratio Spread (Call)"
-            return "Vertical Spread (Call)"
+            if long_call_qty != short_call_qty: return "Ratio Spread (Call)" # Uneven quantity
+            return "Vertical Spread (Call)" # 1 Long, 1 Short
         if (long_puts >= 1 and short_puts >= 1):
             if long_put_qty != short_put_qty: return "Ratio Spread (Put)"
             return "Vertical Spread (Put)"
@@ -209,8 +247,19 @@ def identify_strategy(legs):
 
 def cluster_strategies(positions):
     """
-    Groups positions by Root, then identifies multi-leg strategies,
-    including stock-option combinations like Covered Calls.
+    Group individual position legs into logical strategies (e.g., combining a short call and short put into a Strangle).
+    
+    Logic:
+    1. Group all legs by Root Symbol.
+    2. Within each Root:
+       a. Group options by Expiration Date to find standard vertical/horizontal spreads.
+       b. Match Stock legs with remaining Option legs to find Covered Calls/Collars.
+       
+    Args:
+        positions (list[dict]): List of flat position rows.
+        
+    Returns:
+        list[list[dict]]: A list of lists, where each inner list is a group of legs forming a strategy.
     """
     by_root_all_legs = defaultdict(list)
     for row in positions:
@@ -227,7 +276,7 @@ def cluster_strategies(positions):
         stock_legs = [l for l in root_legs if is_stock_type(l['Type'])]
         option_legs = [l for l in root_legs if not is_stock_type(l['Type'])]
         
-        # Used flags for options within this root
+        # Used flags for options within this root to prevent double-counting legs
         option_used_flags = [False] * len(option_legs)
         stock_used_flags = [False] * len(stock_legs) # Keep track of used stocks
         
@@ -248,6 +297,7 @@ def cluster_strategies(positions):
                 strat_name = identify_strategy(temp_cluster)
                 
                 # If it's a known multi-leg strategy (not single option or custom/combo or stock)
+                # We prioritize finding 'named' strategies over leaving them as loose legs
                 if strat_name not in ["Single Option (Unknown Type)", "Custom/Combo", "Stock", "Empty", "Custom/Combo (Stock)"]:
                     final_clusters.append(temp_cluster)
                     # Mark all legs in this temp_cluster as used
@@ -325,6 +375,18 @@ def cluster_strategies(positions):
     return final_clusters
 
 def analyze_portfolio(file_path):
+    """
+    Main entry point for Portfolio Analysis (Morning Triage).
+    
+    1. Parses the input CSV.
+    2. Groups positions into Strategies.
+    3. Fetches live market data (Price, Volatility).
+    4. Applies Triage Rules (Harvest, Defense, Gamma, etc.) based on RULES config.
+    5. Prints a formatted report to stdout.
+    
+    Args:
+        file_path (str): Path to the portfolio CSV file.
+    """
     # 1. Parse CSV
     positions = PortfolioParser.parse(file_path)
     if not positions:
