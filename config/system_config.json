@@ -1,0 +1,12 @@
+{
+    "watchlist_path": "watchlists/default-watchlist.csv",
+    "fallback_symbols": ["SPY", "QQQ", "IWM"],
+    "market_cache_db_path": ".market_cache.db",
+    "cache_ttl_seconds": {
+        "hv": 86400,
+        "iv": 900,
+        "price": 600,
+        "earnings": 604800,
+        "sector": 2592000
+    }
+}
