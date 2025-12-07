@@ -1,6 +1,7 @@
 import csv
 import sys
 import json
+import argparse # Import argparse
 from collections import defaultdict
 from datetime import datetime
 from get_market_data import get_market_data
@@ -737,9 +738,439 @@ def analyze_portfolio(file_path):
     else:
         print(f"Could not fetch {beta_sym} price for stress testing.")
 
+def analyze_portfolio(file_path):
+    """
+    Main entry point for Portfolio Analysis (Morning Triage).
+    
+    1. Parses the input CSV.
+    2. Groups positions into Strategies.
+    3. Fetches live market data (Price, Volatility).
+    4. Applies Triage Rules (Harvest, Defense, Gamma, etc.) based on RULES config.
+    5. Returns a structured report (dictionary).
+    
+    Args:
+        file_path (str): Path to the portfolio CSV file.
+        
+    Returns:
+        dict: A dictionary containing the full analysis report.
+    """
+    # 1. Parse CSV
+    positions = PortfolioParser.parse(file_path)
+    if not positions:
+        return {"error": "No positions found in CSV or error parsing file."}
+
+    # 2. Cluster Strategies
+    clusters = cluster_strategies(positions)
+    
+    # 3. Gather Unique Roots for Live Data
+    unique_roots = list(set(get_root_symbol(l['Symbol']) for l in positions))
+    # Filter out empty roots
+    unique_roots = [r for r in unique_roots if r]
+    
+    # print(f"Fetching live market data for {len(unique_roots)} symbols...") # Moved to main print
+
+    market_data = get_market_data(unique_roots)
+    
+    # --- Data Freshness Check ---
+    now = datetime.now()
+    stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
+    widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > 0.5
+        
+    all_position_reports = []
+    total_beta_delta = 0.0
+    total_portfolio_theta = 0.0 # Initialize total portfolio theta
+    missing_ivr_legs = 0
+    total_option_legs = 0 # Count active option legs for data integrity check
+
+    for legs in clusters:
+        root = get_root_symbol(legs[0]['Symbol'])
+        
+        # Calculate min_dte only for option legs
+        option_legs = [l for l in legs if not is_stock_type(l['Type'])]
+        total_option_legs += len(option_legs)
+        dtes = [parse_dte(l['DTE']) for l in option_legs]
+        min_dte = min(dtes) if dtes else 0
+        
+        strategy_name = identify_strategy(legs)
+        net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
+        
+        strategy_delta = 0.0
+        for l in legs:
+            b_delta = parse_currency(l['beta_delta'])
+            strategy_delta += b_delta
+            total_beta_delta += b_delta
+            total_portfolio_theta += parse_currency(l['Theta']) # Sum Theta from each leg
+            if not str(l['IV Rank']).strip():
+                missing_ivr_legs += 1
+
+        net_cost = sum(parse_currency(l['Cost']) for l in legs)
+        
+        pl_pct = None
+        # Treat negatives as credits received, positives as debits paid
+        if net_cost < 0:
+            max_profit = abs(net_cost)
+            if max_profit > 0:
+                pl_pct = net_pl / max_profit
+        elif net_cost > 0:
+            pl_pct = net_pl / net_cost
+        
+        # Initialize variables
+        action = ""
+        logic = ""
+        is_winner = False
+        
+        # Retrieve live data
+        m_data = market_data.get(root, {})
+        vol_bias = m_data.get('vol_bias', 0)
+        if vol_bias is None: vol_bias = 0
+        
+        live_price = m_data.get('price', 0)
+        is_stale = m_data.get('is_stale', False)
+        earnings_date = m_data.get('earnings_date')
+        sector = m_data.get('sector', 'Unknown')
+        proxy_note = m_data.get('proxy')
+
+        # 1. Harvest (Short Premium only)
+        if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
+            action = "🌾 Harvest"
+            logic = f"Profit {pl_pct:.1%}"
+            is_winner = True
+        
+        # 2. Defense
+        underlying_price = parse_currency(legs[0]['Underlying Last Price'])
+        price_used = "static"
+        # Use live price if available
+        if live_price:
+            underlying_price = live_price
+            price_used = "live_stale" if is_stale else "live"
+            
+        is_tested = False
+        for l in legs:
+            # Only check option legs for "tested" status
+            if is_stock_type(l['Type']): continue 
+            qty = parse_currency(l['Quantity'])
+            otype = l['Call/Put']
+            strike = parse_currency(l['Strike Price'])
+            if qty < 0:
+                if otype == 'Call' and underlying_price > strike: is_tested = True
+                elif otype == 'Put' and underlying_price < strike: is_tested = True
+        
+        if not is_winner and is_tested and min_dte < RULES['gamma_dte_threshold']:
+            action = "🛡️ Defense"
+            logic = f"Tested & < {RULES['gamma_dte_threshold']} DTE"
+            
+        # 3. Gamma Zone (apply even if P/L% is unknown)
+        if not is_winner and not is_tested and min_dte < RULES['gamma_dte_threshold'] and min_dte > 0:
+            action = "☢️ Gamma"
+            logic = f"< {RULES['gamma_dte_threshold']} DTE Risk"
+            
+        # 4. Dead Money (Enhanced with Real-time Vol Bias)
+        if not is_winner and not is_tested and min_dte > RULES['gamma_dte_threshold']:
+            if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
+                if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
+                    action = "🪦 Dead Money"
+                    logic = f"Bias {vol_bias:.2f} & Flat P/L"
+                elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < RULES['low_ivr_threshold']:
+                     # Fallback if no live data
+                     action = "🪦 Dead Money"
+                     logic = "Low IVR (Stale) & Flat P/L"
+
+        # 5. Earnings Warning
+        earnings_note = ""
+        if earnings_date and earnings_date != "Unavailable":
+            try:
+                edate = datetime.fromisoformat(earnings_date).date()
+                days_to_earn = (edate - datetime.now().date()).days
+                if 0 <= days_to_earn <= RULES['earnings_days_threshold']:
+                    earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
+                    if not action:
+                        action = f"⚠️ Earnings ({days_to_earn}d)"
+                        logic = "Binary Event Risk"
+                    else:
+                        logic = f"{logic} | {earnings_note}" if logic else earnings_note
+            except:
+                pass
+        
+        price_str = f"${live_price:.2f}" if live_price else "N/A"
+        if is_stale:
+            price_str += "*"
+        bias_str = f"{vol_bias:.2f}" if vol_bias else "N/A"
+        if proxy_note:
+            bias_str += f" ({proxy_note})"
+
+        if (price_used != "live" or is_stale) and not is_winner and min_dte < 21:
+            # If we can't rely fully on tested logic due to stale/absent live price, note it
+            note = "Price stale/absent; tested status uncertain"
+            if action in ["🛡️ Defense", "☢️ Gamma"]:
+                logic = f"{logic} | {note}" if logic else note
+            elif not action:
+                action = ""
+                logic = note
+
+        all_position_reports.append({
+            'root': root,
+            'strategy_name': strategy_name,
+            'price_str': price_str,
+            'bias_str': bias_str,
+            'net_pl': net_pl,
+            'pl_pct': pl_pct,
+            'min_dte': min_dte,
+            'action': action,
+            'logic': logic,
+            'sector': sector,
+            'delta': strategy_delta
+        })
+    
+    # --- Generate Structured Report Data ---
+    report = {
+        "analysis_time": now.strftime('%Y-%m-%d %H:%M:%S'),
+        "data_freshness_warning": widespread_staleness,
+        "market_data_symbols_count": len(unique_roots),
+        "triage_actions": [],
+        "portfolio_overview": [],
+        "portfolio_summary": {
+            "total_beta_delta": total_beta_delta,
+            "total_portfolio_theta": total_portfolio_theta,
+            "theta_net_liquidity_pct": 0.0,
+            "theta_status": "N/A",
+            "delta_status": "N/A"
+        },
+        "data_integrity_warning": {"risk": False, "details": ""},
+        "delta_spectrograph": [],
+        "sector_balance": [],
+        "sector_concentration_warning": {"risk": False},
+        "caution_items": [],
+        "stress_box": None
+    }
+
+    # Populate Triage Actions
+    for r in all_position_reports:
+        if r['action']:
+            report['triage_actions'].append({
+                "symbol": r['root'],
+                "strategy": r['strategy_name'],
+                "price": r['price_str'],
+                "vol_bias": r['bias_str'],
+                "net_pl": r['net_pl'],
+                "pl_pct": f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A",
+                "dte": f"{r['min_dte']}d",
+                "action": r['action'],
+                "logic": r['logic']
+            })
+        else:
+            report['portfolio_overview'].append({
+                "symbol": r['root'],
+                "strategy": r['strategy_name'],
+                "price": r['price_str'],
+                "vol_bias": r['bias_str'],
+                "net_pl": r['net_pl'],
+                "pl_pct": f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A",
+                "dte": f"{r['min_dte']}d",
+                "status": "Hold"
+            })
+
+    # Populate Portfolio Summary
+    net_liq = RULES['net_liquidity']
+    if net_liq > 0:
+        theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
+        report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
+        if 0.1 <= theta_as_pct_of_nl <= 0.5:
+            report['portfolio_summary']['theta_status'] = "Healthy (0.1% - 0.5% of Net Liq/day)"
+        elif theta_as_pct_of_nl < 0.1:
+            report['portfolio_summary']['theta_status'] = "Low. Consider adding more short premium."
+        else:
+            report['portfolio_summary']['theta_status'] = "High. Consider reducing overall premium sold or managing gamma risk."
+    
+    if total_beta_delta > RULES['portfolio_delta_long_threshold']:
+        report['portfolio_summary']['delta_status'] = f"Too Long (Delta > {RULES['portfolio_delta_long_threshold']})"
+    elif total_beta_delta < RULES['portfolio_delta_short_threshold']:
+        report['portfolio_summary']['delta_status'] = f"Too Short (Delta < {RULES['portfolio_delta_short_threshold']})"
+    else:
+        report['portfolio_summary']['delta_status'] = "Delta Neutral-ish"
+
+    # Data Integrity Guardrail
+    if total_option_legs > 0 and abs(total_beta_delta) < 5.0 and total_portfolio_theta < 5.0:
+        report['data_integrity_warning']['risk'] = True
+        report['data_integrity_warning']['details'] = "Your Delta/Theta totals are suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
+
+    # Populate Delta Spectrograph
+    root_deltas = defaultdict(float)
+    for r in all_position_reports:
+        root_deltas[r['root']] += r['delta']
+    sorted_deltas = sorted(root_deltas.items(), key=lambda x: abs(x[1]), reverse=True)
+    max_delta = max([abs(d) for r, d in sorted_deltas]) if sorted_deltas else 1.0
+    if max_delta == 0: max_delta = 1.0
+    for root, delta in sorted_deltas[:10]:
+        bar_len = int((abs(delta) / max_delta) * 20)
+        bar = "█" * bar_len
+        report['delta_spectrograph'].append({
+            "symbol": root,
+            "delta": delta,
+            "bar": bar.ljust(20) # Add padding for consistent output
+        })
+
+    # Populate Sector Balance
+    sector_counts = defaultdict(int)
+    for r in all_position_reports:
+        sector_counts[r['sector']] += 1
+    total_positions = len(all_position_reports)
+    sorted_sectors = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)
+    for sec, count in sorted_sectors:
+        pct = count / total_positions if total_positions > 0 else 0
+        report['sector_balance'].append({
+            "sector": sec,
+            "count": count,
+            "percentage": f"{pct:.0%}"
+        })
+    
+    concentrations = []
+    for sec, count in sorted_sectors:
+        pct = count / total_positions if total_positions > 0 else 0
+        if pct > RULES['concentration_risk_pct']:
+            concentrations.append(f"{sec} ({count} pos, {pct:.0%})")
+    if concentrations:
+        report['sector_concentration_warning'] = {
+            "risk": True,
+            "details": f"High exposure to {', '.join(concentrations)}."
+        }
+    else:
+        report['sector_concentration_warning'] = {"risk": False}
+
+    # Populate Caution Items
+    for r in all_position_reports:
+        if "stale" in r['logic'].lower():
+            report['caution_items'].append(f"{r['root']}: price stale/absent; tested status uncertain")
+        if "Earnings" in r.get('action', "") or "Binary Event" in r.get('logic', ""):
+            report['caution_items'].append(f"{r['root']}: earnings soon (see action/logic)")
+
+    # Stress Box (Scenario Simulator)
+    beta_sym = RULES.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
+    beta_price = 0.0
+    if beta_sym in market_data:
+        beta_price = market_data[beta_sym].get('price', 0.0)
+    else:
+        try:
+            beta_data = get_market_data([beta_sym])
+            beta_price = beta_data.get(beta_sym, {}).get('price', 0.0)
+        except:
+            pass
+            
+    if beta_price > 0:
+        scenarios = [
+            ("Crash (-5%)", -0.05),
+            ("Dip (-3%)", -0.03),
+            ("Flat", 0.0),
+            ("Rally (+3%)", 0.03),
+            ("Moon (+5%)", 0.05)
+        ]
+        stress_box_scenarios = []
+        for label, pct in scenarios:
+            spy_points = beta_price * pct
+            est_pl = total_beta_delta * spy_points
+            stress_box_scenarios.append({
+                "label": label,
+                "beta_move": spy_points,
+                "est_pl": est_pl
+            })
+        report['stress_box'] = {
+            "beta_symbol": beta_sym,
+            "beta_price": beta_price,
+            "scenarios": stress_box_scenarios
+        }
+
+    return report
+
 if __name__ == "__main__":
-    file_path = "util/sample_positions.csv"
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Analyze current portfolio positions and generate a triage report.')
+    parser.add_argument('file_path', type=str, help='Path to the portfolio CSV file.')
+    parser.add_argument('--json', action='store_true', help='Output results in JSON format.')
+    
+    args = parser.parse_args()
+    
     warn_if_not_venv()
-    analyze_portfolio(file_path)
+    report_data = analyze_portfolio(args.file_path)
+    
+    if "error" in report_data:
+        print(json.dumps(report_data, indent=2), file=sys.stderr)
+        sys.exit(1)
+
+    if args.json:
+        print(json.dumps(report_data, indent=2))
+    else:
+        # Markdown output
+        print(f"Fetching live market data for {report_data['market_data_symbols_count']} symbols...")
+        print(f"\n**Analysis Time:** {report_data['analysis_time']}")
+        if report_data['data_freshness_warning']:
+            print("🚨 **WARNING:** > 50% of data points are marked STALE. Markets may be closed or data delayed.")
+            print("   *Verify prices before executing trades.*")
+        
+        # Triage Report
+        print("\n### Triage Report")
+        print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
+        print("|---|---|---|---|---|---|---|---|---|")
+        if report_data['triage_actions']:
+            for item in report_data['triage_actions']:
+                print(f"| {item['symbol']} | {item['strategy']} | {item['price']} | {item['vol_bias']} | ${item['net_pl']:.2f} | {item['pl_pct']} | {item['dte']} | {item['action']} | {item['logic']} |")
+        else:
+            print("No specific triage actions triggered for current positions.")
+        
+        # Portfolio Overview
+        print("\n### Portfolio Overview (Non-Actionable Positions)")
+        print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Status |")
+        print("|---|---|---|---|---|---|---|---|")
+        if report_data['portfolio_overview']:
+            for item in report_data['portfolio_overview']:
+                print(f"| {item['symbol']} | {item['strategy']} | {item['price']} | {item['vol_bias']} | ${item['net_pl']:.2f} | {item['pl_pct']} | {item['dte']} | {item['status']} |")
+        else:
+            print("No non-actionable positions to display.")
+        
+        # Portfolio Summary
+        print(f"\n\n**Total Beta Weighted Delta:** {report_data['portfolio_summary']['total_beta_delta']:.2f}")
+        print(f"**Total Portfolio Theta:** ${report_data['portfolio_summary']['total_portfolio_theta']:.2f}/day")
+        print(f"**Theta/Net Liquidity:** {report_data['portfolio_summary']['theta_net_liquidity_pct']:.2f}%/day")
+        # The original print had a hardcoded '⚠️' for theta status, but the new structure provides the status string directly.
+        # We'll use the provided status string directly.
+        print(f"**Theta Status:** {report_data['portfolio_summary']['theta_status']}")
+        print(f"**Status:** {report_data['portfolio_summary']['delta_status']}")
+
+        # Data Integrity Guardrail
+        if report_data['data_integrity_warning']['risk']:
+            print("\n🚨 **DATA INTEGRITY WARNING:**")
+            print(f"   {report_data['data_integrity_warning']['details']}")
+            
+        # Delta Spectrograph
+        print("\n### The Delta Spectrograph (Risk Visualization)")
+        if report_data['delta_spectrograph']:
+            for item in report_data['delta_spectrograph']:
+                print(f"{item['symbol']:<6} [{item['bar']}] {item['delta']:+.1f}")
+        
+        # Sector Balance
+        print("\n### Sector Balance (Rebalancing Context)")
+        if report_data['sector_balance']:
+            print("| Sector | Count | Percentage |")
+            print("|---|---|---|")
+            for item in report_data['sector_balance']:
+                print(f"| {item['sector']} | {item['count']} | {item['percentage']} |")
+        if report_data['sector_concentration_warning']['risk']:
+            print(f"⚠️ **Concentration Risk:** {report_data['sector_concentration_warning']['details']}")
+            print("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
+        else:
+            print("✅ **Sector Balance:** Good. No significant sector concentration detected.")
+        
+        # Caution Items
+        if report_data['caution_items']:
+            print("\n### Caution")
+            for item in report_data['caution_items']:
+                print(f"- {item}")
+        
+        # Stress Box
+        print("\n### 📉 The Stress Box (Scenario Simulator)")
+        if report_data['stress_box']:
+            beta_sym = report_data['stress_box']['beta_symbol']
+            print(f"Based on Portfolio Delta ({report_data['portfolio_summary']['total_beta_delta']:.2f}) and {beta_sym} Price (${report_data['stress_box']['beta_price']:.2f}):")
+            print("| Scenario | Est. {beta_sym} Move | Est. Portfolio P/L |")
+            print("|---|---|---|")
+            for item in report_data['stress_box']['scenarios']:
+                print(f"| {item['label']:<11} | {item['beta_move']:.2f} pts | ${item['est_pl']:.2f} |")
+        else:
+            print("Could not fetch Beta-Weighted symbol price for stress testing.")
