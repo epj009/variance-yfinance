@@ -433,9 +433,12 @@ def analyze_portfolio(file_path):
         
         strategy_name = identify_strategy(legs)
         net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
-
+        
+        strategy_delta = 0.0
         for l in legs:
-            total_beta_delta += parse_currency(l['beta_delta'])
+            b_delta = parse_currency(l['beta_delta'])
+            strategy_delta += b_delta
+            total_beta_delta += b_delta
             total_portfolio_theta += parse_currency(l['Theta']) # Sum Theta from each leg
             if not str(l['IV Rank']).strip():
                 missing_ivr_legs += 1
@@ -554,7 +557,8 @@ def analyze_portfolio(file_path):
             'min_dte': min_dte,
             'action': action,
             'logic': logic,
-            'sector': sector
+            'sector': sector,
+            'delta': strategy_delta
         })
 
     actionable_reports = [r for r in all_position_reports if r['action']]
@@ -605,6 +609,29 @@ def analyze_portfolio(file_path):
     else:
         print("✅ **Status:** Delta Neutral-ish")
 
+    # Delta Spectrograph
+    print("\n### The Delta Spectrograph (Risk Visualization)")
+    # Aggregate by root just in case of splits, though typically one root per report entry
+    root_deltas = defaultdict(float)
+    for r in all_position_reports:
+        root_deltas[r['root']] += r['delta']
+    
+    # Sort by absolute delta influence
+    sorted_deltas = sorted(root_deltas.items(), key=lambda x: abs(x[1]), reverse=True)
+    
+    # Find max absolute delta for scaling
+    max_delta = max([abs(d) for r, d in sorted_deltas]) if sorted_deltas else 1.0
+    if max_delta == 0: max_delta = 1.0
+    
+    # Draw bars
+    for root, delta in sorted_deltas[:10]: # Top 10 drivers
+        # Scale to 20 chars
+        bar_len = int((abs(delta) / max_delta) * 20)
+        bar = "█" * bar_len
+        # Padding
+        bar = bar.ljust(20)
+        print(f"{root:<6} [{bar}] {delta:+.1f}")
+
     # Sector Allocation Summary
     sector_counts = defaultdict(int)
     total_positions = len(all_position_reports)
@@ -641,6 +668,41 @@ def analyze_portfolio(file_path):
         print("\n### Caution")
         for c in caution_items:
             print(f"- {c}")
+
+    # Stress Box (Scenario Simulator)
+    print("\n### 📉 The Stress Box (Scenario Simulator)")
+    # Need SPY price for accurate beta weighting impact
+    # We'll try to find it in existing market_data, or fetch it if missing
+    spy_price = 0.0
+    if 'SPY' in market_data:
+        spy_price = market_data['SPY'].get('price', 0.0)
+    else:
+        # Quick fetch for SPY if not held
+        try:
+            spy_data = get_market_data(['SPY'])
+            spy_price = spy_data.get('SPY', {}).get('price', 0.0)
+        except:
+            pass
+            
+    if spy_price > 0:
+        print(f"Based on Portfolio Delta ({total_beta_delta:.2f}) and SPY Price (${spy_price:.2f}):")
+        print("| Scenario | Est. SPY Move | Est. Portfolio P/L |")
+        print("|---|---|---|")
+        
+        scenarios = [
+            ("Crash (-5%)", -0.05),
+            ("Dip (-3%)", -0.03),
+            ("Flat", 0.0),
+            ("Rally (+3%)", 0.03),
+            ("Moon (+5%)", 0.05)
+        ]
+        
+        for label, pct in scenarios:
+            spy_points = spy_price * pct
+            est_pl = total_beta_delta * spy_points
+            print(f"| {label:<11} | {spy_points:+.2f} pts | ${est_pl:+.2f} |")
+    else:
+        print("Could not fetch SPY price for stress testing.")
 
 if __name__ == "__main__":
     file_path = "util/sample_positions.csv"
