@@ -9,5 +9,9 @@
     "earnings_days_threshold": 5,
     "portfolio_delta_long_threshold": 75,
     "portfolio_delta_short_threshold": -50,
-    "concentration_risk_pct": 0.25
+    "concentration_risk_pct": 0.25,
+    "net_liquidity": 50000,
+    "bats_efficiency_min_price": 15,
+    "bats_efficiency_max_price": 75,
+    "bats_efficiency_vol_bias": 1.0
 }

@@ -75,6 +75,7 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
     low_bias_skipped = 0
     missing_bias = 0
     sector_skipped = 0
+    bats_zone_count = 0 # Initialize bats zone counter
 
     for sym, metrics in data.items():
         if 'error' in metrics:
@@ -136,6 +137,7 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
     
     for c in candidates:
         bias = c['Vol Bias']
+        price = c['Price']
         dte = c['Earnings In']
         proxy_note = c.get('Proxy')
         
@@ -149,6 +151,11 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
             status_icons.append("✨ Fair/High")
         else:
             status_icons.append("❄️ Cheap")
+
+        # Bats Efficiency Zone Check
+        if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and bias > RULES['bats_efficiency_vol_bias']:
+            status_icons.append("🦇 Bats Efficiency Zone")
+            bats_zone_count += 1
         
         earn_str = dte # Direct assignment now
         if isinstance(dte, int) and dte <= RULES['earnings_days_threshold'] and dte >= 0:
@@ -171,6 +178,10 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
         print(f"\nSkipped {low_bias_skipped} symbols below bias threshold, {sector_skipped} excluded by sector, and {missing_bias} with missing bias.")
     elif missing_bias:
         print(f"\nNote: {missing_bias} symbols missing bias (no IV/HV).")
+    
+    # Bats Efficiency Zone Summary
+    if bats_zone_count > 0:
+        print(f"\nFound {bats_zone_count} symbols in the 🦇 Bats Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
