@@ -5,6 +5,11 @@ from collections import defaultdict
 from datetime import datetime
 from get_market_data import get_market_data
 
+# Warn when running outside a venv to improve portability/setup guidance
+def warn_if_not_venv():
+    if sys.prefix == getattr(sys, "base_prefix", sys.prefix):
+        print("Warning: not running in a virtual environment. Create one with `python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.", file=sys.stderr)
+
 # Baseline trading rules so triage still runs if config is missing/malformed
 RULES_DEFAULT = {
     "vol_bias_threshold": 0.85,
@@ -736,4 +741,5 @@ if __name__ == "__main__":
     file_path = "util/sample_positions.csv"
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
+    warn_if_not_venv()
     analyze_portfolio(file_path)

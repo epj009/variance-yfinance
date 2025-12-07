@@ -5,6 +5,11 @@ import argparse
 from datetime import datetime
 from get_market_data import get_market_data
 
+# Warn when running outside a venv to improve portability/setup guidance
+def warn_if_not_venv():
+    if sys.prefix == getattr(sys, "base_prefix", sys.prefix):
+        print("Warning: not running in a virtual environment. Create one with `python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.", file=sys.stderr)
+
 # Baseline trading rules to ensure CLI remains usable even if config is missing
 RULES_DEFAULT = {
     "vol_bias_threshold": 0.85,
@@ -178,6 +183,8 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
     return {"candidates": candidates_with_status, "summary": summary}
 
 if __name__ == "__main__":
+    warn_if_not_venv()
+
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
     parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')

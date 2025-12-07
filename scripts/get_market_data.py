@@ -1,4 +1,3 @@
-import yfinance as yf
 import json
 import sys
 import numpy as np
@@ -12,6 +11,13 @@ import random
 import io # Added for stderr redirection
 import threading
 import contextlib
+
+# Dependency guardrail: fail fast with clear install guidance
+try:
+    import yfinance as yf
+except ModuleNotFoundError:
+    print("Error: Missing dependency 'yfinance'. Activate your venv and run `pip install -r requirements.txt`.", file=sys.stderr)
+    sys.exit(1)
 
 # Load System Config
 try:
