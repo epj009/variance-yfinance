@@ -36,6 +36,33 @@ except FileNotFoundError:
     print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
     RULES = RULES_DEFAULT.copy()
 
+# Load Market Config (for Asset Class Map)
+MARKET_CONFIG = {}
+try:
+    with open('config/market_config.json', 'r') as f:
+        MARKET_CONFIG = json.load(f)
+except FileNotFoundError:
+    print("Warning: config/market_config.json not found. Asset Mix calculation will be limited.", file=sys.stderr)
+
+# Build reverse lookup: sector -> asset class
+SECTOR_TO_ASSET_CLASS = {}
+if 'ASSET_CLASS_MAP' in MARKET_CONFIG:
+    for asset_class, sectors in MARKET_CONFIG['ASSET_CLASS_MAP'].items():
+        for sector in sectors:
+            SECTOR_TO_ASSET_CLASS[sector] = asset_class
+
+def map_sector_to_asset_class(sector):
+    """
+    Maps a sector string to its asset class.
+
+    Args:
+        sector (str): Sector name (e.g., "Technology", "Energy")
+
+    Returns:
+        str: Asset class (e.g., "Equity", "Commodity", "Fixed Income", "FX", "Index")
+    """
+    return SECTOR_TO_ASSET_CLASS.get(sector, "Equity")  # Default to Equity if unknown
+
 class PortfolioParser:
     """
     Normalizes CSV headers from various broker exports to a standard internal format.
@@ -972,6 +999,8 @@ def analyze_portfolio(file_path):
         "delta_spectrograph": [],
         "sector_balance": [],
         "sector_concentration_warning": {"risk": False},
+        "asset_mix": [],
+        "asset_mix_warning": {"risk": False, "details": ""},
         "caution_items": [],
         "stress_box": None
     }
@@ -1068,6 +1097,39 @@ def analyze_portfolio(file_path):
         }
     else:
         report['sector_concentration_warning'] = {"risk": False}
+
+    # Calculate Asset Mix (Equity, Commodity, Fixed Income, FX, Index)
+    asset_class_counts = defaultdict(int)
+    for r in all_position_reports:
+        asset_class = map_sector_to_asset_class(r['sector'])
+        asset_class_counts[asset_class] += 1
+
+    # Build asset_mix dictionary with percentages
+    for asset_class, count in asset_class_counts.items():
+        pct = count / total_positions if total_positions > 0 else 0
+        report['asset_mix'].append({
+            "asset_class": asset_class,
+            "count": count,
+            "percentage": pct  # Store as float for programmatic use
+        })
+
+    # Sort by count descending
+    report['asset_mix'].sort(key=lambda x: x['count'], reverse=True)
+
+    # Check for Equity Heavy (> 80%)
+    equity_pct = 0.0
+    for item in report['asset_mix']:
+        if item['asset_class'] == 'Equity':
+            equity_pct = item['percentage']
+            break
+
+    if equity_pct > 0.80:
+        report['asset_mix_warning'] = {
+            "risk": True,
+            "details": f"Equity exposure is {equity_pct:.0%}. Portfolio is correlation-heavy. Consider adding Commodities, FX, or Fixed Income."
+        }
+    else:
+        report['asset_mix_warning'] = {"risk": False}
 
     # Populate Caution Items
     for r in all_position_reports:
@@ -1189,7 +1251,20 @@ if __name__ == "__main__":
             print("   *Advice:* Look for new trades in under-represented sectors to reduce correlation.")
         else:
             print("✅ **Sector Balance:** Good. No significant sector concentration detected.")
-        
+
+        # Asset Mix
+        print("\n### Asset Mix (Correlation Defense)")
+        if report_data['asset_mix']:
+            print("| Asset Class | Count | Percentage |")
+            print("|---|---|---|")
+            for item in report_data['asset_mix']:
+                print(f"| {item['asset_class']} | {item['count']} | {item['percentage']:.0%} |")
+        if report_data['asset_mix_warning']['risk']:
+            print(f"⚠️ **Equity Heavy:** {report_data['asset_mix_warning']['details']}")
+            print("   *Advice:* Use --exclude-sectors to filter Equity sectors from vol_screener.py. Target Commodities (/GC, /CL), FX (/6E, /6J), or Fixed Income (/ZB, /ZN).")
+        else:
+            print("✅ **Asset Mix:** Diversified. Good correlation defense.")
+
         # Caution Items
         if report_data['caution_items']:
             print("\n### Caution")

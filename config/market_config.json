@@ -39,13 +39,13 @@
     "SECTOR_OVERRIDES": {
         "/CL": "Energy",
         "/NG": "Energy",
-        "/GC": "Basic Materials",
-        "/SI": "Basic Materials",
-        "/HG": "Basic Materials",
-        "/ZC": "Consumer Defensive",
-        "/ZS": "Consumer Defensive",
-        "/LE": "Consumer Defensive",
-        "/HE": "Consumer Defensive",
+        "/GC": "Metals",
+        "/SI": "Metals",
+        "/HG": "Metals",
+        "/ZC": "Agriculture",
+        "/ZS": "Agriculture",
+        "/LE": "Agriculture",
+        "/HE": "Agriculture",
         "/ES": "Index",
         "/NQ": "Index",
         "/RTY": "Index",
@@ -58,8 +58,8 @@
         "/6B": "Currencies",
         "/6J": "Currencies",
         "/6A": "Currencies",
-        "GLD": "Basic Materials",
-        "SLV": "Basic Materials",
+        "GLD": "Metals",
+        "SLV": "Metals",
         "USO": "Energy",
         "UNG": "Energy",
         "IBIT": "Financial Services",
@@ -76,17 +76,28 @@
         "XLY": "Consumer Cyclical",
         "XLP": "Consumer Defensive",
         "XBI": "Healthcare",
-        "GDX": "Basic Materials",
-        "SILJ": "Basic Materials",
+        "GDX": "Metals",
+        "SILJ": "Metals",
         "EWZ": "International",
         "FXI": "International",
+        "EEM": "International",
+        "EWJ": "International",
+        "KWEB": "International",
+        "KRE": "Financial Services",
         "SPY": "Index",
         "QQQ": "Index",
         "IWM": "Index",
         "DIA": "Index",
         "TLT": "Fixed Income",
         "SHY": "Fixed Income",
-        "IEF": "Fixed Income"
+        "IEF": "Fixed Income",
+        "VXX": "Index",
+        "UVXY": "Index",
+        "UVIX": "Index",
+        "TQQQ": "Index",
+        "SQQQ": "Index",
+        "SPXU": "Index",
+        "SPXL": "Index"
     },
     "FUTURES_PROXY": {
         "/ES": {"type": "vol_index", "iv_symbol": "^VIX", "hv_symbol": "ES=F"},
@@ -112,5 +123,33 @@
         "/ZS": {"type": "etf", "iv_symbol": "SOYB", "hv_symbol": "SOYB"},
         "/HE": {"type": "hv_only"},
         "/LE": {"type": "hv_only"}
+    },
+    "ASSET_CLASS_MAP": {
+        "Equity": [
+            "Technology",
+            "Healthcare",
+            "Financial Services",
+            "Consumer Cyclical",
+            "Consumer Defensive",
+            "Communication Services",
+            "Real Estate",
+            "Industrials",
+            "Utilities",
+            "International"
+        ],
+        "Commodity": [
+            "Energy",
+            "Metals",
+            "Agriculture"
+        ],
+        "Fixed Income": [
+            "Fixed Income"
+        ],
+        "FX": [
+            "Currencies"
+        ],
+        "Index": [
+            "Index"
+        ]
     }
 }

@@ -38,6 +38,33 @@ except FileNotFoundError:
     print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
     RULES = RULES_DEFAULT.copy()
 
+# Load Market Config (for Asset Class Map)
+MARKET_CONFIG = {}
+try:
+    with open('config/market_config.json', 'r') as f:
+        MARKET_CONFIG = json.load(f)
+except FileNotFoundError:
+    print("Warning: config/market_config.json not found. Asset class filtering will be unavailable.", file=sys.stderr)
+
+# Build reverse lookup: sector -> asset class
+SECTOR_TO_ASSET_CLASS = {}
+if 'ASSET_CLASS_MAP' in MARKET_CONFIG:
+    for asset_class, sectors in MARKET_CONFIG['ASSET_CLASS_MAP'].items():
+        for sector in sectors:
+            SECTOR_TO_ASSET_CLASS[sector] = asset_class
+
+def map_sector_to_asset_class(sector):
+    """
+    Maps a sector string to its asset class.
+
+    Args:
+        sector (str): Sector name (e.g., "Technology", "Energy")
+
+    Returns:
+        str: Asset class (e.g., "Equity", "Commodity", "Fixed Income", "FX", "Index")
+    """
+    return SECTOR_TO_ASSET_CLASS.get(sector, "Equity")  # Default to Equity if unknown
+
 def get_days_to_date(date_str):
     """Calculate the number of days from today until the given date string (ISO format)."""
     if not date_str or date_str == "Unavailable":
@@ -50,18 +77,20 @@ def get_days_to_date(date_str):
     except:
         return "N/A"
 
-def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
+def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_asset_classes=None, exclude_asset_classes=None):
     """
     Scan the watchlist for high-volatility trading opportunities.
-    
+
     Fetches market data, filters by Vol Bias threshold (unless show_all=True),
-    and optionally excludes specific sectors. Returns a structured report.
-    
+    and optionally excludes specific sectors or filters by asset class. Returns a structured report.
+
     Args:
         limit (int, optional): Max number of symbols to scan.
         show_all (bool): If True, displays all symbols regardless of Vol Bias.
         exclude_sectors (list[str], optional): List of sector names to hide from results.
-        
+        include_asset_classes (list[str], optional): Only show these asset classes (e.g., ["Commodity", "FX"]).
+        exclude_asset_classes (list[str], optional): Hide these asset classes (e.g., ["Equity"]).
+
     Returns:
         dict: A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
     """
@@ -94,22 +123,32 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
     low_bias_skipped = 0
     missing_bias = 0
     sector_skipped = 0
+    asset_class_skipped = 0
     bats_zone_count = 0 # Initialize bats zone counter
 
     for sym, metrics in data.items():
         if 'error' in metrics:
             continue
-        
+
         iv30 = metrics.get('iv30')
         hv252 = metrics.get('hv252')
         vol_bias = metrics.get('vol_bias')
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
-        
+
         # Sector Filter
         if exclude_sectors and sector in exclude_sectors:
             sector_skipped += 1
+            continue
+
+        # Asset Class Filter
+        asset_class = map_sector_to_asset_class(sector)
+        if include_asset_classes and asset_class not in include_asset_classes:
+            asset_class_skipped += 1
+            continue
+        if exclude_asset_classes and asset_class in exclude_asset_classes:
+            asset_class_skipped += 1
             continue
 
         days_to_earnings = get_days_to_date(earnings_date)
@@ -152,7 +191,8 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
             'Status Icons': status_icons, # Raw icons for JSON, will be joined for Markdown
-            'Sector': sector # Include sector in candidate data for JSON output
+            'Sector': sector, # Include sector in candidate data for JSON output
+            'Asset Class': asset_class # Include asset class in candidate data for JSON output
         }
         candidates_with_status.append(candidate_data)
     
@@ -175,6 +215,7 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
         "scanned_symbols_count": len(symbols),
         "low_bias_skipped_count": low_bias_skipped,
         "sector_skipped_count": sector_skipped,
+        "asset_class_skipped_count": asset_class_skipped,
         "missing_bias_count": missing_bias,
         "bats_efficiency_zone_count": bats_zone_count,
         "filter_note": "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
@@ -189,15 +230,31 @@ if __name__ == "__main__":
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
     parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
+    parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
+    parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--json', action='store_true', help='Output results in JSON format')
-    
+
     args = parser.parse_args()
-    
+
     exclude_list = None
     if args.exclude_sectors:
         exclude_list = [s.strip() for s in args.exclude_sectors.split(',')]
 
-    report_data = screen_volatility(limit=args.limit, show_all=args.show_all, exclude_sectors=exclude_list)
+    include_assets = None
+    if args.include_asset_classes:
+        include_assets = [s.strip() for s in args.include_asset_classes.split(',')]
+
+    exclude_assets = None
+    if args.exclude_asset_classes:
+        exclude_assets = [s.strip() for s in args.exclude_asset_classes.split(',')]
+
+    report_data = screen_volatility(
+        limit=args.limit,
+        show_all=args.show_all,
+        exclude_sectors=exclude_list,
+        include_asset_classes=include_assets,
+        exclude_asset_classes=exclude_assets
+    )
     
     if "error" in report_data:
         print(json.dumps(report_data, indent=2))
@@ -229,9 +286,12 @@ if __name__ == "__main__":
 
         # Summary of filtered symbols
         if not args.show_all:
-            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['sector_skipped_count']} excluded by sector, and {summary['missing_bias_count']} with missing bias.")
+            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['sector_skipped_count']} excluded by sector, {summary['asset_class_skipped_count']} excluded by asset class, and {summary['missing_bias_count']} with missing bias.")
         elif summary['missing_bias_count']:
             print(f"\nNote: {summary['missing_bias_count']} symbols missing bias (no IV/HV).")
+
+        if summary['asset_class_skipped_count'] > 0 and args.show_all:
+            print(f"Filtered {summary['asset_class_skipped_count']} symbols by asset class.")
         
         # Bats Efficiency Zone Summary
         if summary['bats_efficiency_zone_count'] > 0:

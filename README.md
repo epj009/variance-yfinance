@@ -1,7 +1,7 @@
-# The Alchemist's Lab: Project Documentation
+# Variance: Systematic Volatility Engine
 
 ## Overview
-The "Alchemist" is a CLI-based trading assistant designed to automate the mechanical trading philosophy of *The Unlucky Investor's Guide to Options Trading* (Tastytrade style). It helps retail traders separate luck from skill by analyzing portfolio mechanics and hunting for high-probability trades.
+**Variance** is a CLI-based options trading analysis system designed to automate the mechanical trading philosophy of Tastytrade/Tastylive. It helps retail traders separate luck from skill by analyzing portfolio mechanics and hunting for high-probability premium-selling opportunities.
 
 ## Quick Start
 - Create a virtualenv: `python3 -m venv venv && source venv/bin/activate`
@@ -39,6 +39,7 @@ The `analyze_portfolio.py` script automates the daily "check-up":
 *   **Portfolio Delta:** Sums Beta-Weighted Deltas to warn if you are "Too Long" (>75) or "Too Short" (<-50).
 *   **Portfolio Theta:** Calculates daily Theta decay and provides a health check against Net Liquidity targets (0.1%-0.5% of Net Liq/day).
 *   **Sector Allocation:** Warns if any single sector constitutes > 25% of the portfolio to reduce correlation risk.
+*   **Asset Mix:** Calculates portfolio allocation across asset classes (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity exposure exceeds 80% (correlation risk).
 
 ## Configuration
 The system is driven by centralized configuration files in the `config/` directory:
@@ -47,6 +48,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   `SYMBOL_MAP`: Maps broker symbols (e.g., `/ES`) to data provider symbols (e.g., `ES=F`).
     *   `SECTOR_OVERRIDES`: Manual sector assignments for ETFs and Futures.
     *   `FUTURES_PROXY`: Logic for using ETF options (e.g., `USO`) as IV proxies for futures (`/CL`).
+    *   `ASSET_CLASS_MAP`: Groups sectors into asset classes (Equity, Commodity, Fixed Income, FX, Index) for correlation tracking.
 *   **`config/trading_rules.json`**: Defines the "Strategy Logic". Contains adjustable thresholds for:
     *   Net Liquidity (`$50,000`)
     *   Vol Bias (`0.85`)
@@ -66,7 +68,8 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Uses proxies for futures (e.g., `/CL` via USO, `/ES` via VIX) and labels them in the output.
     *   Labels “🦇 Bats Efficiency Zone” when price is between `$15-$75` and Vol Bias > `1.0`.
     *   **Sector Exclusion:** Can filter out symbols from specified sectors using `--exclude-sectors`.
-*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"]`
+*   **Asset Class Filtering:** Can filter by asset class using `--include-asset-classes "Commodity,FX"` or `--exclude-asset-classes "Equity"` for targeted rebalancing.
+*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"] [--include-asset-classes "Commodity,FX"]`
 *   **Watchlist:** `watchlists/default-watchlist.csv` (first column `Symbol`).
 
 ### `scripts/analyze_portfolio.py`
@@ -74,8 +77,10 @@ The system is driven by centralized configuration files in the `config/` directo
 *   **Features:**
     *   Parses `util/sample_positions.csv` (Tastytrade export format).
     *   Generates a Markdown table of actionable steps (Harvest, Defense, etc.) based on `trading_rules.json`.
+    *   Calculates Asset Mix (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity > 80%.
     *   Flags stale prices, zero-cost-basis trades, and sector concentration risks.
-*   **Usage:** `source venv/bin/activate && python3 scripts/analyze_portfolio.py [positions/your_export.csv]`
+    *   Supports JSON output with `--json` flag for programmatic access.
+*   **Usage:** `source venv/bin/activate && python3 scripts/analyze_portfolio.py [positions/your_export.csv] [--json]`
 
 ### `scripts/get_market_data.py`
 *   **Purpose:** The engine room. Fetches raw data from Yahoo Finance.
@@ -94,7 +99,9 @@ The system is driven by centralized configuration files in the `config/` directo
 
 ## Workflow
 1.  **Morning:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
-2.  **Rebalance:** If portfolio delta is skewed or sector concentration is high, run `source venv/bin/activate && python3 scripts/vol_screener.py` (using `--exclude-sectors` if applicable) to find contrarian candidates.
+2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `source venv/bin/activate && python3 scripts/vol_screener.py` with appropriate filters:
+    *   Use `--exclude-sectors "Technology,Healthcare"` to avoid concentrated sectors
+    *   Use `--include-asset-classes "Commodity,FX"` to target non-equity opportunities for correlation defense
 3.  **Execution:** Use the "Vol Bias" report to select the most expensive premium to sell.
 
 ## Operational Notes
