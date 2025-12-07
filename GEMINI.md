@@ -76,8 +76,9 @@ Analyze grouped strategies in this order:
 *   *Unknown Earnings:* If earnings date is unknown (N/A) but IV is spiking inexplicably, treat it as a binary event risk and reduce size.
 
 **Step 6: Rebalancing**
-* *Check:* Is Portfolio Status "Too Long" (> +75) or "Too Short" (< -50)?
-* *Action:* Run `vol_screener.py` (with `--exclude-sectors` if needed) to find counter-acting trades.
+* *Check:* Is Portfolio Status "Too Long" (> +75) or "Too Short" (< -50)? Also check the "Sector Balance" for high concentration risks.
+* *Action:* Run `vol_screener.py` to find counter-acting trades.
+* *Conditional Action (Sector Concentration):* If the Triage Report identifies a high sector concentration (e.g., 'Financial Services' > 25%), you **MUST** run the `vol_screener.py` with the argument `--exclude-sectors 'Sector Name'` (e.g., `--exclude-sectors "Financial Services"`) to filter out those risks.
 * *Strategy Selection:* Select a strategy from **The Strategy Playbook** below that matches your directional need:
     *   **Too Long (> 75):** Need **Negative Delta** (Bias: Bearish).
     *   **Too Short (< -50):** Need **Positive Delta** (Bias: Bullish).
@@ -88,6 +89,7 @@ Analyze grouped strategies in this order:
 *   **Filter 2 (Price):** Defined Risk for High Price ($200+), Undefined Risk for Low Price (<$100).
 *   **Filter 3 (Vol):** Prioritize Vol Bias > 0.85.
 *   **Inputs:** Default watchlist at `watchlists/default-watchlist.csv` (first column `Symbol`). If missing, warn and fall back to a small index list.
+*   **Usage:** When running `vol_screener.py`, use the `--exclude-sectors` argument (e.g., `--exclude-sectors "Technology,Financial Services"`) to filter out concentrated sectors, as identified in the Triage Report.
 *   **Performance:** Keep concurrency conservative to avoid throttling (2–3 workers). For large watchlists, chunk runs rather than one huge batch.
 
 ## The Strategy Playbook (Management & Defense)
