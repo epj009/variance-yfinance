@@ -43,7 +43,8 @@ class PortfolioParser:
         'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
         'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
         'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
-        'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta']
+        'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
+        'Theta': ['Theta', 'Theta Daily', 'Daily Theta']
     }
 
     @staticmethod
@@ -339,9 +340,25 @@ def analyze_portfolio(file_path):
     
     print(f"Fetching live market data for {len(unique_roots)} symbols...")
     market_data = get_market_data(unique_roots)
+    
+    # --- Data Freshness Check ---
+    # We'll infer freshness from the newest 'price' timestamp or just current time vs warning
+    # Since get_market_data doesn't return explicit timestamps per symbol, we rely on general execution time
+    # BUT, we can check if 'is_stale' is prevalent.
+    # Better yet, let's just print the current execution time so the user knows WHEN this ran.
+    
+    now = datetime.now()
+    print(f"\n**Analysis Time:** {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Check for widespread staleness (if > 50% of symbols are stale)
+    stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
+    if len(market_data) > 0 and (stale_count / len(market_data)) > 0.5:
+        print("🚨 **WARNING:** > 50% of data points are marked STALE. Markets may be closed or data delayed.")
+        print("   *Verify prices before executing trades.*")
         
     all_position_reports = []
     total_beta_delta = 0.0
+    total_portfolio_theta = 0.0 # Initialize total portfolio theta
     missing_ivr_legs = 0
 
     for legs in clusters:
@@ -357,6 +374,7 @@ def analyze_portfolio(file_path):
 
         for l in legs:
             total_beta_delta += parse_currency(l['beta_delta'])
+            total_portfolio_theta += parse_currency(l['Theta']) # Sum Theta from each leg
             if not str(l['IV Rank']).strip():
                 missing_ivr_legs += 1
 
@@ -498,12 +516,25 @@ def analyze_portfolio(file_path):
     if non_actionable_reports:
         for r in non_actionable_reports:
             pl_pct_str = f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A"
-            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | Hold (Within Parameters) |")
+            print(f"| {r['root']} | {r['strategy_name']} | {r['price_str']} | {r['bias_str']} | ${r['net_pl']:.2f} | {pl_pct_str} | {r['min_dte']}d | Hold |")
     else:
         print("No non-actionable positions to display.")
 
     print("\n")
-    print(f"**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
+    print(f"\n**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
+    
+    # Display Portfolio Theta and health check
+    print(f"**Total Portfolio Theta:** ${total_portfolio_theta:.2f}/day")
+    net_liq = RULES['net_liquidity']
+    if net_liq > 0:
+        theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
+        print(f"**Theta/Net Liquidity:** {theta_as_pct_of_nl:.2f}%/day")
+        if 0.1 <= theta_as_pct_of_nl <= 0.5:
+            print("✅ **Theta Status:** Healthy (0.1% - 0.5% of Net Liq/day)")
+        elif theta_as_pct_of_nl < 0.1:
+            print("⚠️ **Theta Status:** Low. Consider adding more short premium.")
+        else:
+            print("☢️ **Theta Status:** High. Consider reducing overall premium sold or managing gamma risk.")
     
     if total_beta_delta > RULES['portfolio_delta_long_threshold']:
         print(f"⚠️ **Status:** Too Long (Delta > {RULES['portfolio_delta_long_threshold']})")
