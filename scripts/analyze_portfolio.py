@@ -422,12 +422,14 @@ def analyze_portfolio(file_path):
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0 # Initialize total portfolio theta
     missing_ivr_legs = 0
+    total_option_legs = 0 # Count active option legs for data integrity check
 
     for legs in clusters:
         root = get_root_symbol(legs[0]['Symbol'])
         
         # Calculate min_dte only for option legs
         option_legs = [l for l in legs if not is_stock_type(l['Type'])]
+        total_option_legs += len(option_legs)
         dtes = [parse_dte(l['DTE']) for l in option_legs]
         min_dte = min(dtes) if dtes else 0
         
@@ -586,6 +588,14 @@ def analyze_portfolio(file_path):
     else:
         print("No non-actionable positions to display.")
 
+    # Data Integrity Guardrail
+    # If we have active options but tiny delta/theta sums, likely per-share data error
+    if total_option_legs > 0 and abs(total_beta_delta) < 5.0 and total_portfolio_theta < 5.0:
+        print("\n🚨 **DATA INTEGRITY WARNING:**")
+        print("   Your Delta/Theta totals are suspiciously low. Ensure your CSV contains")
+        print("   TOTAL position values (Contract Qty * 100), not per-share Greeks.")
+        print("   Risk metrics (Stress Box) may be understated by 100x.")
+
     print("\n")
     print(f"\n**Total Beta Weighted Delta:** {total_beta_delta:.2f}")
     
@@ -671,22 +681,25 @@ def analyze_portfolio(file_path):
 
     # Stress Box (Scenario Simulator)
     print("\n### 📉 The Stress Box (Scenario Simulator)")
-    # Need SPY price for accurate beta weighting impact
+    
+    beta_sym = RULES.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
+    
+    # Need Beta Symbol price for accurate beta weighting impact
     # We'll try to find it in existing market_data, or fetch it if missing
-    spy_price = 0.0
-    if 'SPY' in market_data:
-        spy_price = market_data['SPY'].get('price', 0.0)
+    beta_price = 0.0
+    if beta_sym in market_data:
+        beta_price = market_data[beta_sym].get('price', 0.0)
     else:
-        # Quick fetch for SPY if not held
+        # Quick fetch for Beta Symbol if not held
         try:
-            spy_data = get_market_data(['SPY'])
-            spy_price = spy_data.get('SPY', {}).get('price', 0.0)
+            beta_data = get_market_data([beta_sym])
+            beta_price = beta_data.get(beta_sym, {}).get('price', 0.0)
         except:
             pass
             
-    if spy_price > 0:
-        print(f"Based on Portfolio Delta ({total_beta_delta:.2f}) and SPY Price (${spy_price:.2f}):")
-        print("| Scenario | Est. SPY Move | Est. Portfolio P/L |")
+    if beta_price > 0:
+        print(f"Based on Portfolio Delta (assumed {beta_sym}-weighted) and {beta_sym} Price (${beta_price:.2f}):")
+        print(f"| Scenario | Est. {beta_sym} Move | Est. Portfolio P/L |")
         print("|---|---|---|")
         
         scenarios = [
@@ -698,11 +711,11 @@ def analyze_portfolio(file_path):
         ]
         
         for label, pct in scenarios:
-            spy_points = spy_price * pct
+            spy_points = beta_price * pct
             est_pl = total_beta_delta * spy_points
             print(f"| {label:<11} | {spy_points:+.2f} pts | ${est_pl:+.2f} |")
     else:
-        print("Could not fetch SPY price for stress testing.")
+        print(f"Could not fetch {beta_sym} price for stress testing.")
 
 if __name__ == "__main__":
     file_path = "util/sample_positions.csv"
