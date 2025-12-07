@@ -146,11 +146,11 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None):
         if bias is None:
             status_icons.append("❓ No Bias")
         elif bias > 1.0:
-            status_icons.append("🔥 Expensive")
+            status_icons.append("🔥 Rich")
         elif bias > RULES['vol_bias_threshold']:
             status_icons.append("✨ Fair/High")
         else:
-            status_icons.append("❄️ Cheap")
+            status_icons.append("❄️ Low")
 
         # Bats Efficiency Zone Check
         if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and bias > RULES['bats_efficiency_vol_bias']:
