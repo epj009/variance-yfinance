@@ -7,6 +7,7 @@ import json
 sys.path.append(os.path.join(os.path.dirname(__file__), '../scripts'))
 
 from analyze_portfolio import identify_strategy, PortfolioParser
+import analyze_portfolio
 
 # Mocking leg data helpers
 def make_leg(otype, qty, strike):
@@ -131,3 +132,50 @@ def test_normalize_row_put_lowercase():
     }
     normalized = PortfolioParser.normalize_row(row)
     assert normalized['Call/Put'] == 'Put'
+
+
+# --- Integration-style logic tests with stubbed market data (no network) ---
+
+def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
+    # Stub market data to avoid network calls
+    def fake_get_market_data(symbols):
+        return {
+            "ABC": {
+                "price": 100.0,
+                "is_stale": False,
+                "vol_bias": 1.2,
+                "earnings_date": None,
+                "sector": "Technology"
+            }
+        }
+    monkeypatch.setattr(analyze_portfolio, "get_market_data", fake_get_market_data)
+
+    # Deterministic rules for testing
+    monkeypatch.setattr(analyze_portfolio, "RULES", {
+        "vol_bias_threshold": 0.85,
+        "dead_money_vol_bias_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "low_ivr_threshold": 20,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25,
+        "net_liquidity": 100000,
+        "beta_weighted_symbol": "SPY"
+    })
+
+    csv_path = tmp_path / "positions.csv"
+    csv_path.write_text(
+        "Symbol,Type,Quantity,Exp Date,DTE,Strike Price,Call/Put,Underlying Last Price,P/L Open,Cost,Beta Delta,Theta,IV Rank\n"
+        "ABC,Option,-1,2025-01-17,30,90,Put,100,50,-100,10,2,30\n"
+    )
+
+    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    assert not report.get("error")
+    assert len(report["triage_actions"]) == 1
+    assert report["triage_actions"][0]["action"] == "🌾 Harvest"
+    assert report["portfolio_summary"]["total_beta_delta"] == 10
+    assert report["portfolio_summary"]["total_portfolio_theta"] == 2

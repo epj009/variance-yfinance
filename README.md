@@ -11,6 +11,10 @@ The "Alchemist" is a CLI-based trading assistant designed to automate the mechan
   - Triage: `python scripts/analyze_portfolio.py positions/<tastytrade_export>.csv`
 - Run tests: `python -m pytest -q`
 
+## Agent/CI Friendly Tests
+- The test suite stubs external data for core logic (screener/triage) to avoid live market calls.
+- Network helpers are marked skipped by default; CI can run `python -m pytest -q` without internet.
+
 ## Core Logic & Innovation
 
 ### 1. Vol Bias (The "Richness" Metric)
