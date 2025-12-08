@@ -151,16 +151,17 @@ Do NOT use a standard table. Use a **Unicode Tree** to show strategy depth.
 * **Root:** Symbol | Strategy | P/L | Action Tag
 * **Branch:** Logic/Reasoning context.
 
-    *Example Format:*
-    ```text
-    TSLA (Strangle) .............................. [HARVEST] +$350 ✅
-    └── 45 DTE: Profit target (>50%) hit. Close to free capital.
+*Example Format:*
+```text
+TSLA (Strangle) .............................. [HARVEST] +$350 ✅
+└── 45 DTE: Profit target (>50%) hit. Close to free capital.
 
 NVDA (Iron Condor) ........................... [DEFENSE] -$120 🛡️
 ├── 18 DTE: Gamma risk is elevated.
 └── ⚠️ TESTED: Short Put is ITM. Roll untested Call side down.
 ```
 * Always include a brief summary line for the Hold bucket (e.g., “Hold: 10 positions (no action)”); do not list individual holds unless asked.
+* Emoji mapping lives in the agent/UI, not the scripts. Map statuses to icons on render (e.g., Harvest → 💰, Defense → 🛡️, Gamma → ☢️, Zombie → 💀, Illiquid → 🚱).
 
     **3. Vol Screener (Compact Table):**
     Tables are acceptable here for linear lists.

@@ -579,7 +579,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
-            action = "✅ Harvest"
+            action = "Harvest"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
         
