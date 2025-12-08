@@ -253,7 +253,7 @@ if __name__ == "__main__":
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
-    parser.add_argument('--json', action='store_true', help='Output results in JSON format')
+    parser.add_argument('--text', action='store_true', help='Output results in human-readable text format (default is JSON).')
 
     args = parser.parse_args()
 
@@ -282,9 +282,7 @@ if __name__ == "__main__":
         print(json.dumps(report_data, indent=2))
         sys.exit(1)
 
-    if args.json:
-        print(json.dumps(report_data, indent=2))
-    else:
+    if args.text:
         # --- Original Markdown Printing Logic ---
         summary = report_data['summary']
         candidates = report_data['candidates']
@@ -321,3 +319,5 @@ if __name__ == "__main__":
         # Bat's Efficiency Zone Summary
         if summary['bats_efficiency_zone_count'] > 0:
             print(f"\nFound {summary['bats_efficiency_zone_count']} symbols in the 🦇 Bat's Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
+    else:
+        print(json.dumps(report_data, indent=2))

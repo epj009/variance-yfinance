@@ -490,6 +490,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     all_position_reports = []
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0 # Initialize total portfolio theta
+    total_liquidity_cost = 0.0 # Numerator for Friction Horizon (Φ)
+    total_abs_theta = 0.0 # Denominator for Friction Horizon (Φ)
     missing_ivr_legs = 0
     total_option_legs = 0 # Count active option legs for data integrity check
 
@@ -512,7 +514,37 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             b_delta = parse_currency(l['beta_delta'])
             strategy_delta += b_delta
             total_beta_delta += b_delta
-            total_portfolio_theta += parse_currency(l['Theta']) # Sum Theta from each leg
+            
+            leg_theta = parse_currency(l['Theta'])
+            total_portfolio_theta += leg_theta # Sum Net Theta
+            total_abs_theta += abs(leg_theta) # Sum Abs Theta for Friction Engine
+            
+            # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
+            # We must convert Unit Price Spread -> Total Dollar Cost to match Total Dollar Theta.
+            bid = parse_currency(l['Bid'])
+            ask = parse_currency(l['Ask'])
+            qty = abs(parse_currency(l['Quantity']))
+            
+            if ask > bid and qty > 0:
+                spread = ask - bid
+                
+                # Standard Option Multiplier is 100.
+                # For Futures, we attempt a best-effort match, otherwise default to 100.
+                multiplier = 100.0
+                sym = l['Symbol'].upper()
+                if sym.startswith('/'):
+                    if '/ES' in sym: multiplier = 50
+                    elif '/NQ' in sym: multiplier = 20
+                    elif '/CL' in sym: multiplier = 1000
+                    elif '/GC' in sym: multiplier = 100
+                    elif '/MES' in sym: multiplier = 5
+                    elif '/MNQ' in sym: multiplier = 2
+                    elif '/ZB' in sym: multiplier = 1000
+                    elif '/ZN' in sym: multiplier = 1000
+                
+                liquidity_cost = spread * qty * multiplier
+                total_liquidity_cost += liquidity_cost
+
             if not str(l['IV Rank']).strip():
                 missing_ivr_legs += 1
 
@@ -634,6 +666,14 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             'delta': strategy_delta
         })
     
+    # Calculate Friction Horizon (Φ)
+    # How many days of Theta does it take to pay for the Spread?
+    friction_horizon_days = 0.0
+    if total_abs_theta > 1.0: # Avoid div/0 and noise
+        friction_horizon_days = total_liquidity_cost / total_abs_theta
+    elif total_liquidity_cost > 0:
+        friction_horizon_days = 99.9 # Infinite friction (trapped)
+    
     # --- Generate Structured Report Data ---
     report = {
         "analysis_time": now.strftime('%Y-%m-%d %H:%M:%S'),
@@ -644,6 +684,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         "portfolio_summary": {
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
+            "friction_horizon_days": friction_horizon_days,
+            "friction_status": "Liquid" if friction_horizon_days < 1.0 else ("Sticky" if friction_horizon_days < 3.0 else "Liquidity Trap"),
             "theta_net_liquidity_pct": 0.0,
             "theta_status": "N/A",
             "delta_status": "N/A"
@@ -834,7 +876,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Analyze current portfolio positions and generate a triage report.')
     parser.add_argument('file_path', type=str, help='Path to the portfolio CSV file.')
-    parser.add_argument('--json', action='store_true', help='Output results in JSON format.')
+    parser.add_argument('--text', action='store_true', help='Output results in human-readable text format (default is JSON).')
     
     args = parser.parse_args()
     
@@ -845,9 +887,7 @@ if __name__ == "__main__":
         print(json.dumps(report_data, indent=2), file=sys.stderr)
         sys.exit(1)
 
-    if args.json:
-        print(json.dumps(report_data, indent=2))
-    else:
+    if args.text:
         # Markdown output
         print(f"Fetching live market data for {report_data['market_data_symbols_count']} symbols...")
         print(f"\n**Analysis Time:** {report_data['analysis_time']}")
@@ -855,6 +895,33 @@ if __name__ == "__main__":
             print("🚨 **WARNING:** > 50% of data points are marked STALE. Markets may be closed or data delayed.")
             print("   *Verify prices before executing trades.*")
         
+        # Friction Horizon (Velocity Brake)
+        phi = report_data['portfolio_summary'].get('friction_horizon_days', 0.0)
+        phi_status = report_data['portfolio_summary'].get('friction_status', 'N/A')
+        
+        # ASCII Bar for Phi
+        # Scale: 0 to 5 days. > 5 is maxed.
+        max_phi_scale = 5.0
+        bar_len = 20
+        filled_len = int(min(phi, max_phi_scale) / max_phi_scale * bar_len)
+        bar_str = "█" * filled_len + "░" * (bar_len - filled_len)
+        
+        color_icon = "🟢"
+        if phi >= 3.0: color_icon = "🔴"
+        elif phi >= 1.0: color_icon = "🟡"
+        
+        print(f"\nFRICTION HORIZON (Φ):  [{bar_str}] {phi:.1f} Days {color_icon}")
+        print("─────────────────────────────────────────────────────────────────")
+        if phi >= 3.0:
+            print("Status:  ⚠️ LIQUIDITY TRAP DETECTED")
+            print("Details: You are burning > 3 days of Theta just to exit.")
+            print("Advise:  Stop opening new trades. Limit orders only.")
+        elif phi >= 1.0:
+            print("Status:  Sticky. Expect drag on exits.")
+        else:
+            print("Status:  High Velocity. Liquid.")
+        print("─────────────────────────────────────────────────────────────────")
+
         # Triage Report
         print("\n### Triage Report")
         print("| Symbol | Strat | Price | Vol Bias | Net P/L | P/L % | DTE | Action | Logic |")
@@ -936,3 +1003,5 @@ if __name__ == "__main__":
                 print(f"| {item['label']:<11} | {item['beta_move']:.2f} pts | ${item['est_pl']:.2f} |")
         else:
             print("Could not fetch Beta-Weighted symbol price for stress testing.")
+    else:
+        print(json.dumps(report_data, indent=2))

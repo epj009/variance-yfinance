@@ -304,3 +304,30 @@ def test_asset_mix_diversified(tmp_path, monkeypatch):
 
     # Warning should NOT be triggered
     assert report["asset_mix_warning"]["risk"] == False
+
+def test_friction_horizon_calculation(tmp_path, monkeypatch):
+    """Test Friction Horizon (Phi) calculation with standard multiplier."""
+    # Stub market data
+    def mock_get_market_data(symbols):
+        return {}
+    monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+
+    csv_path = tmp_path / "positions.csv"
+    # Pos A: Spread 0.10, Qty 1 -> Cost $10. Theta 5.
+    # Pos B: Spread 0.20, Qty 1 -> Cost $20. Theta 10.
+    # Total Cost $30. Total Theta 15. Phi = 2.0 days.
+    csv_path.write_text(
+        "Symbol,Type,Quantity,Exp Date,DTE,Strike Price,Call/Put,Underlying Last Price,P/L Open,Cost,Beta Delta,Theta,Bid,Ask\n"
+        "XYZ,Option,-1,2025-01-17,30,100,Put,100,0,-100,0,5,1.00,1.10\n"
+        "ABC,Option,-1,2025-01-17,30,100,Call,100,0,-100,0,10,2.00,2.20\n"
+    )
+
+    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    assert not report.get("error")
+
+    summary = report["portfolio_summary"]
+    phi = summary["friction_horizon_days"]
+    
+    # Check Math: 30 / 15 = 2.0
+    assert abs(phi - 2.0) < 0.01
+    assert summary["friction_status"] == "Sticky"

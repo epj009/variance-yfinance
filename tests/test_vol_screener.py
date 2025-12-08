@@ -40,7 +40,7 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
 
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
-            assert "🦇 Bat's Efficiency Zone" in candidates[0]["Status Icons"]
+    assert "🦇 Bat's Efficiency Zone" in candidates[0]["Status Icons"]
     # DEF excluded by sector, GHI skipped by low bias
     assert summary["sector_skipped_count"] == 1
     assert summary["low_bias_skipped_count"] == 1
