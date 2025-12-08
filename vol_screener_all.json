@@ -1,0 +1,1823 @@
+{
+  "candidates": [
+    {
+      "Symbol": "^VIX",
+      "Price": 16.43000030517578,
+      "IV30": 127.002111328125,
+      "HV252": 149.79306096625007,
+      "Vol Bias": 0.8478504311807867,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "VIX",
+      "Price": 16.43000030517578,
+      "IV30": 127.002111328125,
+      "HV252": 149.79306096625007,
+      "Vol Bias": 0.8478504311807867,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "SPX",
+      "Price": 6872.47021484375,
+      "IV30": 13.135252811431886,
+      "HV252": 18.95562447752671,
+      "Vol Bias": 0.6929475115422705,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "BYND",
+      "Price": 1.1950000524520874,
+      "IV30": 12.500875,
+      "HV252": 179.3188195117575,
+      "Vol Bias": 0.0697131234414598,
+      "Earnings In": -28,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "MS",
+      "Price": 178.3699951171875,
+      "IV30": 1.1728632812500002,
+      "HV252": 31.26727284760945,
+      "Vol Bias": 0.03751089156276294,
+      "Earnings In": 38,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "HYG",
+      "Price": 80.66000366210938,
+      "IV30": 0.196310546875,
+      "HV252": 5.622205458289982,
+      "Vol Bias": 0.03491699980219305,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Unknown",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "IEF",
+      "Price": 96.27010345458984,
+      "IV30": 0.196310546875,
+      "HV252": 5.762634842248423,
+      "Vol Bias": 0.034066109036748365,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "XBI",
+      "Price": 124.46009826660156,
+      "IV30": 0.7822421875000001,
+      "HV252": 27.831234788889976,
+      "Vol Bias": 0.028106628880593735,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SNAP",
+      "Price": 7.840000152587891,
+      "IV30": 1.5634843750000003,
+      "HV252": 58.48654306034111,
+      "Vol Bias": 0.026732377965764515,
+      "Earnings In": 57,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "NIO",
+      "Price": 5.0980000495910645,
+      "IV30": 1.5634843750000003,
+      "HV252": 64.02604713133293,
+      "Vol Bias": 0.024419504952303477,
+      "Earnings In": -13,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "EEM",
+      "Price": 54.769901275634766,
+      "IV30": 0.39162109375000004,
+      "HV252": 17.75964453509739,
+      "Vol Bias": 0.022051178613178953,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "International",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "DD",
+      "Price": 40.5,
+      "IV30": 0.7822421875000001,
+      "HV252": 35.656722326153954,
+      "Vol Bias": 0.021938140593652684,
+      "Earnings In": -32,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "MCD",
+      "Price": 311.8399963378906,
+      "IV30": 0.39162109375000004,
+      "HV252": 18.389278936098343,
+      "Vol Bias": 0.021296163656599053,
+      "Earnings In": -33,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CRON",
+      "Price": 2.4830000400543213,
+      "IV30": 0.7822421875000001,
+      "HV252": 42.616742468279206,
+      "Vol Bias": 0.01835527875182492,
+      "Earnings In": -32,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "LRCX",
+      "Price": 163.0800018310547,
+      "IV30": 0.7822421875000001,
+      "HV252": 48.23161778445597,
+      "Vol Bias": 0.01621845219863432,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "LOW",
+      "Price": 246.67999267578125,
+      "IV30": 0.39162109375000004,
+      "HV252": 24.275587415741587,
+      "Vol Bias": 0.01613230143695934,
+      "Earnings In": -19,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "BABA",
+      "Price": 157.97500610351562,
+      "IV30": 0.7822421875000001,
+      "HV252": 48.63885649205321,
+      "Vol Bias": 0.016082659912611343,
+      "Earnings In": 73,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "FCX",
+      "Price": 45.52000045776367,
+      "IV30": 0.7822421875000001,
+      "HV252": 49.464218140443535,
+      "Vol Bias": 0.01581430409511343,
+      "Earnings In": 45,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "M",
+      "Price": 22.299999237060547,
+      "IV30": 0.7822421875000001,
+      "HV252": 50.96689862020618,
+      "Vol Bias": 0.015348043704387278,
+      "Earnings In": -5,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "KR",
+      "Price": 62.52000045776367,
+      "IV30": 0.39162109375000004,
+      "HV252": 26.03961302995781,
+      "Vol Bias": 0.015039436004653812,
+      "Earnings In": 87,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AAL",
+      "Price": 14.659899711608887,
+      "IV30": 0.7822421875000001,
+      "HV252": 54.05640882871868,
+      "Vol Bias": 0.01447085007031426,
+      "Earnings In": 45,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "ROKU",
+      "Price": 101.19999694824219,
+      "IV30": 0.7822421875000001,
+      "HV252": 56.402537549120325,
+      "Vol Bias": 0.013868918341107513,
+      "Earnings In": -39,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SLV",
+      "Price": 52.78110122680664,
+      "IV30": 0.39162109375000004,
+      "HV252": 28.328919793457118,
+      "Vol Bias": 0.013824074359533091,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "MRK",
+      "Price": 98.54440307617188,
+      "IV30": 0.39162109375000004,
+      "HV252": 30.37122630082117,
+      "Vol Bias": 0.012894477485731666,
+      "Earnings In": -39,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GE",
+      "Price": 287.81719970703125,
+      "IV30": 0.39162109375000004,
+      "HV252": 30.475458716069642,
+      "Vol Bias": 0.012850375687487162,
+      "Earnings In": 45,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CRM",
+      "Price": 261.5899963378906,
+      "IV30": 0.39162109375000004,
+      "HV252": 32.17832483144097,
+      "Vol Bias": 0.012170338132933285,
+      "Earnings In": 79,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "XLU",
+      "Price": 43.06999969482422,
+      "IV30": 0.196310546875,
+      "HV252": 16.18872993025026,
+      "Vol Bias": 0.012126371106369134,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Utilities",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AAPL",
+      "Price": 277.8315124511719,
+      "IV30": 0.39162109375000004,
+      "HV252": 32.45166131212394,
+      "Vol Bias": 0.012067828823410356,
+      "Earnings In": 52,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GOOGL",
+      "Price": 317.44000244140625,
+      "IV30": 0.39162109375000004,
+      "HV252": 33.23036686017943,
+      "Vol Bias": 0.011785036722519212,
+      "Earnings In": -40,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "TGT",
+      "Price": 91.43000030517578,
+      "IV30": 0.39162109375000004,
+      "HV252": 33.97940579360628,
+      "Vol Bias": 0.011525248443976299,
+      "Earnings In": -19,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CPER",
+      "Price": 33.26499938964844,
+      "IV30": 0.39162109375000004,
+      "HV252": 35.21106777505509,
+      "Vol Bias": 0.011122102182525684,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Unknown",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "PANW",
+      "Price": 196.80999755859375,
+      "IV30": 0.39162109375000004,
+      "HV252": 35.48938595017231,
+      "Vol Bias": 0.011034879394640486,
+      "Earnings In": 66,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "COF",
+      "Price": 231.58999633789062,
+      "IV30": 0.39162109375000004,
+      "HV252": 36.654807016412114,
+      "Vol Bias": 0.010684030980565591,
+      "Earnings In": 43,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "UVIX",
+      "Price": 7.7932000160217285,
+      "IV30": 1.5634843750000003,
+      "HV252": 153.66386500945012,
+      "Vol Bias": 0.010174704214968484,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "QCOM",
+      "Price": 173.9600067138672,
+      "IV30": 0.39162109375000004,
+      "HV252": 38.51977584754746,
+      "Vol Bias": 0.010166754222556942,
+      "Earnings In": 58,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CLF",
+      "Price": 12.335000038146973,
+      "IV30": 0.7822421875000001,
+      "HV252": 77.80208729523117,
+      "Vol Bias": 0.010054257086081379,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SCCO",
+      "Price": 141.1300048828125,
+      "IV30": 0.39162109375000004,
+      "HV252": 39.199624304414925,
+      "Vol Bias": 0.00999042977322344,
+      "Earnings In": -39,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CMG",
+      "Price": 33.77000045776367,
+      "IV30": 0.39162109375000004,
+      "HV252": 39.75907285872901,
+      "Vol Bias": 0.009849854777587465,
+      "Earnings In": 57,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "JD",
+      "Price": 29.809799194335938,
+      "IV30": 0.39162109375000004,
+      "HV252": 41.00112564299873,
+      "Vol Bias": 0.009551471761041088,
+      "Earnings In": -25,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "ZS",
+      "Price": 247.05999755859375,
+      "IV30": 0.39162109375000004,
+      "HV252": 41.520517487750155,
+      "Vol Bias": 0.009431989711244338,
+      "Earnings In": -13,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "V",
+      "Price": 328.3550109863281,
+      "IV30": 0.196310546875,
+      "HV252": 22.084063669948776,
+      "Vol Bias": 0.008889240214523223,
+      "Earnings In": 50,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SILJ",
+      "Price": 25.389999389648438,
+      "IV30": 0.39162109375000004,
+      "HV252": 45.24651384666028,
+      "Vol Bias": 0.008655276626994906,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "XOM",
+      "Price": 116.44999694824219,
+      "IV30": 0.196310546875,
+      "HV252": 23.3709956568051,
+      "Vol Bias": 0.00839975111705773,
+      "Earnings In": 53,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "TLT",
+      "Price": 87.91000366210938,
+      "IV30": 0.0986552734375,
+      "HV252": 12.288855484024594,
+      "Vol Bias": 0.008028027798500112,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "SNOW",
+      "Price": 228.53500366210938,
+      "IV30": 0.39162109375000004,
+      "HV252": 49.260569529289825,
+      "Vol Bias": 0.007949991189548594,
+      "Earnings In": -5,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CVX",
+      "Price": 149.4698944091797,
+      "IV30": 0.196310546875,
+      "HV252": 24.74198155445297,
+      "Vol Bias": 0.007934309806308491,
+      "Earnings In": 53,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "EWZ",
+      "Price": 32.91999816894531,
+      "IV30": 0.196310546875,
+      "HV252": 25.19897315374221,
+      "Vol Bias": 0.007790418509408452,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "International",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "PFE",
+      "Price": 25.93000030517578,
+      "IV30": 0.196310546875,
+      "HV252": 26.29469177042838,
+      "Vol Bias": 0.007465786197036749,
+      "Earnings In": 57,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "FXI",
+      "Price": 39.42070007324219,
+      "IV30": 0.196310546875,
+      "HV252": 26.40961393823889,
+      "Vol Bias": 0.007433298621255455,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "International",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "UNG",
+      "Price": 15.414999961853027,
+      "IV30": 0.39162109375000004,
+      "HV252": 57.12569681718125,
+      "Vol Bias": 0.0068554278646840985,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "ORCL",
+      "Price": 222.3699951171875,
+      "IV30": 0.39162109375000004,
+      "HV252": 57.512873134301714,
+      "Vol Bias": 0.006809277165400908,
+      "Earnings In": 2,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low",
+        "\u26a0\ufe0f Earn"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AMD",
+      "Price": 221.78900146484375,
+      "IV30": 0.39162109375000004,
+      "HV252": 58.6579682365182,
+      "Vol Bias": 0.006676349446181325,
+      "Earnings In": 57,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "WFC",
+      "Price": 90.79000091552734,
+      "IV30": 0.196310546875,
+      "HV252": 29.464003359785412,
+      "Vol Bias": 0.006662724833344905,
+      "Earnings In": 37,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "DIS",
+      "Price": 105.55709838867188,
+      "IV30": 0.196310546875,
+      "HV252": 29.508012157966657,
+      "Vol Bias": 0.006652787921601812,
+      "Earnings In": 58,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "MMM",
+      "Price": 164.5,
+      "IV30": 0.196310546875,
+      "HV252": 29.588126062275656,
+      "Vol Bias": 0.0066347745870020645,
+      "Earnings In": 43,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "IBM",
+      "Price": 313.3500061035156,
+      "IV30": 0.196310546875,
+      "HV252": 30.214502710074527,
+      "Vol Bias": 0.00649722912068791,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CAT",
+      "Price": 596.3800048828125,
+      "IV30": 0.196310546875,
+      "HV252": 31.268498136076023,
+      "Vol Bias": 0.006278221167536881,
+      "Earnings In": 52,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "BIIB",
+      "Price": 180.89999389648438,
+      "IV30": 0.196310546875,
+      "HV252": 32.25293430580288,
+      "Vol Bias": 0.0060865949440042175,
+      "Earnings In": -39,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GOOG",
+      "Price": 318.3794860839844,
+      "IV30": 0.196310546875,
+      "HV252": 32.7557463305129,
+      "Vol Bias": 0.00599316360843017,
+      "Earnings In": -40,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "PG",
+      "Price": 140.27000427246094,
+      "IV30": 0.0986552734375,
+      "HV252": 18.572564210143764,
+      "Vol Bias": 0.005311882210837506,
+      "Earnings In": 45,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "UBER",
+      "Price": 92.37000274658203,
+      "IV30": 0.196310546875,
+      "HV252": 37.67227337327751,
+      "Vol Bias": 0.005211008768434217,
+      "Earnings In": 58,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SMH",
+      "Price": 368.6700134277344,
+      "IV30": 0.196310546875,
+      "HV252": 37.855142636121975,
+      "Vol Bias": 0.005185835614516411,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "ETHA",
+      "Price": 23.86590003967285,
+      "IV30": 0.39162109375000004,
+      "HV252": 75.9006852505602,
+      "Vol Bias": 0.005159651621816017,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "META",
+      "Price": 667.2750244140625,
+      "IV30": 0.196310546875,
+      "HV252": 38.12163945567239,
+      "Vol Bias": 0.005149583010543623,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "VXX",
+      "Price": 30.829999923706055,
+      "IV30": 0.39162109375000004,
+      "HV252": 76.16386293116157,
+      "Vol Bias": 0.005141822889208693,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "XLF",
+      "Price": 53.564998626708984,
+      "IV30": 0.0986552734375,
+      "HV252": 19.356446180618832,
+      "Vol Bias": 0.0050967658276177405,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "NKE",
+      "Price": 65.14250183105469,
+      "IV30": 0.196310546875,
+      "HV252": 39.80322619017521,
+      "Vol Bias": 0.004932026010581426,
+      "Earnings In": 10,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "IBIT",
+      "Price": 51.83000183105469,
+      "IV30": 0.196310546875,
+      "HV252": 43.84744013028237,
+      "Vol Bias": 0.004477126744268521,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "IBB",
+      "Price": 171.375,
+      "IV30": 0.0986552734375,
+      "HV252": 23.08333998609776,
+      "Vol Bias": 0.004273873429794666,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Unknown",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CRWD",
+      "Price": 512.239990234375,
+      "IV30": 0.196310546875,
+      "HV252": 46.13189157766819,
+      "Vol Bias": 0.004255419410766828,
+      "Earnings In": -6,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "DDOG",
+      "Price": 154.375,
+      "IV30": 0.196310546875,
+      "HV252": 48.208880640467406,
+      "Vol Bias": 0.004072082659189838,
+      "Earnings In": -32,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "MSFT",
+      "Price": 489.2099914550781,
+      "IV30": 0.0986552734375,
+      "HV252": 24.28873798115151,
+      "Vol Bias": 0.004061770253936546,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "NVDA",
+      "Price": 184.24000549316406,
+      "IV30": 0.196310546875,
+      "HV252": 49.933422159664325,
+      "Vol Bias": 0.003931445881023102,
+      "Earnings In": -19,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AA",
+      "Price": 44.084999084472656,
+      "IV30": 0.196310546875,
+      "HV252": 52.74309104889002,
+      "Vol Bias": 0.003722014447219838,
+      "Earnings In": 44,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "XYZ",
+      "Price": 60.83000183105469,
+      "IV30": 0.196310546875,
+      "HV252": 56.056605543615476,
+      "Vol Bias": 0.003502005606141427,
+      "Earnings In": -32,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GS",
+      "Price": 866.2349853515625,
+      "IV30": 0.0986552734375,
+      "HV252": 31.45151052079213,
+      "Vol Bias": 0.0031367419816698615,
+      "Earnings In": 38,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "XME",
+      "Price": 99.19000244140625,
+      "IV30": 0.0986552734375,
+      "HV252": 32.29997080805621,
+      "Vol Bias": 0.0030543455913246073,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Unknown",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "DIA",
+      "Price": 479.4700012207031,
+      "IV30": 0.04982763671875,
+      "HV252": 16.86327476068174,
+      "Vol Bias": 0.0029548019246491593,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "COP",
+      "Price": 93.88999938964844,
+      "IV30": 0.0986552734375,
+      "HV252": 33.39352333011356,
+      "Vol Bias": 0.002954323581319579,
+      "Earnings In": 59,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "SBUX",
+      "Price": 85.11499786376953,
+      "IV30": 0.0986552734375,
+      "HV252": 34.16009895290949,
+      "Vol Bias": 0.0028880265708099567,
+      "Earnings In": 50,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "NFLX",
+      "Price": 97.16000366210938,
+      "IV30": 0.0986552734375,
+      "HV252": 34.1833548844091,
+      "Vol Bias": 0.0028860617622554156,
+      "Earnings In": 43,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AMZN",
+      "Price": 229.6300048828125,
+      "IV30": 0.0986552734375,
+      "HV252": 34.69078117969656,
+      "Vol Bias": 0.0028438469842022433,
+      "Earnings In": 59,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "TQQQ",
+      "Price": 56.359798431396484,
+      "IV30": 0.196310546875,
+      "HV252": 70.05920586572,
+      "Vol Bias": 0.0028020664015413117,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "GDX",
+      "Price": 80.58000183105469,
+      "IV30": 0.0986552734375,
+      "HV252": 37.55231364878515,
+      "Vol Bias": 0.0026271423476111593,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "NUE",
+      "Price": 159.57000732421875,
+      "IV30": 0.0986552734375,
+      "HV252": 37.605035782421986,
+      "Vol Bias": 0.0026234591028793863,
+      "Earnings In": 49,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "BA",
+      "Price": 205.42999267578125,
+      "IV30": 0.0986552734375,
+      "HV252": 37.67519340644413,
+      "Vol Bias": 0.002618573775406965,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GLD",
+      "Price": 386.6265869140625,
+      "IV30": 0.04982763671875,
+      "HV252": 19.51539911495521,
+      "Vol Bias": 0.0025532471268069354,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "ASML",
+      "Price": 1126.77001953125,
+      "IV30": 0.0986552734375,
+      "HV252": 39.3493820350485,
+      "Vol Bias": 0.0025071619510981832,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "REGN",
+      "Price": 710.9299926757812,
+      "IV30": 0.0986552734375,
+      "HV252": 42.31515396865649,
+      "Vol Bias": 0.0023314407294978893,
+      "Earnings In": -41,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "IWM",
+      "Price": 251.6199951171875,
+      "IV30": 0.04982763671875,
+      "HV252": 23.267508021656134,
+      "Vol Bias": 0.0021415115306879077,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "QQQ",
+      "Price": 626.3798828125,
+      "IV30": 0.04982763671875,
+      "HV252": 23.76229772687718,
+      "Vol Bias": 0.002096919973458236,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "XLE",
+      "Price": 45.77000045776367,
+      "IV30": 0.04982763671875,
+      "HV252": 24.815452205400312,
+      "Vol Bias": 0.0020079278147470776,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "WMT",
+      "Price": 114.0999984741211,
+      "IV30": 0.04982763671875,
+      "HV252": 25.069174099049167,
+      "Vol Bias": 0.0019876058350338666,
+      "Earnings In": -18,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "BAC",
+      "Price": 54.025001525878906,
+      "IV30": 0.04982763671875,
+      "HV252": 27.308722284050596,
+      "Vol Bias": 0.0018246052012419257,
+      "Earnings In": 37,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "UVXY",
+      "Price": 45.060001373291016,
+      "IV30": 0.196310546875,
+      "HV252": 114.62226920863365,
+      "Vol Bias": 0.001712673708436871,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "SHOP",
+      "Price": 159.7899932861328,
+      "IV30": 0.0986552734375,
+      "HV252": 59.171975206233995,
+      "Vol Bias": 0.0016672634823098871,
+      "Earnings In": -34,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "USO",
+      "Price": 71.05000305175781,
+      "IV30": 0.04982763671875,
+      "HV252": 30.418219140626025,
+      "Vol Bias": 0.0016380852701597217,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "ALB",
+      "Price": 126.26000213623047,
+      "IV30": 0.0986552734375,
+      "HV252": 62.073582516441775,
+      "Vol Bias": 0.0015893278499169695,
+      "Earnings In": -33,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Basic Materials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "C",
+      "Price": 110.05000305175781,
+      "IV30": 0.04982763671875,
+      "HV252": 31.843614976333406,
+      "Vol Bias": 0.0015647606829746735,
+      "Earnings In": 37,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "TSLA",
+      "Price": 445.67999267578125,
+      "IV30": 0.0986552734375,
+      "HV252": 64.96383896025554,
+      "Vol Bias": 0.0015186182808232232,
+      "Earnings In": 51,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "XOP",
+      "Price": 136.125,
+      "IV30": 0.04982763671875,
+      "HV252": 33.12868329746927,
+      "Vol Bias": 0.0015040632998099377,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Unknown",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "GM",
+      "Price": 75.95999908447266,
+      "IV30": 0.04982763671875,
+      "HV252": 36.585481522548655,
+      "Vol Bias": 0.0013619510976790024,
+      "Earnings In": 50,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Consumer Cyclical",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "SPY",
+      "Price": 685.6900024414062,
+      "IV30": 0.025413818359375,
+      "HV252": 19.645924503869175,
+      "Vol Bias": 0.0012935923862666715,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "COST",
+      "Price": 890.3975219726562,
+      "IV30": 0.025413818359375,
+      "HV252": 21.64068199459362,
+      "Vol Bias": 0.0011743538565801208,
+      "Earnings In": 3,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low",
+        "\u26a0\ufe0f Earn"
+      ],
+      "Sector": "Consumer Defensive",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "JPM",
+      "Price": 315.0899963378906,
+      "IV30": 0.025413818359375,
+      "HV252": 24.476513924326373,
+      "Vol Bias": 0.0010382940331268773,
+      "Earnings In": 36,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "UNH",
+      "Price": 325.1199951171875,
+      "IV30": 0.04982763671875,
+      "HV252": 50.390518763801715,
+      "Vol Bias": 0.0009888296040830588,
+      "Earnings In": 38,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "DE",
+      "Price": 475.1650085449219,
+      "IV30": 0.025413818359375,
+      "HV252": 27.83516739191662,
+      "Vol Bias": 0.0009130111560512913,
+      "Earnings In": 66,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Industrials",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "AVGO",
+      "Price": 400.32159423828125,
+      "IV30": 0.04982763671875,
+      "HV252": 58.10203171856196,
+      "Vol Bias": 0.0008575885428603949,
+      "Earnings In": 3,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low",
+        "\u26a0\ufe0f Earn"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "INTC",
+      "Price": 41.02009963989258,
+      "IV30": 0.04982763671875,
+      "HV252": 62.60583593305715,
+      "Vol Bias": 0.0007958944398095641,
+      "Earnings In": 52,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "KWEB",
+      "Price": 37.505001068115234,
+      "IV30": 0.025413818359375,
+      "HV252": 33.03021973981273,
+      "Vol Bias": 0.0007694111198643539,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "International",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "ABBV",
+      "Price": 224.9600067138672,
+      "IV30": 0.013206909179687502,
+      "HV252": 26.136146910294773,
+      "Vol Bias": 0.0005053120195955674,
+      "Earnings In": -38,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Healthcare",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "KRE",
+      "Price": 64.99500274658203,
+      "IV30": 0.013206909179687502,
+      "HV252": 28.687348805234702,
+      "Vol Bias": 0.0004603739881768922,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Financial Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "CSCO",
+      "Price": 79.22000122070312,
+      "IV30": 0.0010000000000000002,
+      "HV252": 23.579285826801588,
+      "Vol Bias": 4.241010551996202e-05,
+      "Earnings In": 65,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Technology",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "BIDU",
+      "Price": 129.24000549316406,
+      "IV30": 0.0010000000000000002,
+      "HV252": 47.06675760153691,
+      "Vol Bias": 2.124641787449889e-05,
+      "Earnings In": 72,
+      "Proxy": null,
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Communication Services",
+      "Asset Class": "Equity"
+    },
+    {
+      "Symbol": "/ES",
+      "Price": 6879.0,
+      "IV30": 16.469999313354492,
+      "HV252": 19.330255027384847,
+      "Vol Bias": 0.8520321790903287,
+      "Earnings In": "N/A",
+      "Proxy": "IV via ^VIX",
+      "Status Icons": [
+        "\u2728 Fair/High"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    },
+    {
+      "Symbol": "/ZT",
+      "Price": 104.22265625,
+      "IV30": 0.196310546875,
+      "HV252": 1.446862471548402,
+      "Vol Bias": 0.13568017053128245,
+      "Earnings In": "N/A",
+      "Proxy": "IV via SHY",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "/6B",
+      "Price": 1.3324999809265137,
+      "IV30": 0.8310698242187501,
+      "HV252": 7.438865295344849,
+      "Vol Bias": 0.11171997223001516,
+      "Earnings In": "N/A",
+      "Proxy": "IV via FXB",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Currencies",
+      "Asset Class": "FX"
+    },
+    {
+      "Symbol": "/ZF",
+      "Price": 109.140625,
+      "IV30": 0.196310546875,
+      "HV252": 5.762634842248423,
+      "Vol Bias": 0.034066109036748365,
+      "Earnings In": "N/A",
+      "Proxy": "IV via IEF",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "/ZN",
+      "Price": 112.390625,
+      "IV30": 0.196310546875,
+      "HV252": 5.762634842248423,
+      "Vol Bias": 0.034066109036748365,
+      "Earnings In": "N/A",
+      "Proxy": "IV via IEF",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "/ZC",
+      "Price": 446.5,
+      "IV30": 0.39162109375000004,
+      "HV252": 15.046543865027493,
+      "Vol Bias": 0.026027312136459483,
+      "Earnings In": "N/A",
+      "Proxy": "IV via CORN",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Agriculture",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "/SI",
+      "Price": 58.34000015258789,
+      "IV30": 0.39162109375000004,
+      "HV252": 28.328919793457118,
+      "Vol Bias": 0.013824074359533091,
+      "Earnings In": "N/A",
+      "Proxy": "IV via SLV",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "/HG",
+      "Price": 5.453499794006348,
+      "IV30": 0.39162109375000004,
+      "HV252": 35.21106777505509,
+      "Vol Bias": 0.011122102182525684,
+      "Earnings In": "N/A",
+      "Proxy": "IV via CPER",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Metals",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "/6J",
+      "Price": 0.006426000036299229,
+      "IV30": 0.0986552734375,
+      "HV252": 10.257964054523388,
+      "Vol Bias": 0.009617432164231129,
+      "Earnings In": "N/A",
+      "Proxy": "IV via FXY",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Currencies",
+      "Asset Class": "FX"
+    },
+    {
+      "Symbol": "/ZB",
+      "Price": 116.0,
+      "IV30": 0.0986552734375,
+      "HV252": 12.288855484024594,
+      "Vol Bias": 0.008028027798500112,
+      "Earnings In": "N/A",
+      "Proxy": "IV via TLT",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Fixed Income",
+      "Asset Class": "Fixed Income"
+    },
+    {
+      "Symbol": "/NG",
+      "Price": 5.017000198364258,
+      "IV30": 0.39162109375000004,
+      "HV252": 57.12569681718125,
+      "Vol Bias": 0.0068554278646840985,
+      "Earnings In": "N/A",
+      "Proxy": "IV via UNG",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "/CL",
+      "Price": 59.31999969482422,
+      "IV30": 0.04982763671875,
+      "HV252": 30.418219140626025,
+      "Vol Bias": 0.0016380852701597217,
+      "Earnings In": "N/A",
+      "Proxy": "IV via USO",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Energy",
+      "Asset Class": "Commodity"
+    },
+    {
+      "Symbol": "/6E",
+      "Price": 1.1652499437332153,
+      "IV30": 0.0010000000000000002,
+      "HV252": 8.113012941025092,
+      "Vol Bias": 0.00012325877048011323,
+      "Earnings In": "N/A",
+      "Proxy": "IV via FXE",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Currencies",
+      "Asset Class": "FX"
+    },
+    {
+      "Symbol": "/6A",
+      "Price": 0.6636499762535095,
+      "IV30": 0.0010000000000000002,
+      "HV252": 9.771377652512577,
+      "Vol Bias": 0.00010233971457882031,
+      "Earnings In": "N/A",
+      "Proxy": "IV via FXA",
+      "Status Icons": [
+        "\u2744\ufe0f Low"
+      ],
+      "Sector": "Currencies",
+      "Asset Class": "FX"
+    },
+    {
+      "Symbol": "^VXN",
+      "Price": 20.6200008392334,
+      "IV30": null,
+      "HV252": 108.38228406861606,
+      "Vol Bias": null,
+      "Earnings In": "N/A",
+      "Proxy": null,
+      "Status Icons": [
+        "\u2753 No Bias"
+      ],
+      "Sector": "Index",
+      "Asset Class": "Index"
+    }
+  ],
+  "summary": {
+    "scanned_symbols_count": 132,
+    "low_bias_skipped_count": 0,
+    "sector_skipped_count": 0,
+    "asset_class_skipped_count": 0,
+    "missing_bias_count": 1,
+    "illiquid_skipped_count": 0,
+    "bats_efficiency_zone_count": 0,
+    "filter_note": "All symbols (no bias filter); Illiquid filtered (ATM vol < 500, slippage > 5.0%)"
+  }
+}

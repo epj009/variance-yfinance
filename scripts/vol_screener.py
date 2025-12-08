@@ -188,7 +188,7 @@ def screen_volatility(
             status_icons.append("❄️ Low")
 
         # Bat's Efficiency Zone Check
-        if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias']:
+        if price and vol_bias is not None and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias']:
             status_icons.append("🦇 Bat's Efficiency Zone")
             bats_zone_count += 1
         
