@@ -65,7 +65,7 @@ Since reliable "IV Rank" data is often behind paywalls, we engineered a custom m
 ### 2. Portfolio Triage (Portfolio Health)
 The `analyze_portfolio.py` script automates the daily "check-up", generating a comprehensive report on portfolio mechanics:
 
-*   **Grouping:** Automatically groups individual option legs into complex strategies (Iron Condors, Strangles, etc.).
+*   **Grouping:** Intelligent clustering of Stock and Option legs into named strategies. Detects Defined Risk (Condors, Verticals), Undefined Risk (Strangles, Jade Lizards), Time Spreads (Calendars), and Stock-Hedged positions (Covered Calls).
 *   **Status Checks:**
     *   🌾 **Harvest:** Profit > 50%? Close it.
     *   🛡️ **Defense:** Tested & < 21 DTE? Roll it.
