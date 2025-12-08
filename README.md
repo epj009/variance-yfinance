@@ -4,29 +4,46 @@
 **Variance** is a CLI-based options trading analysis system designed to automate the mechanical trading philosophy of Tastytrade/Tastylive. It helps retail traders separate luck from skill by analyzing portfolio mechanics and hunting for high-probability premium-selling opportunities.
 
 ## Quick Start (The Easy Way)
-The project includes a smart wrapper script that handles environment setup and dependencies automatically.
+The project includes a smart wrapper script (`variance`) that handles environment setup and dependencies automatically.
+
+**Note:** By default, all tools output **JSON** for easy integration with other tools or agents. For human-readable reports, use the `--text` flag.
 
 1. **Auto-Analyze (Daily Routine):**
    ```bash
+   # Text Report (for humans)
+   ./variance --text
+   
+   # JSON Output (default)
    ./variance
    ```
    *Detects the latest portfolio export in `positions/` and runs the triage report.*
 
 2. **Volatility Screener:**
    ```bash
-   ./variance screen
+   # Screen for opportunities (Text format)
+   ./variance screen --text
+   
+   # Screen with limit (e.g., top 10)
+   ./variance screen --text 10
    ```
    *Scans the default watchlist for opportunities.*
 
 3. **Manual Triage:**
    ```bash
-   ./variance triage positions/my_specific_export.csv
+   ./variance triage positions/my_specific_export.csv --text
    ```
 
 ## Quick Start (The Manual Way)
 - Create a virtualenv: `python3 -m venv venv`
 - Install deps: `./venv/bin/pip install -r requirements.txt`
-- Run tools using the explicit binary: `./venv/bin/python3 scripts/vol_screener.py ...`
+- Run tools using the explicit binary:
+  ```bash
+  # Run Triage
+  ./venv/bin/python3 scripts/analyze_portfolio.py positions/<file>.csv --text
+  
+  # Run Screener
+  ./venv/bin/python3 scripts/vol_screener.py --text
+  ```
 
 ## Agent/CI Friendly Tests
 - The test suite stubs external data for core logic (screener/triage) to avoid live market calls.
@@ -62,7 +79,7 @@ The `analyze_portfolio.py` script automates the daily "check-up":
 The system actively protects against "Slippage Tax" by analyzing market width and volume:
 *   **Slippage Calculation:** Estimates the cost to enter/exit based on Bid/Ask spread width.
 *   **Liquidity Gates:**
-    *   **Vol Screener:** Filters out symbols with wide spreads (> 5% of price) or low ATM volume unless explicitly requested.
+    *   **Vol Screener:** Filters out symbols with wide spreads (> 5% of price) or low ATM volume unless explicitly requested (`--show-illiquid`).
     *   **Triage:** Flags existing positions with `[LIQUIDITY WARNING]` if spreads widen, signaling execution risk.
 
 ## Configuration
@@ -80,12 +97,20 @@ The system is driven by centralized configuration files in the `config/` directo
     *   DTE Gates (`21` days)
     *   Portfolio Delta Limits (`+75` / `-50`)
     *   Theta/Net Liquidity targets (`0.1%`-`0.5%`)
+    *   **Bat's Efficiency Zone:** Price $15-$75, Vol Bias > 1.0.
 
 ## Tools & Scripts
 
 ### `scripts/vol_screener.py`
 *   **Purpose:** Scans a watchlist to find the best premium-selling candidates.
+*   **Usage:** 
+    ```bash
+    python3 scripts/vol_screener.py [--text] [limit] [--show-all] [--show-illiquid] \
+            [--exclude-sectors "Sector1,Sector2"] \
+            [--include-asset-classes "Commodity,FX"]
+    ```
 *   **Features:**
+    *   **Default Output:** JSON (use `--text` for human-readable table).
     *   Multi-threaded scanning (fast).
     *   Calculates Vol Bias on the fly using `HV252`.
     *   Filters and ranks symbols by "Richness" based on `trading_rules.json`.
@@ -95,19 +120,21 @@ The system is driven by centralized configuration files in the `config/` directo
     *   **Liquidity Filtering:** Automatically excludes illiquid symbols (wide spreads, low volume) to prevent bad fills.
     *   **Visual Signals:** Flags "🚱" (Illiquid) or "⚠️" (Wide Spread) in output.
 *   **Asset Class Filtering:** Can filter by asset class using `--include-asset-classes "Commodity,FX"` or `--exclude-asset-classes "Equity"` for targeted rebalancing.
-*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--show-illiquid] [--exclude-sectors "Sector1,Sector2"] [--include-asset-classes "Commodity,FX"]`
 *   **Watchlist:** `watchlists/default-watchlist.csv` (first column `Symbol`).
 
 ### `scripts/analyze_portfolio.py`
 *   **Purpose:** Diagnoses your current open positions.
+*   **Usage:** 
+    ```bash
+    python3 scripts/analyze_portfolio.py [positions/your_export.csv] [--text]
+    ```
 *   **Features:**
-    *   Parses `util/sample_positions.csv` (Tastytrade export format).
-    *   Generates a Markdown table of actionable steps (Harvest, Defense, etc.) based on `trading_rules.json`.
+    *   **Default Output:** JSON (use `--text` for human-readable report).
+    *   Parses `util/sample_positions.csv` (Tastytrade export format) or specified file.
+    *   Generates actionable steps (Harvest, Defense, etc.) based on `trading_rules.json`.
     *   Calculates Asset Mix (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity > 80%.
     *   Flags stale prices, zero-cost-basis trades, and sector concentration risks.
     *   **Liquidity Health Check:** Warns if current open positions have widened spreads (> 5%) or low volume, indicating difficult exit conditions.
-    *   Supports JSON output with `--json` flag for programmatic access.
-*   **Usage:** `source venv/bin/activate && python3 scripts/analyze_portfolio.py [positions/your_export.csv] [--json]`
 
 ### `scripts/get_market_data.py`
 *   **Purpose:** The engine room. Fetches raw data from Yahoo Finance.
@@ -125,10 +152,10 @@ The system is driven by centralized configuration files in the `config/` directo
     *   `util/explore_earnings.py`: For exploring earnings date fetching from yfinance.
 
 ## Workflow
-1.  **Routine:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
-2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `source venv/bin/activate && python3 scripts/vol_screener.py` with appropriate filters:
-    *   Use `--exclude-sectors "Technology,Healthcare"` to avoid concentrated sectors
-    *   Use `--include-asset-classes "Commodity,FX"` to target non-equity opportunities for correlation defense
+1.  **Routine:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `./variance --text`.
+2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `./variance screen --text` with appropriate filters:
+    *   Use `--exclude-sectors "Technology,Healthcare"` to avoid concentrated sectors.
+    *   Use `--include-asset-classes "Commodity,FX"` to target non-equity opportunities for correlation defense.
 3.  **Execution:** Use the "Vol Bias" report to select the most expensive premium to sell.
 
 ## Operational Notes

@@ -1,109 +1,93 @@
 #!/bin/bash
-set -e
 
-# Configuration
-VENV_DIR="./venv"
+# Variance Smart Wrapper
+# Handles environment setup and simplifies command usage.
+
+VENV_DIR="venv"
 PYTHON="$VENV_DIR/bin/python3"
 PIP="$VENV_DIR/bin/pip"
-REQUIREMENTS="requirements.txt"
 
-# Colors
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Ensure script is run from project root
+if [ ! -f "scripts/analyze_portfolio.py" ]; then
+    echo "Error: Please run this script from the project root directory."
+    exit 1
+fi
 
-log() {
-    echo -e "${CYAN}[variance]${NC} $1"
-}
+# 1. Environment Check & Setup
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Initializing Variance environment..."
+    python3 -m venv "$VENV_DIR"
+    "$PIP" install -r requirements.txt
+    echo "Setup complete."
+    echo "----------------------------------------------------------------"
+fi
 
-# 1. Environment Check & Bootstrap
-ensure_env() {
-    if [ ! -d "$VENV_DIR" ]; then
-        log "First run detected. Initializing virtual environment..."
-        python3 -m venv "$VENV_DIR"
-        log "Installing dependencies..."
-        "$PIP" install -q -r "$REQUIREMENTS"
-        log "Setup complete. Ready."
-        echo ""
+# 2. Helper: Find Latest CSV
+get_latest_position_file() {
+    # Check if positions directory exists
+    if [ -d "positions" ]; then
+        # Find latest csv, suppress errors if empty
+        LATEST=$(ls -t positions/*.csv 2>/dev/null | head -n 1)
+        if [ -n "$LATEST" ]; then
+            echo "$LATEST"
+            return
+        fi
     fi
-}
-
-# 2. Helper: Find Latest Portfolio File
-get_latest_portfolio() {
-    # Lists files in positions/, sorts by time (newest first), takes top 1
-    # 2>/dev/null suppresses error if directory is empty
-    ls -t positions/*.csv 2>/dev/null | head -n 1
+    # Fallback
+    echo "util/sample_positions.csv"
 }
 
 # 3. Command Routing
-show_help() {
-    echo "Usage: ./variance [command] [args]"
-    echo ""
-    echo "Commands:"
-    echo "  (no args)       Auto-Triage: Process the latest positions file"
-    echo "  triage [file]   Run portfolio analysis manually"
-    echo "  screen [args]   Run volatility screener"
-    echo "  setup           Force environment recreation"
-    echo "  test            Run unit tests"
-    echo ""
-    echo "Examples:"
-    echo "  ./variance"
-    echo "  ./variance screen --exclude-asset-classes Equity"
-    echo "  ./variance triage positions/my_export.csv"
-}
+COMMAND=$1
 
-# Main Logic
-case "$1" in
-    "triage")
-        ensure_env
-        shift
-        file="$1"
-        if [ -z "$file" ]; then
-            file=$(get_latest_portfolio)
-            if [ -z "$file" ]; then
-                file="util/sample_positions.csv"
-                log "No positions found. Using sample."
-            else
-                log "Selected latest file: $file"
-            fi
-        fi
-        "$PYTHON" scripts/analyze_portfolio.py "$file"
-        ;;
-    
+case "$COMMAND" in
     "screen")
-        ensure_env
         shift
         "$PYTHON" scripts/vol_screener.py "$@"
         ;;
-    
-    "setup")
-        log "Recreating environment..."
-        rm -rf "$VENV_DIR"
-        ensure_env
-        ;;
-    
-    "test")
-        ensure_env
-        "$VENV_DIR/bin/pytest" -q
-        ;;
-
-    "help"|"--help"|"-h")
-        show_help
-        ;;
-        
-    *)
-        # Default Behavior: Boot & Auto-Triage
-        ensure_env
-        log "Initializing Variance Engine..."
-        
-        latest_file=$(get_latest_portfolio)
-        
-        if [ -n "$latest_file" ]; then
-            log "Processing latest positions: $latest_file"
-            "$PYTHON" scripts/analyze_portfolio.py "$latest_file"
+    "triage")
+        shift
+        # Check if first arg is a file
+        TARGET_FILE=""
+        if [ -f "$1" ]; then
+            TARGET_FILE="$1"
+            shift
         else
-            log "No positions file found in positions/. Running sample diagnostics..."
-            "$PYTHON" scripts/analyze_portfolio.py "util/sample_positions.csv"
+            TARGET_FILE=$(get_latest_position_file)
+            echo "Auto-detected Portfolio: $TARGET_FILE"
         fi
+        "$PYTHON" scripts/analyze_portfolio.py "$TARGET_FILE" "$@"
+        ;;
+    "help"|"--help"|"-h")
+        echo "Variance CLI"
+        echo "Usage: ./variance [command] [options]"
+        echo ""
+        echo "Commands:"
+        echo "  (empty)       Run Portfolio Triage on the latest CSV (default JSON)"
+        echo "  screen        Run the Volatility Screener"
+        echo "  triage [file] Run Portfolio Triage on a specific file"
+        echo "  help          Show this message"
+        echo ""
+        echo "Options:"
+        echo "  --text        Output human-readable text instead of JSON"
+        echo ""
+        echo "Examples:"
+        echo "  ./variance --text"
+        echo "  ./variance screen --text 10"
+        echo "  ./variance triage positions/my_export.csv --text"
+        ;;
+    *)
+        # Default behavior: Triage latest file
+        # Pass all arguments to the script (e.g. --text)
+        FILE=$(get_latest_position_file)
+        # Check if arguments were passed, if so print what we are doing
+        if [ -n "$*" ]; then
+             echo "Auto-detected Portfolio: $FILE"
+        elif [ -t 1 ]; then
+             # If running in terminal and no args, mention --text
+             echo "Running Triage on: $FILE (JSON output)" >&2
+             echo "Tip: Use --text for human-readable output." >&2
+        fi
+        "$PYTHON" scripts/analyze_portfolio.py "$FILE" "$@"
         ;;
 esac
