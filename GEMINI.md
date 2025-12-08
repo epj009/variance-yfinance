@@ -135,7 +135,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
     * *Asset Mix Row:* **READ** the 'Asset Mix' and 'Sector Concentration' metrics directly from the input JSON. Do not calculate them yourself.
     ```text
     NET LIQUIDITY: $50,000 (Default)    THETA EFFICIENCY: High 🟢
-    BP USAGE:         N/A             DELTA/THETA:      -1.2
+    BP USAGE:         N/A              DELTA/THETA:      -1.2
     BETA DELTA:    -150 (Bearish)       FRICTION (Φ):     0.2 Days (Liquid)
     ASSET MIX:     [⚠️ EQUITY HEAVY]    (Comm: 5% | FX: 0%)
     ─────────────────────────────────────────────────────────────────
@@ -146,20 +146,21 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
     ─────────────────────────────────────────────────────────────────
     ```
 
-    **2. The Portfolio Triage (Tree View):**
-    Do NOT use a standard table. Use a **Unicode Tree** to show strategy depth.
-    * **Root:** Symbol | Strategy | P/L | Action Tag
-    * **Branch:** Logic/Reasoning context.
+**2. The Portfolio Triage (Tree View):**
+Do NOT use a standard table. Use a **Unicode Tree** to show strategy depth.
+* **Root:** Symbol | Strategy | P/L | Action Tag
+* **Branch:** Logic/Reasoning context.
 
     *Example Format:*
     ```text
     TSLA (Strangle) .............................. [HARVEST] +$350 ✅
     └── 45 DTE: Profit target (>50%) hit. Close to free capital.
 
-    NVDA (Iron Condor) ........................... [DEFENSE] -$120 🛡️
-    ├── 18 DTE: Gamma risk is elevated.
-    └── ⚠️ TESTED: Short Put is ITM. Roll untested Call side down.
-    ```
+NVDA (Iron Condor) ........................... [DEFENSE] -$120 🛡️
+├── 18 DTE: Gamma risk is elevated.
+└── ⚠️ TESTED: Short Put is ITM. Roll untested Call side down.
+```
+* Always include a brief summary line for the Hold bucket (e.g., “Hold: 10 positions (no action)”); do not list individual holds unless asked.
 
     **3. Vol Screener (Compact Table):**
     Tables are acceptable here for linear lists.
