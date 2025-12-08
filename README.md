@@ -3,13 +3,30 @@
 ## Overview
 **Variance** is a CLI-based options trading analysis system designed to automate the mechanical trading philosophy of Tastytrade/Tastylive. It helps retail traders separate luck from skill by analyzing portfolio mechanics and hunting for high-probability premium-selling opportunities.
 
-## Quick Start
-- Create a virtualenv: `python3 -m venv venv && source venv/bin/activate`
-- Install deps: `pip install -r requirements.txt`
-- Run the tools:
-  - Screener: `python scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"]`
-  - Triage: `python scripts/analyze_portfolio.py positions/<tastytrade_export>.csv`
-- Run tests: `python -m pytest -q`
+## Quick Start (The Easy Way)
+The project includes a smart wrapper script that handles environment setup and dependencies automatically.
+
+1. **Auto-Analyze (Morning Routine):**
+   ```bash
+   ./variance
+   ```
+   *Detects the latest portfolio export in `positions/` and runs the triage report.*
+
+2. **Volatility Screener:**
+   ```bash
+   ./variance screen
+   ```
+   *Scans the default watchlist for opportunities.*
+
+3. **Manual Triage:**
+   ```bash
+   ./variance triage positions/my_specific_export.csv
+   ```
+
+## Quick Start (The Manual Way)
+- Create a virtualenv: `python3 -m venv venv`
+- Install deps: `./venv/bin/pip install -r requirements.txt`
+- Run tools using the explicit binary: `./venv/bin/python3 scripts/vol_screener.py ...`
 
 ## Agent/CI Friendly Tests
 - The test suite stubs external data for core logic (screener/triage) to avoid live market calls.
