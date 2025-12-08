@@ -54,7 +54,6 @@ case "$COMMAND" in
             shift
         else
             TARGET_FILE=$(get_latest_position_file)
-            echo "Auto-detected Portfolio: $TARGET_FILE"
         fi
         "$PYTHON" scripts/analyze_portfolio.py "$TARGET_FILE" "$@"
         ;;
@@ -63,31 +62,19 @@ case "$COMMAND" in
         echo "Usage: ./variance [command] [options]"
         echo ""
         echo "Commands:"
-        echo "  (empty)       Run Portfolio Triage on the latest CSV (default JSON)"
-        echo "  screen        Run the Volatility Screener"
+        echo "  (empty)       Run Portfolio Triage on the latest CSV (JSON output)"
+        echo "  screen        Run the Volatility Screener (JSON output)"
         echo "  triage [file] Run Portfolio Triage on a specific file"
         echo "  help          Show this message"
         echo ""
-        echo "Options:"
-        echo "  --text        Output human-readable text instead of JSON"
-        echo ""
         echo "Examples:"
-        echo "  ./variance --text"
-        echo "  ./variance screen --text 10"
-        echo "  ./variance triage positions/my_export.csv --text"
+        echo "  ./variance"
+        echo "  ./variance screen 10"
+        echo "  ./variance triage positions/my_export.csv"
         ;;
     *)
         # Default behavior: Triage latest file
-        # Pass all arguments to the script (e.g. --text)
         FILE=$(get_latest_position_file)
-        # Check if arguments were passed, if so print what we are doing
-        if [ -n "$*" ]; then
-             echo "Auto-detected Portfolio: $FILE"
-        elif [ -t 1 ]; then
-             # If running in terminal and no args, mention --text
-             echo "Running Triage on: $FILE (JSON output)" >&2
-             echo "Tip: Use --text for human-readable output." >&2
-        fi
         "$PYTHON" scripts/analyze_portfolio.py "$FILE" "$@"
         ;;
 esac

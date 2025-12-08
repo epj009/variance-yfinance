@@ -6,31 +6,27 @@
 ## Quick Start (The Easy Way)
 The project includes a smart wrapper script (`variance`) that handles environment setup and dependencies automatically.
 
-**Note:** By default, all tools output **JSON** for easy integration with other tools or agents. For human-readable reports, use the `--text` flag.
+**Note:** All tools output **JSON** designed for consumption by the Variance Agent.
 
 1. **Auto-Analyze (Daily Routine):**
    ```bash
-   # Text Report (for humans)
-   ./variance --text
-   
-   # JSON Output (default)
    ./variance
    ```
-   *Detects the latest portfolio export in `positions/` and runs the triage report.*
+   *Detects the latest portfolio export in `positions/` and runs the triage report (JSON).*
 
 2. **Volatility Screener:**
    ```bash
-   # Screen for opportunities (Text format)
-   ./variance screen --text
+   # Screen for opportunities (JSON)
+   ./variance screen
    
    # Screen with limit (e.g., top 10)
-   ./variance screen --text 10
+   ./variance screen 10
    ```
    *Scans the default watchlist for opportunities.*
 
 3. **Manual Triage:**
    ```bash
-   ./variance triage positions/my_specific_export.csv --text
+   ./variance triage positions/my_specific_export.csv
    ```
 
 ## Quick Start (The Manual Way)
@@ -39,10 +35,10 @@ The project includes a smart wrapper script (`variance`) that handles environmen
 - Run tools using the explicit binary:
   ```bash
   # Run Triage
-  ./venv/bin/python3 scripts/analyze_portfolio.py positions/<file>.csv --text
+  ./venv/bin/python3 scripts/analyze_portfolio.py positions/<file>.csv
   
   # Run Screener
-  ./venv/bin/python3 scripts/vol_screener.py --text
+  ./venv/bin/python3 scripts/vol_screener.py
   ```
 
 ## Agent/CI Friendly Tests
@@ -112,12 +108,12 @@ The system is driven by centralized configuration files in the `config/` directo
 *   **Purpose:** Scans a watchlist to find the best premium-selling candidates.
 *   **Usage:** 
     ```bash
-    python3 scripts/vol_screener.py [--text] [limit] [--show-all] [--show-illiquid] \
+    python3 scripts/vol_screener.py [limit] [--show-all] [--show-illiquid] \
             [--exclude-sectors "Sector1,Sector2"] \
             [--include-asset-classes "Commodity,FX"]
     ```
 *   **Features:**
-    *   **Default Output:** JSON (use `--text` for human-readable table).
+    *   **Output:** JSON.
     *   Multi-threaded scanning (fast).
     *   Calculates Vol Bias on the fly using `HV252`.
     *   Filters and ranks symbols by "Richness" based on `trading_rules.json`.
@@ -133,10 +129,10 @@ The system is driven by centralized configuration files in the `config/` directo
 *   **Purpose:** Diagnoses your current open positions.
 *   **Usage:** 
     ```bash
-    python3 scripts/analyze_portfolio.py [positions/your_export.csv] [--text]
+    python3 scripts/analyze_portfolio.py [positions/your_export.csv]
     ```
 *   **Features:**
-    *   **Default Output:** JSON (use `--text` for human-readable report).
+    *   **Output:** JSON.
     *   Parses `util/sample_positions.csv` (Tastytrade export format) or specified file.
     *   **Triage Logic:** Applies the Harvest, Defense, Gamma, and Friction mechanics defined in "Core Logic" (above).
     *   **Risk Analysis:** Performs Portfolio Delta, Theta, and Sector/Asset correlation checks.
@@ -158,8 +154,8 @@ The system is driven by centralized configuration files in the `config/` directo
     *   `util/explore_earnings.py`: For exploring earnings date fetching from yfinance.
 
 ## Workflow
-1.  **Routine:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `./variance --text`.
-2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `./variance screen --text` with appropriate filters:
+1.  **Routine:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `./variance`.
+2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `./variance screen` with appropriate filters:
     *   Use `--exclude-sectors "Technology,Healthcare"` to avoid concentrated sectors.
     *   Use `--include-asset-classes "Commodity,FX"` to target non-equity opportunities for correlation defense.
 3.  **Execution:** Use the "Vol Bias" report to select the most expensive premium to sell.

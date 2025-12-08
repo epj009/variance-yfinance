@@ -253,7 +253,6 @@ if __name__ == "__main__":
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
-    parser.add_argument('--text', action='store_true', help='Output results in human-readable text format (default is JSON).')
 
     args = parser.parse_args()
 
@@ -282,42 +281,4 @@ if __name__ == "__main__":
         print(json.dumps(report_data, indent=2))
         sys.exit(1)
 
-    if args.text:
-        # --- Original Markdown Printing Logic ---
-        summary = report_data['summary']
-        candidates = report_data['candidates']
-        
-        print(f"Scanning {summary['scanned_symbols_count']} symbols from {WATCHLIST_PATH}" + (f" (Excluding: {', '.join(exclude_list)})" if exclude_list else "") + "...")
-        print(f"\n### 🔬 Vol Screener Report (Top Candidates)")
-        print(f"**Filter:** {summary['filter_note']}\n")
-        print("| Symbol | Price | IV30 | HV252 | Vol Bias | Earn | Status |")
-        print("|---|---|---|---|---|---|---|")
-        
-        for c in candidates:
-            price_str = f"${c['Price']:.2f}" if c['Price'] is not None else "N/A"
-            iv_str = f"{c['IV30']:.1f}%" if c['IV30'] is not None else "N/A"
-            hv_str = f"{c['HV252']:.1f}%" if c['HV252'] is not None else "N/A"
-            bias_str = f"{c['Vol Bias']:.2f}" if c['Vol Bias'] is not None else "N/A"
-            
-            note = f" ({c['Proxy']})" if c['Proxy'] else ""
-            status = " ".join(c['Status Icons'])
-            
-            print(f"| {c['Symbol']}{note} | {price_str} | {iv_str} | {hv_str} | {bias_str} | {c['Earnings In']} | {status} |")
-
-        # Summary of filtered symbols
-        if not args.show_all:
-            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['illiquid_skipped_count']} illiquid, {summary['sector_skipped_count']} excluded by sector, {summary['asset_class_skipped_count']} excluded by asset class, and {summary['missing_bias_count']} with missing bias.")
-        elif summary['missing_bias_count']:
-            print(f"\nNote: {summary['missing_bias_count']} symbols missing bias (no IV/HV).")
-
-        if summary['illiquid_skipped_count'] > 0 and not args.show_illiquid:
-            print(f"Filtered {summary['illiquid_skipped_count']} illiquid symbols (ATM vol < {MIN_ATM_VOLUME} or slippage > {MAX_SLIPPAGE_PCT*100:.1f}%).")
-
-        if summary['asset_class_skipped_count'] > 0 and args.show_all:
-            print(f"Filtered {summary['asset_class_skipped_count']} symbols by asset class.")
-        
-        # Bat's Efficiency Zone Summary
-        if summary['bats_efficiency_zone_count'] > 0:
-            print(f"\nFound {summary['bats_efficiency_zone_count']} symbols in the 🦇 Bat's Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
-    else:
-        print(json.dumps(report_data, indent=2))
+    print(json.dumps(report_data, indent=2))
