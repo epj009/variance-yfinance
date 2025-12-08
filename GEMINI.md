@@ -163,7 +163,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
     **3. Vol Screener (Compact Table):**
     Tables are acceptable here for linear lists.
     `| RANK | SYM | PRICE | BIAS | STATUS | SECTOR | SUGGESTED PLAY |`
-    *   **Status Column:** Include 🔥 (Rich) or ✨ (Fair). Append 🦇 if the ticker falls within the "Bat's Efficiency Zone" (Price $15-$75, Vol Bias > 1.0).
+    *   **Status Column:** Include 🔥 (Rich), ✨ (Fair), ❄️ (Low), or ❓ (Unknown). Append 🦇 if the ticker falls within the "Bat's Efficiency Zone" (Price $15-$75, Vol Bias > 1.0).
 
     **4. Action Plan (The "Diff"):**
     Use `diff` code blocks to force high-contrast terminal coloring for instructions.
