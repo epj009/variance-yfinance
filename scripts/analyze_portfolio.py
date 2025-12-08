@@ -577,7 +577,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
-            action = "🌾 Harvest"
+            action = "✅ Harvest"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
         
@@ -613,11 +613,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         if not is_winner and not is_tested and min_dte > RULES['gamma_dte_threshold']:
             if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
                 if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
-                    action = "🪦 Dead Money"
+                    action = "💀 Zombie"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
                 elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < RULES['low_ivr_threshold']:
                      # Fallback if no live data
-                     action = "🪦 Dead Money"
+                     action = "💀 Zombie"
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning

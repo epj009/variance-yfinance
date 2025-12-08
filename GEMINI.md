@@ -135,7 +135,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
     * *Asset Mix Row:* **READ** the 'Asset Mix' and 'Sector Concentration' metrics directly from the input JSON. Do not calculate them yourself.
     ```text
     NET LIQUIDITY: $50,000 (Default)    THETA EFFICIENCY: High 🟢
-    BETA DELTA:    -150 (Bearish)       BP USAGE:         45%  🦇
+    BETA DELTA:    -150 (Bearish)       THETA:            $125/day
     ASSET MIX:     [⚠️ EQUITY HEAVY]    (Comm: 5% | FX: 0%)
     ─────────────────────────────────────────────────────────────────
     ```
