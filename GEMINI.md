@@ -181,7 +181,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
 
 * **Visual Signals (Badges & Emoji):**
     * **Portfolio:** ⚖️ `[NEUTRAL]` | 📈 `[SHORT]` | 📉 `[LONG]` | 🦇 `[EFFICIENT]`
-    * **Theta:** 💚 `[HEALTHY]` (Optimal Ratio: Configured by `theta_efficiency_low` and `theta_efficiency_high` in `config/trading_rules.json`) | 🧡 `[LOW]` | ❤️ `[HIGH]`
+    * **Theta:** 💚 `[HEALTHY]` (Optimal Ratio) | 🧡 `[LOW]` | ❤️ `[HIGH]`
     * **Mix:** 🌍 `[DIVERSIFIED]` | 🚩 `[EQUITY HEAVY]` | 🛢️ `[COMMODITY]` | 🏛️ `[BONDS]` | 💱 `[CURRENCY]`
     * **Status:** ✅ `[HARVEST]` | 🛡️ `[DEFENSE]` | ☢️ `[GAMMA]` | 💀 `[ZOMBIE]` | 🚱 `[ILLIQUID]`
     * **Data:** 📊 `[VOL RICH]` | 🧊 `[VOL LOW]` | 📉 `[STALE]` | 💥 `[CRASH RISK]`
