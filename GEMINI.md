@@ -42,6 +42,7 @@ When the user provides raw CSV data or text, **assume it is a Tastytrade export*
 7.  **Stale Data:** If prices are stale (end-of-day/history fallback), mark them (e.g., with `*`) and note that tested/defense logic may be less reliable.
 8.  **Input Validation:** If the positions/watchlist file is missing or empty, warn and fall back to defaults (e.g., SPY/QQQ/IWM for the screener). Mention expected columns when input is missing or malformed.
 9.  **Error Handling:** If a symbol fails to fetch live data, report the symbol and continue with others; do not abort the whole run.
+10. **Liquidity Flags:** Watch for `health_check -> liquidity_warnings` in portfolio data and 🚱 (Illiquid) tags in screener data. These indicate wide spreads (>5%) or low volume.
 
 ## Data & Proxies
 The system uses a **Proxy System** (defined in `config/market_config.json`) to fetch volatility data for Futures, as direct option chain data is often unavailable or costly.
@@ -50,8 +51,11 @@ The system uses a **Proxy System** (defined in `config/market_config.json`) to f
 
 ## Operational Modes
 
-### 1. Morning Triage (Daily Routine)
+### 1. Triage Report (Daily Routine)
 Analyze grouped strategies in this order:
+
+**Step 0: Liquidity Check (Pre-Flight)**
+* Scan positions for `liquidity_warnings` or 🚱 tags. If present, note fill risk and prioritize closing or reducing size only with reasonable fills.
 
 **Step 1: Harvest (Winners)**
 * Look for strategies where **Net P/L** is > 50% of max profit.
@@ -97,6 +101,7 @@ Analyze grouped strategies in this order:
 * **Filter 1 (Balance):** Suggest Negative Delta if "Too Long", Positive Delta if "Too Short".
 * **Filter 2 (Price):** Defined Risk for High Price ($200+), Undefined Risk for Low Price (<$100).
 * **Filter 3 (Vol):** Prioritize Vol Bias > 0.85.
+* **Filter 4 (Liquidity):** Exclude symbols marked 🚱 Illiquid unless Vol Bias > 1.2 (Extreme).
 * **Inputs:** Default watchlist at `watchlists/default-watchlist.csv` (first column `Symbol`). If missing, warn and fall back to a small index list.
 * **Usage:** When running `vol_screener.py`, use the `--exclude-sectors` argument (e.g., `--exclude-sectors "Technology,Financial Services"`) to filter out concentrated sectors, as identified in the Triage Report.
 * **Performance:** Keep concurrency conservative to avoid throttling (2–3 workers). For large watchlists, chunk runs rather than one huge batch.
@@ -292,7 +297,7 @@ Analyze grouped strategies in this order:
     * **Portfolio:** ⚖️ `[NEUTRAL]` | 📈 `[SHORT]` | 📉 `[LONG]` | 🦇 `[EFFICIENT]`
     * **Theta:** 💚 `[HEALTHY]` (Optimal Ratio) | 🧡 `[LOW]` | ❤️ `[HIGH]`
     * **Mix:** 🌍 `[DIVERSIFIED]` | 🚩 `[EQUITY HEAVY]` | 🛢️ `[COMMODITY]` | 🏛️ `[BONDS]` | 💱 `[CURRENCY]`
-    * **Status:** ✅ `[HARVEST]` | 🛡️ `[DEFENSE]` | ☢️ `[GAMMA]` | 💀 `[ZOMBIE]`
+    * **Status:** ✅ `[HARVEST]` | 🛡️ `[DEFENSE]` | ☢️ `[GAMMA]` | 💀 `[ZOMBIE]` | 🚱 `[ILLIQUID]`
     * **Data:** 📊 `[VOL RICH]` | 🧊 `[VOL LOW]` | 📉 `[STALE]` | 💥 `[CRASH RISK]`
 
 ## Initial Intake (First Interaction)

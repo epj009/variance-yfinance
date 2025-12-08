@@ -41,6 +41,13 @@ The `analyze_portfolio.py` script automates the daily "check-up":
 *   **Sector Allocation:** Warns if any single sector constitutes > 25% of the portfolio to reduce correlation risk.
 *   **Asset Mix:** Calculates portfolio allocation across asset classes (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity exposure exceeds 80% (correlation risk).
 
+### 3. Liquidity Safety Layer
+The system actively protects against "Slippage Tax" by analyzing market width and volume:
+*   **Slippage Calculation:** Estimates the cost to enter/exit based on Bid/Ask spread width.
+*   **Liquidity Gates:**
+    *   **Vol Screener:** Filters out symbols with wide spreads (> 5% of price) or low ATM volume unless explicitly requested.
+    *   **Triage:** Flags existing positions with `[LIQUIDITY WARNING]` if spreads widen, signaling execution risk.
+
 ## Configuration
 The system is driven by centralized configuration files in the `config/` directory:
 
@@ -68,8 +75,10 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Uses proxies for futures (e.g., `/CL` via USO, `/ES` via VIX) and labels them in the output.
     *   Labels “🦇 Bats Efficiency Zone” when price is between `$15-$75` and Vol Bias > `1.0`.
     *   **Sector Exclusion:** Can filter out symbols from specified sectors using `--exclude-sectors`.
+    *   **Liquidity Filtering:** Automatically excludes illiquid symbols (wide spreads, low volume) to prevent bad fills.
+    *   **Visual Signals:** Flags "🚱" (Illiquid) or "⚠️" (Wide Spread) in output.
 *   **Asset Class Filtering:** Can filter by asset class using `--include-asset-classes "Commodity,FX"` or `--exclude-asset-classes "Equity"` for targeted rebalancing.
-*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--exclude-sectors "Sector1,Sector2"] [--include-asset-classes "Commodity,FX"]`
+*   **Usage:** `source venv/bin/activate && python3 scripts/vol_screener.py [LIMIT] [--show-all] [--show-illiquid] [--exclude-sectors "Sector1,Sector2"] [--include-asset-classes "Commodity,FX"]`
 *   **Watchlist:** `watchlists/default-watchlist.csv` (first column `Symbol`).
 
 ### `scripts/analyze_portfolio.py`
@@ -79,6 +88,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Generates a Markdown table of actionable steps (Harvest, Defense, etc.) based on `trading_rules.json`.
     *   Calculates Asset Mix (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity > 80%.
     *   Flags stale prices, zero-cost-basis trades, and sector concentration risks.
+    *   **Liquidity Health Check:** Warns if current open positions have widened spreads (> 5%) or low volume, indicating difficult exit conditions.
     *   Supports JSON output with `--json` flag for programmatic access.
 *   **Usage:** `source venv/bin/activate && python3 scripts/analyze_portfolio.py [positions/your_export.csv] [--json]`
 

@@ -223,7 +223,13 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
     cache_key = f"iv_{symbol_key}"
     cached = cache.get(cache_key)
     if cached is not None:
-        return cached
+        # Backward compatibility: older cache entries may be a bare float
+        if isinstance(cached, dict):
+            return cached
+        try:
+            return {'iv': float(cached), 'atm_vol': None, 'atm_bid': None, 'atm_ask': None}
+        except Exception:
+            return None
 
     def _fetch():
         exps = ticker_obj.options
@@ -280,12 +286,29 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
         
         if calls.empty or puts.empty:
             return None
-            
+        
         atm_call = calls.nsmallest(1, 'dist').iloc[0]
         atm_put = puts.nsmallest(1, 'dist').iloc[0]
         
-        iv = (atm_call['impliedVolatility'] + atm_put['impliedVolatility']) / 2 * 100
-        return iv
+        iv = np.nanmean([atm_call.get('impliedVolatility', np.nan), atm_put.get('impliedVolatility', np.nan)]) * 100
+        if np.isnan(iv):
+            return None
+
+        atm_vol = np.nansum([atm_call.get('volume', np.nan), atm_put.get('volume', np.nan)])
+        atm_vol = None if np.isnan(atm_vol) else float(atm_vol)
+
+        atm_bid = np.nanmean([atm_call.get('bid', np.nan), atm_put.get('bid', np.nan)])
+        atm_bid = None if np.isnan(atm_bid) else float(atm_bid)
+
+        atm_ask = np.nanmean([atm_call.get('ask', np.nan), atm_put.get('ask', np.nan)])
+        atm_ask = None if np.isnan(atm_ask) else float(atm_ask)
+
+        return {
+            'iv': float(iv),
+            'atm_vol': atm_vol,
+            'atm_bid': atm_bid,
+            'atm_ask': atm_ask
+        }
 
     try:
         val = retry_fetch(_fetch)
@@ -502,7 +525,18 @@ def process_single_symbol(raw_symbol):
         price, is_stale = price_data
             
         hv = proxy_hv if is_proxy and proxy_hv is not None else calculate_hv(ticker, yf_symbol)
-        iv = proxy_iv if is_proxy and proxy_iv is not None else get_current_iv(ticker, price, yf_symbol)
+        iv_data = proxy_iv if is_proxy and proxy_iv is not None else get_current_iv(ticker, price, yf_symbol)
+        if iv_data is not None and not isinstance(iv_data, dict):
+            # Proxy path uses a simple float; normalize to dict for downstream use
+            iv_data = {'iv': iv_data, 'atm_vol': None, 'atm_bid': None, 'atm_ask': None}
+        iv = iv_data['iv'] if iv_data else None
+        liquidity = None
+        if iv_data:
+            liquidity = {
+                'atm_vol': iv_data.get('atm_vol'),
+                'atm_bid': iv_data.get('atm_bid'),
+                'atm_ask': iv_data.get('atm_ask')
+            }
         earnings_date = "N/A" if should_skip_earnings(raw_symbol, yf_symbol) else get_earnings_date(ticker, yf_symbol)
         
         if override_sector:
@@ -515,6 +549,7 @@ def process_single_symbol(raw_symbol):
             'is_stale': is_stale,
             'hv252': hv,
             'iv30': iv,
+            'liquidity': liquidity,
             'earnings_date': earnings_date,
             'sector': sector
         }

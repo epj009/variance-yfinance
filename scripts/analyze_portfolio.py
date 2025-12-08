@@ -70,19 +70,21 @@ class PortfolioParser:
     # Internal Key : [Possible CSV Headers]
     MAPPING = {
         'Symbol': ['Symbol', 'Sym', 'Ticker'],
-        'Type': ['Type', 'Asset Class'], 
+        'Type': ['Type', 'Asset Class'],
         'Quantity': ['Quantity', 'Qty', 'Position', 'Size'],
         'Exp Date': ['Exp Date', 'Expiration', 'Expiry'],
         'DTE': ['DTE', 'Days To Expiration', 'Days to Exp'],
         'Strike Price': ['Strike Price', 'Strike'],
-        # FIX: Removed 'Type' from Call/Put to avoid collision with Asset Class
-        'Call/Put': ['Call/Put', 'Side', 'C/P'], 
+        'Call/Put': ['Call/Put', 'Side', 'C/P'],
         'Underlying Last Price': ['Underlying Last Price', 'Underlying Price', 'Current Price'],
         'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
         'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
         'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
         'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
-        'Theta': ['Theta', 'Theta Daily', 'Daily Theta']
+        'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
+        'Bid': ['Bid', 'Bid Price'],
+        'Ask': ['Ask', 'Ask Price'],
+        'Mark': ['Mark', 'Mark Price', 'Mid']
     }
 
     @staticmethod
@@ -293,6 +295,22 @@ def identify_strategy(legs):
 
     return "Custom/Combo"
 
+def calculate_slippage_status(bid: float, ask: float) -> str:
+    """
+    Determine slippage status based on bid/ask spread.
+    Returns 'TIGHT' when spread <= 0.05, 'WIDE' when spread > 0.05 and spread/midpoint > 0.10, otherwise 'NORMAL'.
+    """
+    spread = ask - bid
+    if spread <= 0.05:
+        return "TIGHT"
+
+    midpoint = (ask + bid) / 2
+    relative_spread = spread / midpoint if midpoint != 0 else float("inf")
+
+    if relative_spread > 0.10:
+        return "WIDE"
+    return "NORMAL"
+
 def cluster_strategies(positions):
     """
     Group individual position legs into logical strategies (e.g., combining a short call and short put into a Strangle).
@@ -499,6 +517,11 @@ def analyze_portfolio(file_path, output_json=False):
             if not str(l['IV Rank']).strip():
                 missing_ivr_legs += 1
 
+        # Calculate liquidity status
+        total_bid = sum(parse_currency(leg.get('Bid', '0')) for leg in legs)
+        total_ask = sum(parse_currency(leg.get('Ask', '0')) for leg in legs)
+        liquidity_status = calculate_slippage_status(total_bid, total_ask) if total_bid > 0 and total_ask > 0 else 'UNKNOWN'
+
         net_cost = sum(parse_currency(l['Cost']) for l in legs)
         
         pl_pct = None
@@ -614,6 +637,7 @@ def analyze_portfolio(file_path, output_json=False):
             'action': action,
             'logic': logic,
             'sector': sector,
+            'liquidity_status': liquidity_status,
             'delta': strategy_delta
         })
 
@@ -1002,7 +1026,10 @@ def analyze_portfolio(file_path):
         "asset_mix": [],
         "asset_mix_warning": {"risk": False, "details": ""},
         "caution_items": [],
-        "stress_box": None
+        "stress_box": None,
+        "health_check": {
+            "liquidity_warnings": [f'{r["root"]}: Wide spread detected' for r in all_position_reports if r.get('liquidity_status') == 'WIDE']
+        }
     }
 
     # Populate Triage Actions

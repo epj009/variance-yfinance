@@ -19,6 +19,9 @@ RULES_DEFAULT = {
     "bats_efficiency_vol_bias": 1.0,
 }
 
+MIN_ATM_VOLUME = 500
+MAX_SLIPPAGE_PCT = 0.05
+
 # Load System Config
 try:
     with open('config/system_config.json', 'r') as f:
@@ -77,16 +80,18 @@ def get_days_to_date(date_str):
     except:
         return "N/A"
 
-def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_asset_classes=None, exclude_asset_classes=None):
+def screen_volatility(limit=None, show_all=False, show_illiquid=False, exclude_sectors=None, include_asset_classes=None, exclude_asset_classes=None):
     """
     Scan the watchlist for high-volatility trading opportunities.
 
-    Fetches market data, filters by Vol Bias threshold (unless show_all=True),
+    Fetches market data, filters by Vol Bias threshold (unless show_all=True), filters out illiquid names
+    (unless show_illiquid=True),
     and optionally excludes specific sectors or filters by asset class. Returns a structured report.
 
     Args:
         limit (int, optional): Max number of symbols to scan.
         show_all (bool): If True, displays all symbols regardless of Vol Bias.
+        show_illiquid (bool): If True, includes names that fail liquidity checks.
         exclude_sectors (list[str], optional): List of sector names to hide from results.
         include_asset_classes (list[str], optional): Only show these asset classes (e.g., ["Commodity", "FX"]).
         exclude_asset_classes (list[str], optional): Hide these asset classes (e.g., ["Equity"]).
@@ -124,6 +129,7 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_
     missing_bias = 0
     sector_skipped = 0
     asset_class_skipped = 0
+    illiquid_skipped = 0
     bats_zone_count = 0 # Initialize bats zone counter
 
     for sym, metrics in data.items():
@@ -136,6 +142,22 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
+        liquidity = metrics.get('liquidity', {})
+        atm_volume = liquidity.get('atm_volume')
+        bid = liquidity.get('bid')
+        ask = liquidity.get('ask')
+
+        slippage_pct = None
+        if bid is not None and ask is not None:
+            mid = (bid + ask) / 2
+            if mid > 0:
+                slippage_pct = (ask - bid) / mid
+
+        is_illiquid = False
+        if atm_volume is not None and atm_volume < MIN_ATM_VOLUME:
+            is_illiquid = True
+        if slippage_pct is not None and slippage_pct > MAX_SLIPPAGE_PCT:
+            is_illiquid = True
 
         # Sector Filter
         if exclude_sectors and sector in exclude_sectors:
@@ -161,6 +183,10 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_
             low_bias_skipped += 1
             continue
 
+        if is_illiquid and not show_illiquid:
+            illiquid_skipped += 1
+            continue
+
         # --- Determine Status Icons ---
         status_icons = []
         
@@ -180,6 +206,8 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_
         
         if isinstance(days_to_earnings, int) and days_to_earnings <= RULES['earnings_days_threshold'] and days_to_earnings >= 0:
             status_icons.append("⚠️ Earn")
+        if is_illiquid:
+            status_icons.append("🚱 Illiquid")
         
         # Prepare candidate data for return
         candidate_data = {
@@ -211,14 +239,18 @@ def screen_volatility(limit=None, show_all=False, exclude_sectors=None, include_
         return (0, bias)
     candidates_with_status.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
     
+    bias_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
+    liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {MIN_ATM_VOLUME}, slippage > {MAX_SLIPPAGE_PCT*100:.1f}%)"
+
     summary = {
         "scanned_symbols_count": len(symbols),
         "low_bias_skipped_count": low_bias_skipped,
         "sector_skipped_count": sector_skipped,
         "asset_class_skipped_count": asset_class_skipped,
         "missing_bias_count": missing_bias,
+        "illiquid_skipped_count": illiquid_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
-        "filter_note": "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
+        "filter_note": f"{bias_note}; {liquidity_note}"
     }
 
     return {"candidates": candidates_with_status, "summary": summary}
@@ -229,6 +261,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
     parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')
+    parser.add_argument('--show-illiquid', action='store_true', help='Include illiquid symbols (low volume or wide spreads)')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
@@ -251,6 +284,7 @@ if __name__ == "__main__":
     report_data = screen_volatility(
         limit=args.limit,
         show_all=args.show_all,
+        show_illiquid=args.show_illiquid,
         exclude_sectors=exclude_list,
         include_asset_classes=include_assets,
         exclude_asset_classes=exclude_assets
@@ -286,9 +320,12 @@ if __name__ == "__main__":
 
         # Summary of filtered symbols
         if not args.show_all:
-            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['sector_skipped_count']} excluded by sector, {summary['asset_class_skipped_count']} excluded by asset class, and {summary['missing_bias_count']} with missing bias.")
+            print(f"\nSkipped {summary['low_bias_skipped_count']} symbols below bias threshold, {summary['illiquid_skipped_count']} illiquid, {summary['sector_skipped_count']} excluded by sector, {summary['asset_class_skipped_count']} excluded by asset class, and {summary['missing_bias_count']} with missing bias.")
         elif summary['missing_bias_count']:
             print(f"\nNote: {summary['missing_bias_count']} symbols missing bias (no IV/HV).")
+
+        if summary['illiquid_skipped_count'] > 0 and not args.show_illiquid:
+            print(f"Filtered {summary['illiquid_skipped_count']} illiquid symbols (ATM vol < {MIN_ATM_VOLUME} or slippage > {MAX_SLIPPAGE_PCT*100:.1f}%).")
 
         if summary['asset_class_skipped_count'] > 0 and args.show_all:
             print(f"Filtered {summary['asset_class_skipped_count']} symbols by asset class.")
