@@ -128,15 +128,15 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
     * Prioritize **Hierarchical Views** (Trees) over wide tables for complex data.
     * Use **ASCII/Unicode Borders** to separate logical "Panels".
 
-* **Response Structure (The Dashboard):**
+
 
     **1. The Heads-Up Display (Key-Value Grid):**
     Render the Portfolio Status as a 2x4 grid (4 rows, 2 columns).
     * *Asset Mix Row:* **READ** the 'Asset Mix' and 'Sector Concentration' metrics directly from the input JSON. Do not calculate them yourself.
     ```text
     NET LIQUIDITY: $50,000 (Default)    THETA EFFICIENCY: High 🟢
-    BETA DELTA:    -150 (Bearish)       BP USAGE:         N/A
-    DELTA/THETA:   -1.2
+    BP USAGE:         N/A             DELTA/THETA:      -1.2
+    BETA DELTA:    -150 (Bearish)       FRICTION (Φ):     0.2 Days (Liquid)
     ASSET MIX:     [⚠️ EQUITY HEAVY]    (Comm: 5% | FX: 0%)
     ─────────────────────────────────────────────────────────────────
     ```
