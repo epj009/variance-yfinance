@@ -223,7 +223,7 @@ Analyze grouped strategies in this order:
 * **Script Location:** All analysis and utility Python scripts are located in the `scripts/` directory.
 * **CSV Location:** user CSVs are located in the `positions` folder. Do not ignore this location.
 * **Post-Triage Action:** After completing the 'Morning Triage', run `vol_screener.py` to identify new trading opportunities and rebalance the portfolio.
-* **Python Environment:** Always execute Python scripts within the project's virtual environment. Prefix all `python` or `python3` commands with `source venv/bin/activate &&`.
+* **Python Environment:** Always execute Python scripts using the explicit virtual environment binary. Use `./venv/bin/python3` instead of `python3` or sourcing activate.
 * **Role of Scripts vs. Agent:**
     * **Scripts (`scripts/*.py`):** These are **data fetchers** and **processors**. They handle the heavy lifting of connecting to APIs (Yahoo Finance), parsing CSVs, and calculating raw metrics (IV30, HV, Vol Bias, Sector). They provide the *facts*.
     * **Agent (Variance):** You are the **strategist**. You must apply the higher-level logic defined in "The Strategy Playbook" and "Operational Modes" to the data returned by the scripts.

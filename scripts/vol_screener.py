@@ -130,7 +130,7 @@ def screen_volatility(
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
-        liquidity = metrics.get('liquidity', {})
+        liquidity = metrics.get('liquidity') or {}
         atm_volume = liquidity.get('atm_volume')
         bid = liquidity.get('bid')
         ask = liquidity.get('ask')
