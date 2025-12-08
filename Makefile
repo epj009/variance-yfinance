@@ -44,7 +44,7 @@ test: ## Run unit tests
 	@$(PYTEST) -q
 
 triage: ## Run portfolio analysis (defaults to sample if no file provided)
-	@echo "Running Morning Triage..."
+	@echo "Running Portfolio Triage..."
 	@if [ -z "$(FILE)" ]; then \
 		echo "No FILE specified. Using sample data."; \
 		$(VENV_PYTHON) scripts/analyze_portfolio.py util/sample_positions.csv; \

@@ -6,7 +6,7 @@
 ## Quick Start (The Easy Way)
 The project includes a smart wrapper script that handles environment setup and dependencies automatically.
 
-1. **Auto-Analyze (Morning Routine):**
+1. **Auto-Analyze (Daily Routine):**
    ```bash
    ./variance
    ```
@@ -45,7 +45,7 @@ Since reliable "IV Rank" data is often behind paywalls, we engineered a custom m
     *   **< 1.0 (Cheap):** The market is complacent. Selling premium here is dangerous (low reward for the risk).
     *   **Target:** We hunt for symbols with **Vol Bias > 0.85** (and ideally > 1.0).
 
-### 2. Morning Triage (Portfolio Health)
+### 2. Portfolio Triage (Portfolio Health)
 The `analyze_portfolio.py` script automates the daily "check-up":
 *   **Grouping:** Automatically groups individual option legs into complex strategies (Iron Condors, Strangles, etc.).
 *   **Status Checks:**
@@ -125,7 +125,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   `util/explore_earnings.py`: For exploring earnings date fetching from yfinance.
 
 ## Workflow
-1.  **Morning:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
+1.  **Routine:** Export positions to CSV (see `util/sample_positions.csv` for format). Run `source venv/bin/activate && python3 scripts/analyze_portfolio.py positions/<latest>.csv`.
 2.  **Rebalance:** If portfolio delta is skewed, sector concentration is high, or asset mix shows Equity > 80%, run `source venv/bin/activate && python3 scripts/vol_screener.py` with appropriate filters:
     *   Use `--exclude-sectors "Technology,Healthcare"` to avoid concentrated sectors
     *   Use `--include-asset-classes "Commodity,FX"` to target non-equity opportunities for correlation defense

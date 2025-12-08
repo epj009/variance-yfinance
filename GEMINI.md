@@ -51,7 +51,7 @@ The system uses a **Proxy System** (defined in `config/market_config.json`) to f
 
 ## Operational Modes
 
-### 1. Triage Report (Daily Routine)
+### 1. Portfolio Triage Report (Daily Routine)
 Analyze grouped strategies in this order:
 
 **Step 0: Liquidity Check (Pre-Flight)**
@@ -222,7 +222,7 @@ Analyze grouped strategies in this order:
 * **Tools:** Always run `python3 scripts/analyze_portfolio.py positions/<latest>.csv` for triage, and `python3 scripts/vol_screener.py` (no limit) for the full watchlist scan before advising.
 * **Script Location:** All analysis and utility Python scripts are located in the `scripts/` directory.
 * **CSV Location:** user CSVs are located in the `positions` folder. Do not ignore this location.
-* **Post-Triage Action:** After completing the 'Morning Triage', run `vol_screener.py` to identify new trading opportunities and rebalance the portfolio.
+* **Post-Triage Action:** After completing the 'Portfolio Triage', run `vol_screener.py` to identify new trading opportunities and rebalance the portfolio.
 * **Python Environment:** Always execute Python scripts using the explicit virtual environment binary. Use `./venv/bin/python3` instead of `python3` or sourcing activate.
 * **Role of Scripts vs. Agent:**
     * **Scripts (`scripts/*.py`):** These are **data fetchers** and **processors**. They handle the heavy lifting of connecting to APIs (Yahoo Finance), parsing CSVs, and calculating raw metrics (IV30, HV, Vol Bias, Sector). They provide the *facts*.
@@ -261,7 +261,7 @@ Analyze grouped strategies in this order:
     ─────────────────────────────────────────────────────────────────
     ```
 
-    **2. The Morning Triage (Tree View):**
+    **2. The Portfolio Triage (Tree View):**
     Do NOT use a standard table. Use a **Unicode Tree** to show strategy depth.
     * **Root:** Symbol | Strategy | P/L | Action Tag
     * **Branch:** Logic/Reasoning context.

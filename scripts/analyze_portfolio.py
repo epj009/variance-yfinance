@@ -465,23 +465,7 @@ def cluster_strategies(positions: List[Dict[str, Any]]) -> List[List[Dict[str, A
 
 def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     """
-    Main entry point for Portfolio Analysis (Morning Triage).
-    
-    1. Parses the input CSV.
-    2. Groups positions into Strategies.
-    3. Fetches live market data (Price, Volatility).
-    4. Applies Triage Rules (Harvest, Defense, Gamma, etc.) based on RULES config.
-    5. Returns a structured report (dictionary).
-    
-    Args:
-        file_path: Path to the portfolio CSV file.
-        
-    Returns:
-        A dictionary containing the full analysis report.
-        
-    Raises:
-        FileNotFoundError: If the CSV file does not exist.
-        csv.Error: If there's an error parsing the CSV.
+    Main entry point for Portfolio Analysis (Portfolio Triage).
     """
     # 1. Parse CSV
     positions = PortfolioParser.parse(file_path)
