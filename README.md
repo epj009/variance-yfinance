@@ -63,14 +63,20 @@ Since reliable "IV Rank" data is often behind paywalls, we engineered a custom m
     *   **Target:** We hunt for symbols with **Vol Bias > 0.85** (and ideally > 1.0).
 
 ### 2. Portfolio Triage (Portfolio Health)
-The `analyze_portfolio.py` script automates the daily "check-up":
+The `analyze_portfolio.py` script automates the daily "check-up", generating a comprehensive report on portfolio mechanics:
+
 *   **Grouping:** Automatically groups individual option legs into complex strategies (Iron Condors, Strangles, etc.).
 *   **Status Checks:**
     *   🌾 **Harvest:** Profit > 50%? Close it.
     *   🛡️ **Defense:** Tested & < 21 DTE? Roll it.
     *   ☢️ **Gamma:** < 21 DTE & Loser? Close it.
     *   🪦 **Dead Money:** Low Vol & Flat P/L? Kill it.
-*   **Portfolio Delta:** Sums Beta-Weighted Deltas to warn if you are "Too Long" (>75) or "Too Short" (<-50).
+*   **Friction Horizon (Φ):** A "Velocity Brake" metric. Calculates how many days of Theta decay are required just to pay for the bid/ask spread slippage to exit.
+    *   **Liquid:** < 1 Day.
+    *   **Sticky:** 1-3 Days.
+    *   **Liquidity Trap:** > 3 Days (Stop opening new trades).
+*   **The Stress Box:** A scenario simulator that estimates portfolio P/L under various market conditions (Crash -5%, Rally +5%) based on your Beta-Weighted Delta.
+*   **Delta Spectrograph:** Visualizes which specific positions are contributing the most directional risk (Delta) to your portfolio.
 *   **Portfolio Theta:** Calculates daily Theta decay and provides a health check against Net Liquidity targets (0.1%-0.5% of Net Liq/day).
 *   **Sector Allocation:** Warns if any single sector constitutes > 25% of the portfolio to reduce correlation risk.
 *   **Asset Mix:** Calculates portfolio allocation across asset classes (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity exposure exceeds 80% (correlation risk).
@@ -98,6 +104,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Portfolio Delta Limits (`+75` / `-50`)
     *   Theta/Net Liquidity targets (`0.1%`-`0.5%`)
     *   **Bat's Efficiency Zone:** Price $15-$75, Vol Bias > 1.0.
+*   **`config/system_config.json`**: Defines system paths and cache settings (watchlist location, cache TTLs).
 
 ## Tools & Scripts
 
