@@ -29,6 +29,8 @@ RULES_DEFAULT = {
     "portfolio_delta_short_threshold": -50,
     "concentration_risk_pct": 0.25,
     "net_liquidity": 50000,
+    "theta_efficiency_low": 0.1,
+    "theta_efficiency_high": 0.5,
     "beta_weighted_symbol": "SPY"
 }
 
@@ -734,9 +736,13 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     if net_liq > 0:
         theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
         report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
-        if 0.1 <= theta_as_pct_of_nl <= 0.5:
-            report['portfolio_summary']['theta_status'] = "Healthy (0.1% - 0.5% of Net Liq/day)"
-        elif theta_as_pct_of_nl < 0.1:
+        
+        low_thresh = RULES['theta_efficiency_low']
+        high_thresh = RULES['theta_efficiency_high']
+        
+        if low_thresh <= theta_as_pct_of_nl <= high_thresh:
+            report['portfolio_summary']['theta_status'] = f"Healthy ({low_thresh}% - {high_thresh}% of Net Liq/day)"
+        elif theta_as_pct_of_nl < low_thresh:
             report['portfolio_summary']['theta_status'] = "Low. Consider adding more short premium."
         else:
             report['portfolio_summary']['theta_status'] = "High. Consider reducing overall premium sold or managing gamma risk."
