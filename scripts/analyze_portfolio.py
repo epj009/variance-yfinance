@@ -562,7 +562,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             pl_pct = net_pl / net_cost
         
         # Initialize variables
-        action = ""
+        action_code = None
         logic = ""
         is_winner = False
         
@@ -579,7 +579,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 
         # 1. Harvest (Short Premium only)
         if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
-            action = "Harvest"
+            action_code = "HARVEST"
             logic = f"Profit {pl_pct:.1%}"
             is_winner = True
         
@@ -603,23 +603,23 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 elif otype == 'Put' and underlying_price < strike: is_tested = True
         
         if not is_winner and is_tested and min_dte < RULES['gamma_dte_threshold']:
-            action = "🛡️ Defense"
+            action_code = "DEFENSE"
             logic = f"Tested & < {RULES['gamma_dte_threshold']} DTE"
             
         # 3. Gamma Zone (apply even if P/L% is unknown)
         if not is_winner and not is_tested and min_dte < RULES['gamma_dte_threshold'] and min_dte > 0:
-            action = "☢️ Gamma"
+            action_code = "GAMMA"
             logic = f"< {RULES['gamma_dte_threshold']} DTE Risk"
             
         # 4. Dead Money (Enhanced with Real-time Vol Bias)
         if not is_winner and not is_tested and min_dte > RULES['gamma_dte_threshold']:
             if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
                 if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
-                    action = "💀 Zombie"
+                    action_code = "ZOMBIE"
                     logic = f"Bias {vol_bias:.2f} & Flat P/L"
                 elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < RULES['low_ivr_threshold']:
                      # Fallback if no live data
-                     action = "💀 Zombie"
+                     action_code = "ZOMBIE"
                      logic = "Low IVR (Stale) & Flat P/L"
 
         # 5. Earnings Warning
@@ -630,39 +630,30 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 days_to_earn = (edate - datetime.now().date()).days
                 if 0 <= days_to_earn <= RULES['earnings_days_threshold']:
                     earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
-                    if not action:
-                        action = f"⚠️ Earnings ({days_to_earn}d)"
+                    if not action_code:
+                        action_code = "EARNINGS_WARNING"
                         logic = "Binary Event Risk"
-                    else:
-                        logic = f"{logic} | {earnings_note}" if logic else earnings_note
+                    logic = f"{logic} | {earnings_note}" if logic else earnings_note
             except (ValueError, TypeError):
                 pass
         
-        price_str = f"${live_price:.2f}" if live_price else "N/A"
-        if is_stale:
-            price_str += "*"
-        bias_str = f"{vol_bias:.2f}" if vol_bias else "N/A"
-        if proxy_note:
-            bias_str += f" ({proxy_note})"
-
+        price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
         if (price_used != "live" or is_stale) and not is_winner and min_dte < RULES['gamma_dte_threshold']:
             # If we can't rely fully on tested logic due to stale/absent live price, note it
             note = "Price stale/absent; tested status uncertain"
-            if action in ["🛡️ Defense", "☢️ Gamma"]:
-                logic = f"{logic} | {note}" if logic else note
-            elif not action:
-                action = ""
-                logic = note
+            logic = f"{logic} | {note}" if logic else note
 
         all_position_reports.append({
             'root': root,
             'strategy_name': strategy_name,
-            'price_str': price_str,
-            'bias_str': bias_str,
+            'price': price_value,
+            'is_stale': bool(is_stale),
+            'vol_bias': vol_bias if vol_bias is not None else None,
+            'proxy_note': proxy_note,
             'net_pl': net_pl,
             'pl_pct': pl_pct,
             'min_dte': min_dte,
-            'action': action,
+            'action_code': action_code,
             'logic': logic,
             'sector': sector,
             'delta': strategy_delta
@@ -687,10 +678,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
             "friction_horizon_days": friction_horizon_days,
-            "friction_status": "Liquid" if friction_horizon_days < 1.0 else ("Sticky" if friction_horizon_days < 3.0 else "Liquidity Trap"),
-            "theta_net_liquidity_pct": 0.0,
-            "theta_status": "N/A",
-            "delta_status": "N/A"
+            "theta_net_liquidity_pct": 0.0
         },
         "data_integrity_warning": {"risk": False, "details": ""},
         "delta_spectrograph": [],
@@ -707,58 +695,37 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 
     # Populate Triage Actions
     for r in all_position_reports:
-        if r['action']:
-            report['triage_actions'].append({
-                "symbol": r['root'],
-                "strategy": r['strategy_name'],
-                "price": r['price_str'],
-                "vol_bias": r['bias_str'],
-                "net_pl": r['net_pl'],
-                "pl_pct": f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A",
-                "dte": f"{r['min_dte']}d",
-                "action": r['action'],
-                "logic": r['logic']
-            })
+        entry = {
+            "symbol": r['root'],
+            "strategy": r['strategy_name'],
+            "price": r['price'],
+            "is_stale": r['is_stale'],
+            "vol_bias": r['vol_bias'],
+            "proxy_note": r['proxy_note'],
+            "net_pl": r['net_pl'],
+            "pl_pct": r['pl_pct'],
+            "dte": r['min_dte'],
+            "logic": r['logic'],
+            "sector": r['sector']
+        }
+        if r['action_code']:
+            entry["action_code"] = r['action_code']
+            report['triage_actions'].append(entry)
         else:
-            report['portfolio_overview'].append({
-                "symbol": r['root'],
-                "strategy": r['strategy_name'],
-                "price": r['price_str'],
-                "vol_bias": r['bias_str'],
-                "net_pl": r['net_pl'],
-                "pl_pct": f"{r['pl_pct']:.1%}" if r['pl_pct'] is not None else "N/A",
-                "dte": f"{r['min_dte']}d",
-                "status": "Hold"
-            })
+            entry["status"] = "HOLD"
+            report['portfolio_overview'].append(entry)
 
     # Populate Portfolio Summary
     net_liq = RULES['net_liquidity']
     if net_liq > 0:
         theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
         report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
-        
-        low_thresh = RULES['theta_efficiency_low']
-        high_thresh = RULES['theta_efficiency_high']
-        
-        if low_thresh <= theta_as_pct_of_nl <= high_thresh:
-            report['portfolio_summary']['theta_status'] = "Healthy (Optimal Ratio)"
-        elif theta_as_pct_of_nl < low_thresh:
-            report['portfolio_summary']['theta_status'] = "Low. Consider adding more short premium."
-        else:
-            report['portfolio_summary']['theta_status'] = "High. Consider reducing overall premium sold or managing gamma risk."
     
     # Delta/Theta Ratio
     if total_portfolio_theta != 0:
         report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta
     else:
         report['portfolio_summary']['delta_theta_ratio'] = 0.0
-
-    if total_beta_delta > RULES['portfolio_delta_long_threshold']:
-        report['portfolio_summary']['delta_status'] = f"Too Long (Delta > {RULES['portfolio_delta_long_threshold']})"
-    elif total_beta_delta < RULES['portfolio_delta_short_threshold']:
-        report['portfolio_summary']['delta_status'] = f"Too Short (Delta < {RULES['portfolio_delta_short_threshold']})"
-    else:
-        report['portfolio_summary']['delta_status'] = "Delta Neutral-ish"
 
     # Data Integrity Guardrail
     if total_option_legs > 0 and abs(total_beta_delta) < 5.0 and total_portfolio_theta < 5.0:
@@ -770,15 +737,10 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     for r in all_position_reports:
         root_deltas[r['root']] += r['delta']
     sorted_deltas = sorted(root_deltas.items(), key=lambda x: abs(x[1]), reverse=True)
-    max_delta = max([abs(d) for r, d in sorted_deltas]) if sorted_deltas else 1.0
-    if max_delta == 0: max_delta = 1.0
     for root, delta in sorted_deltas[:10]:
-        bar_len = int((abs(delta) / max_delta) * 20)
-        bar = "█" * bar_len
         report['delta_spectrograph'].append({
             "symbol": root,
-            "delta": delta,
-            "bar": bar.ljust(20) # Add padding for consistent output
+            "delta": delta
         })
 
     # Populate Sector Balance
@@ -792,7 +754,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         report['sector_balance'].append({
             "sector": sec,
             "count": count,
-            "percentage": f"{pct:.0%}"
+            "percentage": pct
         })
     
     concentrations = []
@@ -845,7 +807,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     for r in all_position_reports:
         if "stale" in r['logic'].lower():
             report['caution_items'].append(f"{r['root']}: price stale/absent; tested status uncertain")
-        if "Earnings" in r.get('action', "") or "Binary Event" in r.get('logic', ""):
+        if r.get('action_code') == "EARNINGS_WARNING" or "Binary Event" in r.get('logic', ""):
             report['caution_items'].append(f"{r['root']}: earnings soon (see action/logic)")
 
     # Stress Box (Scenario Simulator)

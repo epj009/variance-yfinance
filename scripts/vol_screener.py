@@ -175,28 +175,14 @@ def screen_volatility(
             illiquid_skipped += 1
             continue
 
-        # --- Determine Status Icons ---
-        status_icons = []
-        
-        if vol_bias is None: # Use vol_bias here, not 'bias' from c (candidate)
-            status_icons.append("❓ No Bias")
-        elif vol_bias > 1.0:
-            status_icons.append("🔥 Rich")
-        elif vol_bias > RULES['vol_bias_threshold']:
-            status_icons.append("✨ Fair/High")
-        else:
-            status_icons.append("❄️ Low")
-
-        # Bat's Efficiency Zone Check
-        if price and vol_bias is not None and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias']:
-            status_icons.append("🦇 Bat's Efficiency Zone")
+        is_bats_efficient = bool(price and vol_bias is not None and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias'])
+        if is_bats_efficient:
             bats_zone_count += 1
-        
-        if isinstance(days_to_earnings, int) and days_to_earnings <= RULES['earnings_days_threshold'] and days_to_earnings >= 0:
-            status_icons.append("⚠️ Earn")
-        if is_illiquid:
-            status_icons.append("🚱 Illiquid")
-        
+
+        is_rich = vol_bias is not None and vol_bias > 1.0
+        is_fair = vol_bias is not None and RULES['vol_bias_threshold'] < vol_bias <= 1.0
+        is_earnings_soon = isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= RULES['earnings_days_threshold']
+
         # Prepare candidate data for return
         candidate_data = {
             'Symbol': sym,
@@ -206,9 +192,13 @@ def screen_volatility(
             'Vol Bias': vol_bias,
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
-            'Status Icons': status_icons, # Raw icons for JSON, will be joined for Markdown
             'Sector': sector, # Include sector in candidate data for JSON output
-            'Asset Class': asset_class # Include asset class in candidate data for JSON output
+            'Asset Class': asset_class, # Include asset class in candidate data for JSON output
+            'is_rich': is_rich,
+            'is_fair': is_fair,
+            'is_illiquid': is_illiquid,
+            'is_earnings_soon': is_earnings_soon,
+            'is_bats_efficient': is_bats_efficient
         }
         candidates_with_status.append(candidate_data)
     
