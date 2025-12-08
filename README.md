@@ -90,7 +90,7 @@ The system is driven by centralized configuration files in the `config/` directo
     *   Calculates Vol Bias on the fly using `HV252`.
     *   Filters and ranks symbols by "Richness" based on `trading_rules.json`.
     *   Uses proxies for futures (e.g., `/CL` via USO, `/ES` via VIX) and labels them in the output.
-    *   Labels “🦇 Bats Efficiency Zone” when price is between `$15-$75` and Vol Bias > `1.0`.
+    *   Labels “🦇 Bat's Efficiency Zone” when price is between `$15-$75` and Vol Bias > `1.0`.
     *   **Sector Exclusion:** Can filter out symbols from specified sectors using `--exclude-sectors`.
     *   **Liquidity Filtering:** Automatically excludes illiquid symbols (wide spreads, low volume) to prevent bad fills.
     *   **Visual Signals:** Flags "🚱" (Illiquid) or "⚠️" (Wide Spread) in output.

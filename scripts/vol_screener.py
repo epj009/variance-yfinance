@@ -187,9 +187,9 @@ def screen_volatility(
         else:
             status_icons.append("❄️ Low")
 
-        # Bats Efficiency Zone Check
+        # Bat's Efficiency Zone Check
         if price and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias']:
-            status_icons.append("🦇 Bats Efficiency Zone")
+            status_icons.append("🦇 Bat's Efficiency Zone")
             bats_zone_count += 1
         
         if isinstance(days_to_earnings, int) and days_to_earnings <= RULES['earnings_days_threshold'] and days_to_earnings >= 0:
@@ -318,6 +318,6 @@ if __name__ == "__main__":
         if summary['asset_class_skipped_count'] > 0 and args.show_all:
             print(f"Filtered {summary['asset_class_skipped_count']} symbols by asset class.")
         
-        # Bats Efficiency Zone Summary
+        # Bat's Efficiency Zone Summary
         if summary['bats_efficiency_zone_count'] > 0:
-            print(f"\nFound {summary['bats_efficiency_zone_count']} symbols in the 🦇 Bats Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
+            print(f"\nFound {summary['bats_efficiency_zone_count']} symbols in the 🦇 Bat's Efficiency Zone (Price: ${RULES['bats_efficiency_min_price']}-${RULES['bats_efficiency_max_price']}, Vol Bias > {RULES['bats_efficiency_vol_bias']}).")
