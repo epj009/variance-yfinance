@@ -741,6 +741,12 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         else:
             report['portfolio_summary']['theta_status'] = "High. Consider reducing overall premium sold or managing gamma risk."
     
+    # Delta/Theta Ratio
+    if total_portfolio_theta != 0:
+        report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta
+    else:
+        report['portfolio_summary']['delta_theta_ratio'] = 0.0
+
     if total_beta_delta > RULES['portfolio_delta_long_threshold']:
         report['portfolio_summary']['delta_status'] = f"Too Long (Delta > {RULES['portfolio_delta_long_threshold']})"
     elif total_beta_delta < RULES['portfolio_delta_short_threshold']:
