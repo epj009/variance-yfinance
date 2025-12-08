@@ -1,14 +1,18 @@
-import sys
+import argparse
 import csv
 import json
-import argparse
+import sys
 from datetime import datetime
+from typing import Dict, List, Optional, Any, Union
+
 from get_market_data import get_market_data
 
-# Warn when running outside a venv to improve portability/setup guidance
-def warn_if_not_venv():
-    if sys.prefix == getattr(sys, "base_prefix", sys.prefix):
-        print("Warning: not running in a virtual environment. Create one with `python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.", file=sys.stderr)
+# Import common utilities
+try:
+    from .common import map_sector_to_asset_class, warn_if_not_venv
+except ImportError:
+    # Fallback for direct script execution
+    from common import map_sector_to_asset_class, warn_if_not_venv
 
 # Baseline trading rules to ensure CLI remains usable even if config is missing
 RULES_DEFAULT = {
@@ -41,46 +45,34 @@ except FileNotFoundError:
     print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
     RULES = RULES_DEFAULT.copy()
 
-# Load Market Config (for Asset Class Map)
-MARKET_CONFIG = {}
-try:
-    with open('config/market_config.json', 'r') as f:
-        MARKET_CONFIG = json.load(f)
-except FileNotFoundError:
-    print("Warning: config/market_config.json not found. Asset class filtering will be unavailable.", file=sys.stderr)
-
-# Build reverse lookup: sector -> asset class
-SECTOR_TO_ASSET_CLASS = {}
-if 'ASSET_CLASS_MAP' in MARKET_CONFIG:
-    for asset_class, sectors in MARKET_CONFIG['ASSET_CLASS_MAP'].items():
-        for sector in sectors:
-            SECTOR_TO_ASSET_CLASS[sector] = asset_class
-
-def map_sector_to_asset_class(sector):
+def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     """
-    Maps a sector string to its asset class.
-
+    Calculate the number of days from today until the given date string (ISO format).
+    
     Args:
-        sector (str): Sector name (e.g., "Technology", "Energy")
-
+        date_str: ISO format date string or "Unavailable".
+        
     Returns:
-        str: Asset class (e.g., "Equity", "Commodity", "Fixed Income", "FX", "Index")
+        Number of days as integer, or "N/A" if date is unavailable or invalid.
     """
-    return SECTOR_TO_ASSET_CLASS.get(sector, "Equity")  # Default to Equity if unknown
-
-def get_days_to_date(date_str):
-    """Calculate the number of days from today until the given date string (ISO format)."""
     if not date_str or date_str == "Unavailable":
-        return "N/A" # Return a string for unavailable
+        return "N/A"  # Return a string for unavailable
     try:
         target = datetime.fromisoformat(date_str).date()
         today = datetime.now().date()
         delta = (target - today).days
         return delta
-    except:
+    except (ValueError, TypeError):
         return "N/A"
 
-def screen_volatility(limit=None, show_all=False, show_illiquid=False, exclude_sectors=None, include_asset_classes=None, exclude_asset_classes=None):
+def screen_volatility(
+    limit: Optional[int] = None,
+    show_all: bool = False,
+    show_illiquid: bool = False,
+    exclude_sectors: Optional[List[str]] = None,
+    include_asset_classes: Optional[List[str]] = None,
+    exclude_asset_classes: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
 
@@ -89,15 +81,15 @@ def screen_volatility(limit=None, show_all=False, show_illiquid=False, exclude_s
     and optionally excludes specific sectors or filters by asset class. Returns a structured report.
 
     Args:
-        limit (int, optional): Max number of symbols to scan.
-        show_all (bool): If True, displays all symbols regardless of Vol Bias.
-        show_illiquid (bool): If True, includes names that fail liquidity checks.
-        exclude_sectors (list[str], optional): List of sector names to hide from results.
-        include_asset_classes (list[str], optional): Only show these asset classes (e.g., ["Commodity", "FX"]).
-        exclude_asset_classes (list[str], optional): Hide these asset classes (e.g., ["Equity"]).
+        limit: Max number of symbols to scan.
+        show_all: If True, displays all symbols regardless of Vol Bias.
+        show_illiquid: If True, includes names that fail liquidity checks.
+        exclude_sectors: List of sector names to hide from results.
+        include_asset_classes: Only show these asset classes (e.g., ["Commodity", "FX"]).
+        exclude_asset_classes: Hide these asset classes (e.g., ["Equity"]).
 
     Returns:
-        dict: A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
+        A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
     """
     # 1. Read Watchlist
     symbols = []
@@ -109,16 +101,12 @@ def screen_volatility(limit=None, show_all=False, show_illiquid=False, exclude_s
                 if row and row[0] != 'Symbol':
                     symbols.append(row[0])
     except FileNotFoundError:
-        # print(f"Warning: Watchlist file '{WATCHLIST_PATH}' not found. Using default symbols.", file=sys.stderr) # Will be handled in main
         symbols = FALLBACK_SYMBOLS
     except Exception as e:
-        # print(f"Error reading watchlist: {e}", file=sys.stderr) # Will be handled in main
         return {"error": f"Error reading watchlist: {e}"}
 
     if limit:
         symbols = symbols[:limit]
-    
-    # print(f"Scanning {len(symbols)} symbols from {WATCHLIST_PATH} (Excluding: {', '.join(exclude_sectors)})...") # Handled in main
     
     # 2. Get Market Data (Threaded)
     data = get_market_data(symbols)

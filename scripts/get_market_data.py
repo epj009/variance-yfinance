@@ -1,16 +1,18 @@
+import contextlib
+import io
 import json
-import sys
-import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta
-import concurrent.futures # Still needed for retry_fetch but not for parallel symbol fetching
-import sqlite3
-import time
 import os
 import random
-import io # Added for stderr redirection
+import sqlite3
+import sys
 import threading
-import contextlib
+import time
+from concurrent import futures
+from datetime import datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pandas as pd
 
 # Dependency guardrail: fail fast with clear install guidance
 try:
@@ -54,19 +56,29 @@ class MarketCache:
     Attributes:
         db_path (str): Path to the SQLite database file.
     """
-    def __init__(self, db_path=None):
-        """Initialize the cache with a database connection and a thread lock."""
+    def __init__(self, db_path: Optional[str] = None) -> None:
+        """
+        Initialize the cache with a database connection and a thread lock.
+        
+        Args:
+            db_path: Optional path to the SQLite database file. Uses default if not provided.
+        """
         self.db_path = db_path if db_path else DB_PATH
         self._lock = threading.Lock()
         self._last_sweep = 0  # Throttle expiry pruning
         self._init_db()
 
-    def _connect(self):
-        """Establish a connection to the SQLite database with a timeout."""
+    def _connect(self) -> sqlite3.Connection:
+        """
+        Establish a connection to the SQLite database with a timeout.
+        
+        Returns:
+            SQLite connection object.
+        """
         # Allow cross-thread use with a small busy timeout to reduce "database is locked" errors
         return sqlite3.connect(self.db_path, timeout=5, check_same_thread=False)
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         """Create the cache table if it doesn't exist."""
         with self._connect() as conn:
             conn.execute('PRAGMA journal_mode=WAL;')
@@ -79,15 +91,15 @@ class MarketCache:
                 )
             ''')
 
-    def get(self, key):
+    def get(self, key: str) -> Optional[Any]:
         """
         Retrieve a value from the cache if it exists and hasn't expired.
         
         Args:
-            key (str): The unique cache key.
+            key: The unique cache key.
             
         Returns:
-            dict/list/str/float: The cached value, or None if missing/expired.
+            The cached value, or None if missing/expired.
         """
         try:
             with self._lock:
@@ -106,14 +118,14 @@ class MarketCache:
             print(f"[cache] get failed for {key}: {exc}", file=sys.stderr)
             return None
 
-    def set(self, key, value, ttl_seconds):
+    def set(self, key: str, value: Any, ttl_seconds: int) -> None:
         """
         Store a value in the cache with a specific time-to-live (TTL).
         
         Args:
-            key (str): The unique cache key.
-            value (any): The data to store (must be JSON-serializable).
-            ttl_seconds (int): Duration in seconds before the entry expires.
+            key: The unique cache key.
+            value: The data to store (must be JSON-serializable).
+            ttl_seconds: Duration in seconds before the entry expires.
         """
         try:
             expiry = time.time() + ttl_seconds
@@ -133,8 +145,16 @@ class MarketCache:
 cache = MarketCache()
 _EARNINGS_IO_LOCK = threading.Lock()
 
-def map_symbol(symbol):
-    """Convert broker-specific symbols (e.g., /ES) to Yahoo Finance format (e.g., ES=F)."""
+def map_symbol(symbol: str) -> Optional[str]:
+    """
+    Convert broker-specific symbols (e.g., /ES) to Yahoo Finance format (e.g., ES=F).
+    
+    Args:
+        symbol: Broker symbol that may need mapping.
+        
+    Returns:
+        Mapped Yahoo Finance symbol, or None if unmapped/unsupported.
+    """
     if symbol.startswith('/'):
         for key, val in SYMBOL_MAP.items():
             if symbol.startswith(key):
@@ -143,26 +163,41 @@ def map_symbol(symbol):
         return None
     return SYMBOL_MAP.get(symbol, symbol)
 
-def should_skip_earnings(raw_symbol, yf_symbol):
+def should_skip_earnings(raw_symbol: str, yf_symbol: str) -> bool:
     """
     Determine if earnings data should be skipped for a symbol (e.g., ETFs, Indexes).
     
     Many ETFs, indexes, and futures produce noisy 404s for earnings.
     Skip the calendar lookup for known non-equity underlyings.
+    
+    Args:
+        raw_symbol: Raw broker symbol.
+        yf_symbol: Yahoo Finance mapped symbol.
+        
+    Returns:
+        True if earnings should be skipped, False otherwise.
     """
     upper = raw_symbol.upper()
     if raw_symbol.startswith('/') or yf_symbol.endswith('=F') or yf_symbol.startswith('^'):
         return True
     return upper in SKIP_EARNINGS
 
-def retry_fetch(func, *args, retries=3, backoff_factor=1.5, **kwargs):
+def retry_fetch(func: Callable[..., Any], *args: Any, retries: int = 3, backoff_factor: float = 1.5, **kwargs: Any) -> Any:
     """
     Execute a function with exponential backoff retries to handle transient network errors.
     
     Args:
-        func (callable): The function to execute.
-        retries (int): Maximum number of retry attempts.
-        backoff_factor (float): Multiplier for sleep time between retries.
+        func: The function to execute.
+        *args: Positional arguments to pass to func.
+        retries: Maximum number of retry attempts.
+        backoff_factor: Multiplier for sleep time between retries.
+        **kwargs: Keyword arguments to pass to func.
+        
+    Returns:
+        The return value of func.
+        
+    Raises:
+        Exception: The last exception raised if all retries fail.
     """
     last_exception = None
     delay = 1.0
@@ -177,11 +212,18 @@ def retry_fetch(func, *args, retries=3, backoff_factor=1.5, **kwargs):
             
     raise last_exception
 
-def calculate_hv(ticker_obj, symbol_key):
+def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
     """
     Calculate Annualized Historical Volatility (HV252) based on the last year of daily returns.
     
     Formula: StdDev(Log Returns) * sqrt(252) * 100
+    
+    Args:
+        ticker_obj: yfinance Ticker object.
+        symbol_key: Symbol string for cache key.
+        
+    Returns:
+        Annualized volatility as percentage, or None if calculation fails.
     """
     cache_key = f"hv_{symbol_key}"
     cached = cache.get(cache_key)
@@ -211,7 +253,7 @@ def calculate_hv(ticker_obj, symbol_key):
     except Exception:
         return None
 
-def get_current_iv(ticker_obj, current_price, symbol_key):
+def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str) -> Optional[Dict[str, Any]]:
     """
     Estimate Implied Volatility (IV30) using the option chain ~30 days out.
     
@@ -219,6 +261,14 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
     1. Find expiration closest to 30-45 DTE.
     2. Fetch option chain.
     3. Average the IV of the ATM Call and ATM Put.
+    
+    Args:
+        ticker_obj: yfinance Ticker object.
+        current_price: Current underlying price.
+        symbol_key: Symbol string for cache key.
+        
+    Returns:
+        Dictionary with 'iv', 'atm_vol', 'atm_bid', 'atm_ask', or None if unavailable.
     """
     cache_key = f"iv_{symbol_key}"
     cached = cache.get(cache_key)
@@ -318,12 +368,16 @@ def get_current_iv(ticker_obj, current_price, symbol_key):
     except Exception:
         return None
 
-def get_price(ticker_obj, symbol_key):
+def get_price(ticker_obj: Any, symbol_key: str) -> Optional[Tuple[float, bool]]:
     """
     Fetch the current market price. Prefer 'fast_info' (real-time), fallback to daily history (stale).
     
+    Args:
+        ticker_obj: yfinance Ticker object.
+        symbol_key: Symbol string for cache key.
+    
     Returns:
-        tuple: (price, is_stale_bool)
+        Tuple of (price, is_stale_bool), or None if price unavailable.
     """
     cache_key = f"price_{symbol_key}"
     cached = cache.get(cache_key)
@@ -334,8 +388,9 @@ def get_price(ticker_obj, symbol_key):
         # Prioritize fast_info (Real-timeish)
         try:
             p = ticker_obj.fast_info.last_price
-            if p: return (p, False) # Price, is_stale
-        except:
+            if p:
+                return (p, False)  # Price, is_stale
+        except Exception:
             pass
         
         # Fallback to history (Stale if market closed/pre-market)
@@ -343,7 +398,7 @@ def get_price(ticker_obj, symbol_key):
             hist = ticker_obj.history(period="1d", interval="1m")
             if not hist.empty:
                 return (hist['Close'].iloc[-1], True)
-        except:
+        except Exception:
             pass
         
         return None
@@ -353,14 +408,20 @@ def get_price(ticker_obj, symbol_key):
         if val is not None:
             cache.set(cache_key, val, TTL.get('price', 600))
         return val
-    except:
+    except Exception:
         return None
 
-def get_proxy_iv_and_hv(raw_symbol):
+def get_proxy_iv_and_hv(raw_symbol: str) -> Tuple[Optional[float], Optional[float], Optional[str]]:
     """
     Return (iv30, hv252, proxy_note) for futures using proxy definitions.
     
     Proxies allow calculating Vol Bias for futures (like /CL) using ETF equivalents (like USO).
+    
+    Args:
+        raw_symbol: Raw broker symbol (e.g., "/CL").
+        
+    Returns:
+        Tuple of (iv30, hv252, proxy_note). Any value may be None if unavailable.
     """
     proxy = FUTURES_PROXY.get(raw_symbol[:3])
     if not proxy:
@@ -405,8 +466,17 @@ def get_proxy_iv_and_hv(raw_symbol):
         pass
     return iv, hv, note
 
-def get_earnings_date(ticker_obj, symbol_key):
-    """Fetch the next earnings date from Yahoo Finance calendar."""
+def get_earnings_date(ticker_obj: Any, symbol_key: str) -> Optional[str]:
+    """
+    Fetch the next earnings date from Yahoo Finance calendar.
+    
+    Args:
+        ticker_obj: yfinance Ticker object.
+        symbol_key: Symbol string for cache key.
+        
+    Returns:
+        ISO format date string, "Unavailable", or None if error.
+    """
     cache_key = f"earnings_{symbol_key}"
     cached = cache.get(cache_key)
     if cached is not None:
@@ -437,9 +507,16 @@ def get_earnings_date(ticker_obj, symbol_key):
     except Exception:
         return None
 
-def get_sector(ticker_obj, symbol_key):
+def get_sector(ticker_obj: Any, symbol_key: str) -> str:
     """
     Fetch the sector for a symbol. Checks manual overrides first, then Yahoo Finance info.
+    
+    Args:
+        ticker_obj: yfinance Ticker object.
+        symbol_key: Symbol string for cache key.
+        
+    Returns:
+        Sector name string, or "Unknown" if unavailable.
     """
     # Check overrides first (handle raw symbols like /CL or mapped ETFs)
     # Note: symbol_key passed here is usually the mapped YF symbol (e.g., CL=F)
@@ -465,7 +542,7 @@ def get_sector(ticker_obj, symbol_key):
             # .info can be slow/flaky, but it's the only place for sector
             info = ticker_obj.info
             return info.get('sector', 'Unknown')
-        except:
+        except Exception:
             return "Unknown"
 
     try:
@@ -474,10 +551,10 @@ def get_sector(ticker_obj, symbol_key):
         if val is not None:
             cache.set(cache_key, val, TTL.get('sector', 2592000))
         return val
-    except:
+    except Exception:
         return "Unknown"
 
-def process_single_symbol(raw_symbol):
+def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     """
     Orchestrate the data fetching for a single symbol.
     
@@ -486,6 +563,12 @@ def process_single_symbol(raw_symbol):
     2. Check for Futures Proxies (e.g., IV from VIX).
     3. Fetch Price, HV, IV, Earnings, Sector (parallelizable).
     4. Calculate Vol Bias.
+    
+    Args:
+        raw_symbol: Raw broker symbol.
+        
+    Returns:
+        Tuple of (symbol, data_dict). data_dict may contain 'error' key on failure.
     """
     if raw_symbol in SKIP_SYMBOLS:
         return raw_symbol, {'error': 'Skipped symbol (no reliable pricing)'}
@@ -567,21 +650,21 @@ def process_single_symbol(raw_symbol):
     except Exception as e:
         return raw_symbol, {'error': str(e)}
 
-def get_market_data(symbols):
+def get_market_data(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
     """
     Fetch market data for a list of symbols concurrently.
     
     Args:
-        symbols (list): List of symbol strings (e.g., ['AAPL', '/ES']).
+        symbols: List of symbol strings (e.g., ['AAPL', '/ES']).
         
     Returns:
-        dict: A dictionary mapping symbol -> data dict.
+        A dictionary mapping symbol -> data dict.
     """
     results = {}
     # Use ThreadPoolExecutor for parallel fetching, with a conservative worker count
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_to_symbol = {executor.submit(process_single_symbol, sym): sym for sym in symbols}
-        for future in concurrent.futures.as_completed(future_to_symbol):
+        for future in futures.as_completed(future_to_symbol):
             sym, data = future.result()
             results[sym] = data
     return results
