@@ -138,10 +138,9 @@ The system is driven by centralized configuration files in the `config/` directo
 *   **Features:**
     *   **Default Output:** JSON (use `--text` for human-readable report).
     *   Parses `util/sample_positions.csv` (Tastytrade export format) or specified file.
-    *   Generates actionable steps (Harvest, Defense, etc.) based on `trading_rules.json`.
-    *   Calculates Asset Mix (Equity, Commodity, Fixed Income, FX, Index) and warns if Equity > 80%.
-    *   Flags stale prices, zero-cost-basis trades, and sector concentration risks.
-    *   **Liquidity Health Check:** Warns if current open positions have widened spreads (> 5%) or low volume, indicating difficult exit conditions.
+    *   **Triage Logic:** Applies the Harvest, Defense, Gamma, and Friction mechanics defined in "Core Logic" (above).
+    *   **Risk Analysis:** Performs Portfolio Delta, Theta, and Sector/Asset correlation checks.
+    *   **Liquidity Health:** Flags "Sticky" or "Trap" positions using the Friction Horizon (Φ) metric.
 
 ### `scripts/get_market_data.py`
 *   **Purpose:** The engine room. Fetches raw data from Yahoo Finance.
