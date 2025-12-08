@@ -131,11 +131,12 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
 * **Response Structure (The Dashboard):**
 
     **1. The Heads-Up Display (Key-Value Grid):**
-    Render the Portfolio Status as a 2x3 grid (3 rows, 2 columns).
+    Render the Portfolio Status as a 2x4 grid (4 rows, 2 columns).
     * *Asset Mix Row:* **READ** the 'Asset Mix' and 'Sector Concentration' metrics directly from the input JSON. Do not calculate them yourself.
     ```text
     NET LIQUIDITY: $50,000 (Default)    THETA EFFICIENCY: High 🟢
-    BETA DELTA:    -150 (Bearish)       DELTA/THETA:      -1.2
+    BETA DELTA:    -150 (Bearish)
+    DELTA/THETA:   -1.2
     ASSET MIX:     [⚠️ EQUITY HEAVY]    (Comm: 5% | FX: 0%)
     ─────────────────────────────────────────────────────────────────
     ```
