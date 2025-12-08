@@ -741,7 +741,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         high_thresh = RULES['theta_efficiency_high']
         
         if low_thresh <= theta_as_pct_of_nl <= high_thresh:
-            report['portfolio_summary']['theta_status'] = f"Healthy ({low_thresh}% - {high_thresh}% of Net Liq/day)"
+            report['portfolio_summary']['theta_status'] = "Healthy (Optimal Ratio)"
         elif theta_as_pct_of_nl < low_thresh:
             report['portfolio_summary']['theta_status'] = "Low. Consider adding more short premium."
         else:
