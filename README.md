@@ -23,7 +23,8 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 
 ### `scripts/analyze_portfolio.py` (Triage)
 - **Output**: Raw JSON with `action_code` enums (`HARVEST`, `DEFENSE`, `GAMMA`, `ZOMBIE`, `EARNINGS_WARNING`, or `None`), `dte` ints, `pl_pct` ratios, `is_stale` flags.
-- **Aggregation fix**: Ignores “Total” rows to prevent double-counting Beta Delta.
+- **Strategy-Aware**: Applies strategy-specific profit targets and gamma thresholds from `config/strategies.json` (e.g., 50% for Strangles, 25% for Butterflies).
+- **Aggregation fix**: Ignores "Total" rows to prevent double-counting Beta Delta.
 - **Metrics**: Computes Friction Horizon (days of theta to clear spread costs) and Delta/Theta Ratio.
 
 ## Installation
@@ -54,7 +55,8 @@ python3 -m venv venv
 ## Configuration
 - `config/system_config.json`: Cache DB path, TTLs.
 - `config/market_config.json`: Symbol map, sector overrides, futures proxies, skip lists.
-- `config/trading_rules.json`: Vol Bias thresholds, DTE gates, profit targets, delta limits, Bat’s zone parameters.
+- `config/trading_rules.json`: Vol Bias thresholds, DTE gates, profit targets, delta limits, Bat's zone parameters.
+- `config/strategies.json`: Strategy-specific management rules (profit targets, gamma DTEs, defense mechanics) for 30+ option strategies.
 
 ## Notes
 - Models emit raw JSON only; all rendering lives in the system prompt (View/Controller).

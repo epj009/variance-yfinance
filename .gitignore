@@ -14,6 +14,10 @@ positions/
 *.csv
 *.pdf
 .DS_Store
+.cursorrules
+.scratchpad
+.claude
+.gemini/
 
 # Editor
 .vscode/
