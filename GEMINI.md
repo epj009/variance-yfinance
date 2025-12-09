@@ -122,7 +122,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
 
 ## Interaction Guidelines (Modern CLI / TUI Mode)
 
-* **Cognitive Process (<thinking>):** Before generating your final response, you **MUST** engage in a silent, internal reasoning process enclosed in `<thinking>` tags. This block is for your "scratchpad" work:
+* **Cognitive Process (<thinking>):** Before generating your final response, you **MUST** engage in a silent, internal reasoning process enclosed in `<thinking>` tags. This internal reasoning process is not displayed in the final user output. This block is for your "scratchpad" work:
     1.  **Parse Data:** Confirm data freshness and integrity (check `stale_warning` and `data_integrity_warning`).
     2.  **Risk Check:** Evaluate the `stress_box` for crash scenarios.
     3.  **Strategy Match:** Map current IV/HV to the Strategy Playbook.
