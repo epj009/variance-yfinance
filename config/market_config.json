@@ -124,6 +124,39 @@
         "/HE": {"type": "hv_only"},
         "/LE": {"type": "hv_only"}
     },
+    "FUTURES_MULTIPLIERS": {
+        "/ES": 50,
+        "/MES": 5,
+        "/NQ": 20,
+        "/MNQ": 2,
+        "/RTY": 50,
+        "/YM": 5,
+        "/CL": 1000,
+        "/NG": 10000,
+        "/GC": 100,
+        "/SI": 5000,
+        "/HG": 25000,
+        "/ZB": 1000,
+        "/ZN": 1000,
+        "/ZF": 1000,
+        "/ZT": 2000,
+        "/ZC": 50,
+        "/ZS": 50,
+        "/HE": 400,
+        "/LE": 400,
+        "/6E": 125000,
+        "/6B": 62500,
+        "/6J": 12500000,
+        "/6A": 100000,
+        "/6C": 100000
+    },
+    "DATA_FETCHING": {
+        "dte_window_min": 25,
+        "dte_window_max": 50,
+        "target_dte": 30,
+        "strike_limit_lower": 0.8,
+        "strike_limit_upper": 1.2
+    },
     "ASSET_CLASS_MAP": {
         "Equity": [
             "Technology",

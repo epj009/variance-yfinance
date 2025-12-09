@@ -22,14 +22,23 @@ except ModuleNotFoundError:
     sys.exit(1)
 
 # --- CONFIGURATION ---
+# Default Cache TTL values (seconds)
+DEFAULT_TTL = {
+    'hv': 86400,        # 24 hours
+    'iv': 900,          # 15 minutes
+    'price': 600,       # 10 minutes
+    'earnings': 604800, # 7 days
+    'sector': 2592000   # 30 days
+}
+
 try:
     with open('config/system_config.json', 'r') as f:
         SYS_CONFIG = json.load(f)
     DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
-    TTL = SYS_CONFIG.get('cache_ttl_seconds', {})
+    TTL = SYS_CONFIG.get('cache_ttl_seconds', DEFAULT_TTL)
 except FileNotFoundError:
     DB_PATH = '.market_cache.db'
-    TTL = {'hv': 86400, 'iv': 900, 'price': 600, 'earnings': 604800, 'sector': 2592000}
+    TTL = DEFAULT_TTL
 
 try:
     with open('config/market_config.json', 'r') as f:
@@ -39,12 +48,23 @@ try:
     SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
     SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
     FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
+    DATA_FETCHING = _config.get('DATA_FETCHING', {})
+    DTE_MIN = DATA_FETCHING.get('dte_window_min', 25)
+    DTE_MAX = DATA_FETCHING.get('dte_window_max', 50)
+    TARGET_DTE = DATA_FETCHING.get('target_dte', 30)
+    STRIKE_LOWER = DATA_FETCHING.get('strike_limit_lower', 0.8)
+    STRIKE_UPPER = DATA_FETCHING.get('strike_limit_upper', 1.2)
 except FileNotFoundError:
     SKIP_EARNINGS = set()
     SKIP_SYMBOLS = set()
     SYMBOL_MAP = {}
     SECTOR_OVERRIDES = {}
     FUTURES_PROXY = {}
+    DTE_MIN = 25
+    DTE_MAX = 50
+    TARGET_DTE = 30
+    STRIKE_LOWER = 0.8
+    STRIKE_UPPER = 1.2
 
 # --- OPTIMIZED SQLITE ENGINE ---
 class MarketCache:
@@ -105,6 +125,40 @@ cache = MarketCache()
 _EARNINGS_IO_LOCK = threading.Lock()
 
 # --- HELPER FUNCTIONS ---
+def normalize_iv(raw_iv: float, hv_context: Optional[float] = None) -> Tuple[float, Optional[str]]:
+    """
+    Normalize IV based on HV context to detect scale (decimal vs percentage).
+
+    Args:
+        raw_iv: Raw IV value from data source
+        hv_context: Annualized realized volatility in percentage points (e.g., 15.5 for 15.5%)
+
+    Returns:
+        (normalized_iv, warning_flag)
+    """
+    # Case 1: Clear Percentage (e.g., 12.5, 50.0)
+    if raw_iv > 1.0:
+        return raw_iv, None
+
+    # Case 2: Ambiguous (e.g., 0.5) -> Could be 0.5% or 50%
+    implied_decimal_iv = raw_iv * 100
+
+    # If no context, use decimal standard
+    if hv_context is None or hv_context == 0:
+        return implied_decimal_iv, None
+
+    # Calculate biases under both interpretations
+    bias_if_decimal = implied_decimal_iv / hv_context
+    bias_if_percent = raw_iv / hv_context
+
+    # Detect percentage format: If treating as decimal yields absurd bias (>10x)
+    # but treating as percentage yields normal bias (0.5-3x)
+    if bias_if_decimal > 10.0 and 0.5 <= bias_if_percent <= 3.0:
+        return raw_iv, "iv_scale_corrected_percent"
+
+    # Default to decimal format
+    return implied_decimal_iv, None
+
 def map_symbol(symbol: str) -> Optional[str]:
     if symbol.startswith('/'):
         for key, val in SYMBOL_MAP.items():
@@ -149,7 +203,7 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
         return val
     except: return None
 
-def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str) -> Optional[Dict[str, Any]]:
+def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_context: Optional[float] = None) -> Optional[Dict[str, Any]]:
     cache_key = f"iv_{symbol_key}"
     cached = cache.get(cache_key)
     if cached is not None:
@@ -160,24 +214,24 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str) -> Op
     def _fetch():
         exps = ticker_obj.options
         if not exps: return None
-        
+
         target_date = None
         today = datetime.now().date()
         min_diff = 999
         best_exp = None
-        
-        # Strict 25-50 DTE window
+
+        # Strict DTE_MIN-DTE_MAX DTE window
         for exp_str in exps:
             exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
             days_out = (exp_date - today).days
-            if 25 <= days_out <= 50:
+            if DTE_MIN <= days_out <= DTE_MAX:
                 target_date = exp_str
                 break
-            diff = abs(days_out - 30)
+            diff = abs(days_out - TARGET_DTE)
             if diff < min_diff:
                 min_diff = diff
                 best_exp = exp_str
-        
+
         if not target_date: target_date = best_exp
         if not target_date: return None
 
@@ -190,7 +244,7 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str) -> Op
             return df
 
         if current_price and current_price > 0:
-            lower, upper = current_price * 0.8, current_price * 1.2
+            lower, upper = current_price * STRIKE_LOWER, current_price * STRIKE_UPPER
             band_calls = calls[(calls['strike'] >= lower) & (calls['strike'] <= upper)]
             band_puts = puts[(puts['strike'] >= lower) & (puts['strike'] <= upper)]
             calls = _prep(band_calls if not band_calls.empty else calls).sort_values('dist').head(50)
@@ -198,32 +252,34 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str) -> Op
         else:
             calls = _prep(calls).sort_values('dist').head(50)
             puts = _prep(puts).sort_values('dist').head(50)
-        
+
         if calls.empty or puts.empty: return None
-        
+
         atm_call = calls.nsmallest(1, 'dist').iloc[0]
         atm_put = puts.nsmallest(1, 'dist').iloc[0]
-        
+
         # Zero Liquidity Check
         c_bid, c_ask = atm_call.get('bid', 0), atm_call.get('ask', 0)
         p_bid, p_ask = atm_put.get('bid', 0), atm_put.get('ask', 0)
         if (c_bid == 0 and c_ask == 0) or (p_bid == 0 and p_ask == 0): return None
 
         raw_iv = np.nanmean([atm_call.get('impliedVolatility', np.nan), atm_put.get('impliedVolatility', np.nan)])
-        
-        # Unit Auto-Correction
-        if raw_iv < 1.0 and raw_iv > 0.001: iv = raw_iv * 100
-        else: iv = raw_iv
+
+        # Unit Auto-Correction via Context-Aware Normalization
+        iv, warning = normalize_iv(raw_iv, hv_context)
 
         if np.isnan(iv) or iv <= 0: return None
 
         atm_vol = np.nansum([atm_call.get('volume', 0), atm_put.get('volume', 0)])
-        return {
+        result = {
             'iv': float(iv),
             'atm_vol': float(atm_vol) if not np.isnan(atm_vol) else 0,
             'atm_bid': float(c_bid + p_bid) / 2,
             'atm_ask': float(c_ask + p_ask) / 2
         }
+        if warning:
+            result['warning'] = warning
+        return result
 
     try:
         val = retry_fetch(_fetch)
@@ -328,12 +384,13 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
 
     # Fetch HV and IV
     hv_val = calculate_hv(ticker, yf_symbol)
-    iv_payload = get_current_iv(ticker, current_price, yf_symbol)
+    iv_payload = get_current_iv(ticker, current_price, yf_symbol, hv_context=hv_val)
 
     iv_val = iv_payload.get('iv') if iv_payload else None
     atm_vol = iv_payload.get('atm_vol') if iv_payload else None
     atm_bid = iv_payload.get('atm_bid') if iv_payload else None
     atm_ask = iv_payload.get('atm_ask') if iv_payload else None
+    iv_warning = iv_payload.get('warning') if iv_payload else None
 
     proxy_note = None
     if iv_val is None or hv_val is None:
@@ -369,6 +426,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "sector": sector,
         "proxy": proxy_note
     }
+    if iv_warning: data['warning'] = iv_warning
     cache.set(f"md_{yf_symbol}", data, TTL.get('price', 600))
     return raw_symbol, data
 

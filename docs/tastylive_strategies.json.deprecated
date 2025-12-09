@@ -1,0 +1,591 @@
+[
+  {
+    "name": "Covered Call",
+    "directional_assumption": "Bullish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "50% to 70%",
+    "max_profit": "Credit received + stock gains up to short call strike.",
+    "max_loss": "Stock purchase price - call credit (downside to zero).",
+    "breakeven": "Stock cost basis - call credit.",
+    "profit_target": "50% of collected credit; roll/manage around 21 DTE.",
+    "description": "Long 100 shares with short OTM/ATM call to reduce cost basis and cap upside.",
+    "source_page": 5,
+    "management": {
+      "take_profit": "50% of collected credit or ~21 DTE roll/close.",
+      "stop_loss": "No formal stop; manage assignment risk by rolling ITM call up/out for credit.",
+      "roll_guidance": "Roll short call 21-28 DTE for credit; avoid rolling below breakeven.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Long Call Vertical Spread",
+    "directional_assumption": "Bullish",
+    "iv_environment": "Any",
+    "days_to_expiration": "45",
+    "probability_of_profit": "40% to 60%",
+    "max_profit": "Width of strikes - debit paid.",
+    "max_loss": "Debit paid.",
+    "breakeven": "Long call strike + net debit.",
+    "profit_target": "50% of max profit.",
+    "description": "Bullish defined-risk debit: buy ITM/ATM call, sell higher strike call.",
+    "source_page": 6,
+    "management": {
+      "take_profit": "50% of max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Defined risk; usually close rather than roll.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Call ZEBRA",
+    "directional_assumption": "Bullish",
+    "iv_environment": "Any",
+    "days_to_expiration": "Any",
+    "probability_of_profit": "50%",
+    "max_profit": "Unlimited above short strike.",
+    "max_loss": "Net debit paid.",
+    "breakeven": "Near long strike + any extrinsic debit.",
+    "profit_target": "25-50% of debit or stock-like move toward short strike.",
+    "description": "Synthetic long stock: buy 2 ITM calls, sell 1 ATM/near ATM call to remove extrinsic.",
+    "source_page": 7,
+    "management": {
+      "take_profit": "25-50% of debit or stock-like move toward short strike.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Close or roll entire structure if assumption holds.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Poor Man's Covered Call (Call Diagonal)",
+    "directional_assumption": "Bullish",
+    "iv_environment": "Low",
+    "days_to_expiration": "45 to 60",
+    "probability_of_profit": "50% to 60%",
+    "max_profit": "Width between strikes minus net debit plus remaining long extrinsic.",
+    "max_loss": "Net debit paid.",
+    "breakeven": "Long strike + net debit - short call credit.",
+    "profit_target": "50% of estimated max profit.",
+    "description": "LEAP ITM call + short near-term OTM/ATM call to mimic covered call with lower capital.",
+    "source_page": 8,
+    "management": {
+      "take_profit": "50% of estimated max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Continuously roll short call for credit; keep long 9-12 months out.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Call Calendar Spread",
+    "directional_assumption": "Bullish",
+    "iv_environment": "Low",
+    "days_to_expiration": "45",
+    "probability_of_profit": "N/A",
+    "max_profit": "Variable (vega/time spread near strike).",
+    "max_loss": "Debit paid.",
+    "breakeven": "Near strike after front-month decay; roughly short strike +/- portion of debit.",
+    "profit_target": "10-25% of debit on IV expansion/decay.",
+    "description": "Buy longer-dated call, sell near-term call same strike; neutral to mildly bullish vol play.",
+    "source_page": 9,
+    "management": {
+      "take_profit": "10-25% of debit on IV expansion/decay.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Roll short call out if near expiry and long still holds value.",
+      "gamma_trigger_dte": 14
+    }
+  },
+  {
+    "name": "Call Butterfly",
+    "directional_assumption": "Bullish",
+    "iv_environment": "Any",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "20% to 40%",
+    "max_profit": "Width of long spread - debit paid at body strike.",
+    "max_loss": "Debit paid.",
+    "breakeven": "Lower wing + debit; upper wing - debit.",
+    "profit_target": "25-50% of max profit.",
+    "description": "Defined-risk, low-probability bullish pin: long call spread plus short call spread sharing body.",
+    "source_page": 10,
+    "management": {
+      "take_profit": "25-50% of max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Close before expiration to avoid assignment; rarely roll.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Big Lizard",
+    "directional_assumption": "Bullish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Downside: short put strike minus credit (stock-like). Upside capped only if credit < call spread width.",
+    "breakeven": "Short put strike - credit received.",
+    "profit_target": "25-50% of credit (often target 25% due to ITM nature).",
+    "description": "ATM short put + short call vertical same body; credit > call spread width to remove upside risk.",
+    "source_page": 11,
+    "management": {
+      "take_profit": "25-50% of credit.",
+      "stop_loss": "Tested downside: close/roll if loss approaches 2x credit.",
+      "roll_guidance": "Roll put/convert to defined risk if needed; keep credit > call spread width.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Covered Put",
+    "directional_assumption": "Bearish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "50% to 70%",
+    "max_profit": "Credit received + stock drop to short put strike.",
+    "max_loss": "Unlimited upside on short stock offset by put credit.",
+    "breakeven": "Short stock entry - put credit.",
+    "profit_target": "50% of collected credit; manage/roll around 21 DTE.",
+    "description": "Short 100 shares with short OTM/ATM put to reduce cost basis and cap downside gains.",
+    "source_page": 12,
+    "management": {
+      "take_profit": "50% of collected credit or ~21 DTE roll/close.",
+      "stop_loss": "No formal stop; manage upside squeeze by rolling put down/out for credit.",
+      "roll_guidance": "Roll short put 21-28 DTE for credit; avoid rolling above breakeven.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Long Put Vertical Spread",
+    "directional_assumption": "Bearish",
+    "iv_environment": "Any",
+    "days_to_expiration": "45",
+    "probability_of_profit": "50% to 60%",
+    "max_profit": "Width of strikes - debit paid.",
+    "max_loss": "Debit paid.",
+    "breakeven": "Long put strike - net debit.",
+    "profit_target": "50% of max profit.",
+    "description": "Bearish defined-risk debit: buy ITM/ATM put, sell lower strike put.",
+    "source_page": 13,
+    "management": {
+      "take_profit": "50% of max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Defined risk; usually close rather than roll.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Put ZEBRA",
+    "directional_assumption": "Bearish",
+    "iv_environment": "Any",
+    "days_to_expiration": "Any",
+    "probability_of_profit": "50%",
+    "max_profit": "Unlimited below short strike.",
+    "max_loss": "Net debit paid.",
+    "breakeven": "Near long strike - any extrinsic debit.",
+    "profit_target": "25-50% of debit or stock-like move toward short strike.",
+    "description": "Synthetic short stock: buy 2 ITM puts, sell 1 ATM/near ATM put to strip extrinsic.",
+    "source_page": 14,
+    "management": {
+      "take_profit": "25-50% of debit or stock-like move toward short strike.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Close or roll entire structure if assumption holds.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Poor Man's Covered Put (Put Diagonal)",
+    "directional_assumption": "Bearish",
+    "iv_environment": "Low",
+    "days_to_expiration": "45 to 60",
+    "probability_of_profit": "50% to 60%",
+    "max_profit": "Width between strikes minus net debit plus remaining long extrinsic.",
+    "max_loss": "Net debit paid.",
+    "breakeven": "Long strike - net debit + short put credit.",
+    "profit_target": "50% of estimated max profit.",
+    "description": "LEAP ITM put + short near-term OTM/ATM put to mimic covered put with lower capital.",
+    "source_page": 15,
+    "management": {
+      "take_profit": "50% of estimated max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Continuously roll short put for credit; keep long 9-12 months out.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Put Calendar Spread",
+    "directional_assumption": "Bearish",
+    "iv_environment": "Low",
+    "days_to_expiration": "45",
+    "probability_of_profit": "N/A",
+    "max_profit": "Variable (vega/time spread near strike).",
+    "max_loss": "Debit paid.",
+    "breakeven": "Near strike after front-month decay; roughly short strike +/- portion of debit.",
+    "profit_target": "10-25% of debit on IV expansion/decay.",
+    "description": "Buy longer-dated put, sell near-term put same strike; neutral to mildly bearish vol play.",
+    "source_page": 16,
+    "management": {
+      "take_profit": "10-25% of debit on IV expansion/decay.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Roll short put out if near expiry and long still holds value.",
+      "gamma_trigger_dte": 14
+    }
+  },
+  {
+    "name": "Put Butterfly",
+    "directional_assumption": "Bearish",
+    "iv_environment": "Any",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "20% to 40%",
+    "max_profit": "Width of long spread - debit paid at body strike.",
+    "max_loss": "Debit paid.",
+    "breakeven": "Upper wing - debit; lower wing + debit.",
+    "profit_target": "25-50% of max profit.",
+    "description": "Defined-risk, low-probability bearish pin: long put spread plus short put spread sharing body.",
+    "source_page": 17,
+    "management": {
+      "take_profit": "25-50% of max profit.",
+      "stop_loss": "Max debit paid.",
+      "roll_guidance": "Close before expiration to avoid assignment; rarely roll.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Reverse Big Lizard",
+    "directional_assumption": "Bearish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Upside: short call strike + credit (stock-like). Downside capped if credit > put spread width.",
+    "breakeven": "Short call strike + credit received.",
+    "profit_target": "25-50% of credit.",
+    "description": "ATM short call + short put vertical same body; credit > put spread width to remove downside risk.",
+    "source_page": 18,
+    "management": {
+      "take_profit": "25-50% of credit.",
+      "stop_loss": "Tested upside: close/roll if loss approaches 2x credit.",
+      "roll_guidance": "Roll call/convert to defined risk if needed; keep credit > put spread width.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Put Front-Ratio Spread",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Long vertical value at short strike (width) minus any debit; grows toward short strike.",
+    "max_loss": "Naked short unit below lower short strike (the extra short put).",
+    "breakeven": "Lower short strike minus net credit/debit effect.",
+    "profit_target": "25-50% of embedded long spread value; close before deep ITM risk.",
+    "description": "Buy ATM/OTM put, sell two further OTM puts for a net credit/debit; bullish-to-neutral with downside tail risk.",
+    "source_page": 19,
+    "management": {
+      "take_profit": "25-50% of embedded long spread value.",
+      "stop_loss": "Cut/define risk if naked short unit is threatened; avoid large tail risk.",
+      "roll_guidance": "Roll out/convert to defined risk before deep ITM.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Call Front-Ratio Spread",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Long vertical value at short strike (width) minus any debit; grows toward short strike.",
+    "max_loss": "Naked short unit above upper short strike (the extra short call).",
+    "breakeven": "Upper short strike plus net credit/debit effect.",
+    "profit_target": "25-50% of embedded long spread value; close before deep ITM risk.",
+    "description": "Buy ATM/OTM call, sell two further OTM calls for a net credit/debit; bearish-to-neutral with upside tail risk.",
+    "source_page": 20,
+    "management": {
+      "take_profit": "25-50% of embedded long spread value.",
+      "stop_loss": "Cut/define risk if naked short unit is threatened; avoid large tail risk.",
+      "roll_guidance": "Roll out/convert to defined risk before deep ITM.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Put Broken Wing Butterfly",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit/debit-defined: maximum near body; if for credit, keep credit when all OTM.",
+    "max_loss": "Wider wing width minus credit (on the broken side).",
+    "breakeven": "Upper wing - credit; body +/- net debit/credit depending on structure.",
+    "profit_target": "25-50% of max profit/credit.",
+    "description": "Asymmetric put butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+    "source_page": 21,
+    "management": {
+      "take_profit": "25-50% of max profit/credit.",
+      "stop_loss": "Widest wing minus credit.",
+      "roll_guidance": "If tested, roll toward symmetric fly for small debit; otherwise close.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Call Broken Wing Butterfly",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "15 to 45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit/debit-defined: maximum near body; if for credit, keep credit when all OTM.",
+    "max_loss": "Wider wing width minus credit (on the broken side).",
+    "breakeven": "Lower wing + credit; body +/- net debit/credit depending on structure.",
+    "profit_target": "25-50% of max profit/credit.",
+    "description": "Asymmetric call butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+    "source_page": 22,
+    "management": {
+      "take_profit": "25-50% of max profit/credit.",
+      "stop_loss": "Widest wing minus credit.",
+      "roll_guidance": "If tested, roll toward symmetric fly for small debit; otherwise close.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Call Broken Heart Butterfly",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Long call spread value + credit from short wider spread.",
+    "max_loss": "Net width difference minus credit (if routed for credit).",
+    "breakeven": "Near long spread wings; depends on widths/credit.",
+    "profit_target": "25-50% of max profit/credit.",
+    "description": "Disconnected call BWB (long call spread, wider short call spread) routed for credit to widen profit zone.",
+    "source_page": 23,
+    "management": {
+      "take_profit": "25-50% of max profit/credit.",
+      "stop_loss": "Width difference minus credit.",
+      "roll_guidance": "Close or reshape; assignment-sensitive.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Put Broken Heart Butterfly",
+    "directional_assumption": "Omnidirectional",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Long put spread value + credit from short wider spread.",
+    "max_loss": "Net width difference minus credit (if routed for credit).",
+    "breakeven": "Near long spread wings; depends on widths/credit.",
+    "profit_target": "25-50% of max profit/credit.",
+    "description": "Disconnected put BWB (long put spread, wider short put spread) routed for credit to widen profit zone.",
+    "source_page": 24,
+    "management": {
+      "take_profit": "25-50% of max profit/credit.",
+      "stop_loss": "Width difference minus credit.",
+      "roll_guidance": "Close or reshape; assignment-sensitive.",
+      "gamma_trigger_dte": 10
+    }
+  },
+  {
+    "name": "Short Strangle",
+    "directional_assumption": "Neutral",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Unlimited (both tails).",
+    "breakeven": "Put strike - credit; call strike + credit.",
+    "profit_target": "50% of credit (or 21 DTE).",
+    "description": "Sell OTM call and OTM put; neutral, short vol premium play.",
+    "source_page": 25,
+    "management": {
+      "take_profit": "50% of credit.",
+      "stop_loss": "Close if loss ~2x credit or if unable to roll for credit.",
+      "roll_guidance": "Roll challenged side for credit; manage before/at 21 DTE.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Short Straddle",
+    "directional_assumption": "Neutral",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "50% to 60%",
+    "max_profit": "Credit received.",
+    "max_loss": "Unlimited (both tails).",
+    "breakeven": "Strike +/- credit.",
+    "profit_target": "50% of credit (faster exits due to gamma).",
+    "description": "Sell ATM call and ATM put; high-theta, high-gamma neutral premium sell.",
+    "source_page": 26,
+    "management": {
+      "take_profit": "25-50% of credit (faster exit due to gamma).",
+      "stop_loss": "Close if loss ~2x credit or if unable to roll for credit.",
+      "roll_guidance": "Roll challenged side/body for credit; manage before/at 21 DTE.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Iron Condor",
+    "directional_assumption": "Neutral",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80% The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides and the trade can be bought back for a profit over time.",
+    "max_profit": "Credit received.",
+    "max_loss": "Max(width of one spread - credit).",
+    "breakeven": "Put spread short strike - credit; call spread short strike + credit.",
+    "profit_target": "50% of credit.",
+    "description": "Defined-risk short strangle using OTM put and call credit spreads.",
+    "source_page": 27,
+    "management": {
+      "take_profit": "50% of credit.",
+      "stop_loss": "Max(width of widest spread - credit).",
+      "roll_guidance": "Defined risk; usually close rather than roll unless for small credit.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Dynamic Width Iron Condor",
+    "directional_assumption": "Neutral",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80% 1 Sell an OTM put spread 2 Sell an OTM call spread The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides, and the trade can be bought back for a profit over time.",
+    "max_profit": "Credit received.",
+    "max_loss": "Max(widest spread - credit).",
+    "breakeven": "Put short - credit; call short + credit (adjusted for widths).",
+    "profit_target": "50% of credit.",
+    "description": "Iron condor with asymmetric wing widths sized to skew risk/credit.",
+    "source_page": 28,
+    "management": {
+      "take_profit": "50% of credit.",
+      "stop_loss": "Max(widest spread - credit).",
+      "roll_guidance": "Defined risk; usually close rather than roll unless for small credit.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Iron Fly",
+    "directional_assumption": "Neutral",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received at body.",
+    "max_loss": "Wing width - credit.",
+    "breakeven": "Body strike +/- (wing width - credit).",
+    "profit_target": "25-50% of credit.",
+    "description": "ATM straddle wrapped with wings (defined-risk short straddle).",
+    "source_page": 29,
+    "management": {
+      "take_profit": "25-50% of credit.",
+      "stop_loss": "Wing width - credit.",
+      "roll_guidance": "Defined risk; close before expiry to avoid assignment.",
+      "gamma_trigger_dte": 14
+    }
+  },
+  {
+    "name": "Short Naked Put",
+    "directional_assumption": "Neutral-Bullish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Stock to zero minus credit.",
+    "breakeven": "Strike - credit.",
+    "profit_target": "50% of credit.",
+    "description": "Sell OTM/ATM put; bullish premium sell with assignment risk.",
+    "source_page": 30,
+    "management": {
+      "take_profit": "50% of credit.",
+      "stop_loss": "Close if loss ~2x credit; define risk if needed.",
+      "roll_guidance": "Roll down/out for credit if tested; manage before/at 21 DTE.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Short Put Vertical Spread",
+    "directional_assumption": "Neutral-Bullish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Spread width - credit.",
+    "breakeven": "Short put strike - credit.",
+    "profit_target": "50% of max profit.",
+    "description": "Bullish defined-risk put credit spread.",
+    "source_page": 31,
+    "management": {
+      "take_profit": "50% of max profit.",
+      "stop_loss": "Spread width - credit.",
+      "roll_guidance": "Defined risk; close or roll as new spread if credit available.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Jade Lizard",
+    "directional_assumption": "Neutral-Bullish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Downside: short put strike - credit. No upside risk if credit > call spread width.",
+    "breakeven": "Short put strike - credit received.",
+    "profit_target": "25-50% of credit.",
+    "description": "Short OTM put + short OTM call spread, credit sized to remove upside risk.",
+    "source_page": 32,
+    "management": {
+      "take_profit": "25-50% of credit.",
+      "stop_loss": "Downside: close if loss ~2x credit; no upside risk if credit > call spread width.",
+      "roll_guidance": "Roll put/adjust call spread; keep credit > call spread width.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Short Naked Call",
+    "directional_assumption": "Neutral-Bearish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Unlimited above strike.",
+    "breakeven": "Strike + credit.",
+    "profit_target": "50% of credit.",
+    "description": "Sell OTM/ATM call; bearish premium sell with unlimited upside risk.",
+    "source_page": 33,
+    "management": {
+      "take_profit": "50% of credit.",
+      "stop_loss": "Close if loss ~2x credit; define risk if needed.",
+      "roll_guidance": "Roll up/out for credit if tested; manage before/at 21 DTE.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Short Call Vertical Spread",
+    "directional_assumption": "Neutral-Bearish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Spread width - credit.",
+    "breakeven": "Short call strike + credit.",
+    "profit_target": "50% of max profit.",
+    "description": "Bearish defined-risk call credit spread.",
+    "source_page": 34,
+    "management": {
+      "take_profit": "50% of max profit.",
+      "stop_loss": "Spread width - credit.",
+      "roll_guidance": "Defined risk; close or roll as new spread if credit available.",
+      "gamma_trigger_dte": 21
+    }
+  },
+  {
+    "name": "Reverse Jade Lizard",
+    "directional_assumption": "Neutral-Bearish",
+    "iv_environment": "High",
+    "days_to_expiration": "45",
+    "probability_of_profit": "60% to 80%",
+    "max_profit": "Credit received.",
+    "max_loss": "Upside: short call strike + credit. No downside risk if credit > put spread width.",
+    "breakeven": "Short call strike + credit received.",
+    "profit_target": "25-50% of credit.",
+    "description": "Short OTM call + short OTM put spread, credit sized to remove downside risk.",
+    "source_page": 35,
+    "management": {
+      "take_profit": "25-50% of credit.",
+      "stop_loss": "Upside: close if loss ~2x credit; no downside risk if credit > put spread width.",
+      "roll_guidance": "Roll call/adjust put spread; keep credit > put spread width.",
+      "gamma_trigger_dte": 21
+    }
+  }
+]

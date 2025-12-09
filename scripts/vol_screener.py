@@ -10,40 +10,18 @@ from get_market_data import get_market_data
 # Import common utilities
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
+    from .config_loader import load_trading_rules, load_system_config
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
+    from config_loader import load_trading_rules, load_system_config
 
-# Baseline trading rules to ensure CLI remains usable even if config is missing
-RULES_DEFAULT = {
-    "vol_bias_threshold": 0.85,
-    "earnings_days_threshold": 5,
-    "bats_efficiency_min_price": 15,
-    "bats_efficiency_max_price": 75,
-    "bats_efficiency_vol_bias": 1.0,
-}
+# Load Configurations
+RULES = load_trading_rules()
+SYS_CONFIG = load_system_config()
 
-MIN_ATM_VOLUME = 500
-MAX_SLIPPAGE_PCT = 0.05
-
-# Load System Config
-try:
-    with open('config/system_config.json', 'r') as f:
-        SYS_CONFIG = json.load(f)
-    WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
-    FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
-except FileNotFoundError:
-    print("Warning: config/system_config.json not found. Using defaults.", file=sys.stderr)
-    WATCHLIST_PATH = 'watchlists/default-watchlist.csv'
-    FALLBACK_SYMBOLS = ['SPY', 'QQQ', 'IWM']
-
-# Load Trading Rules
-try:
-    with open('config/trading_rules.json', 'r') as f:
-        RULES = {**RULES_DEFAULT, **json.load(f)}
-except FileNotFoundError:
-    print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
-    RULES = RULES_DEFAULT.copy()
+WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
+FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
 
 def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     """
@@ -131,7 +109,7 @@ def screen_volatility(
             excluded_symbols_skipped += 1
             continue
 
-        iv30 = metrics.get('iv30')
+        iv30 = metrics.get('iv')
         hv252 = metrics.get('hv252')
         vol_bias = metrics.get('vol_bias')
         price = metrics.get('price')
@@ -149,9 +127,9 @@ def screen_volatility(
                 slippage_pct = (ask - bid) / mid
 
         is_illiquid = False
-        if atm_volume is not None and atm_volume < MIN_ATM_VOLUME:
+        if atm_volume is not None and atm_volume < RULES['min_atm_volume']:
             is_illiquid = True
-        if slippage_pct is not None and slippage_pct > MAX_SLIPPAGE_PCT:
+        if slippage_pct is not None and slippage_pct > RULES['max_slippage_pct']:
             is_illiquid = True
 
         # Sector Filter
@@ -182,13 +160,19 @@ def screen_volatility(
             illiquid_skipped += 1
             continue
 
-        is_bats_efficient = bool(price and vol_bias is not None and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price'] and vol_bias > RULES['bats_efficiency_vol_bias'])
+        is_bats_efficient = bool(
+            price
+            and vol_bias is not None
+            and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price']
+            and vol_bias > RULES['bats_efficiency_vol_bias']
+        )
         if is_bats_efficient:
             bats_zone_count += 1
 
-        is_rich = vol_bias is not None and vol_bias > 1.0
-        is_fair = vol_bias is not None and RULES['vol_bias_threshold'] < vol_bias <= 1.0
-        is_earnings_soon = isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= RULES['earnings_days_threshold']
+        # Force native bools so JSON serialization never chokes on numpy/pandas dtypes.
+        is_rich = bool(vol_bias is not None and vol_bias > RULES.get('vol_bias_rich_threshold', 1.0))
+        is_fair = bool(vol_bias is not None and RULES['vol_bias_threshold'] < vol_bias <= RULES.get('vol_bias_rich_threshold', 1.0))
+        is_earnings_soon = bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= RULES['earnings_days_threshold'])
 
         # Prepare candidate data for return
         candidate_data = {
@@ -225,7 +209,7 @@ def screen_volatility(
     candidates_with_status.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
     
     bias_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
-    liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {MIN_ATM_VOLUME}, slippage > {MAX_SLIPPAGE_PCT*100:.1f}%)"
+    liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
 
     summary = {
         "scanned_symbols_count": len(symbols),

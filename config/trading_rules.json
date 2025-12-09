@@ -1,5 +1,6 @@
 {
     "vol_bias_threshold": 0.85,
+    "vol_bias_rich_threshold": 1.0,
     "dead_money_vol_bias_threshold": 0.80,
     "dead_money_pl_pct_low": -0.10,
     "dead_money_pl_pct_high": 0.10,
@@ -13,8 +14,20 @@
     "net_liquidity": 50000,
     "theta_efficiency_low": 0.1,
     "theta_efficiency_high": 0.5,
+    "min_atm_volume": 500,
+    "max_slippage_pct": 0.05,
     "bats_efficiency_min_price": 15,
     "bats_efficiency_max_price": 75,
     "bats_efficiency_vol_bias": 1.0,
-    "beta_weighted_symbol": "SPY"
+    "beta_weighted_symbol": "SPY",
+    "global_staleness_threshold": 0.50,
+    "data_integrity_min_theta": 0.50,
+    "asset_mix_equity_threshold": 0.80,
+    "stress_scenarios": [
+        {"label": "Crash (-5%)", "move_pct": -0.05},
+        {"label": "Dip (-3%)", "move_pct": -0.03},
+        {"label": "Flat", "move_pct": 0.0},
+        {"label": "Rally (+3%)", "move_pct": 0.03},
+        {"label": "Moon (+5%)", "move_pct": 0.05}
+    ]
 }

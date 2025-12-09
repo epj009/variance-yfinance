@@ -11,36 +11,19 @@ from get_market_data import get_market_data
 # Import common utilities
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
+    from .config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
+    from config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
 
-# Baseline trading rules so triage still runs if config is missing/malformed
-RULES_DEFAULT = {
-    "vol_bias_threshold": 0.85,
-    "dead_money_vol_bias_threshold": 0.80,
-    "dead_money_pl_pct_low": -0.10,
-    "dead_money_pl_pct_high": 0.10,
-    "low_ivr_threshold": 20,
-    "gamma_dte_threshold": 21,
-    "profit_harvest_pct": 0.50,
-    "earnings_days_threshold": 5,
-    "portfolio_delta_long_threshold": 75,
-    "portfolio_delta_short_threshold": -50,
-    "concentration_risk_pct": 0.25,
-    "net_liquidity": 50000,
-    "theta_efficiency_low": 0.1,
-    "theta_efficiency_high": 0.5,
-    "beta_weighted_symbol": "SPY"
-}
+# Load Configurations
+RULES = load_trading_rules()
+MARKET_CONFIG = load_market_config()
+STRATEGIES = load_strategies()
 
-# Load Trading Rules
-try:
-    with open('config/trading_rules.json', 'r') as f:
-        RULES = {**RULES_DEFAULT, **json.load(f)}
-except FileNotFoundError:
-    print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
-    RULES = RULES_DEFAULT.copy()
+# Constants
+TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
 
 class PortfolioParser:
     """
@@ -244,24 +227,50 @@ def identify_strategy(legs: List[Dict[str, Any]]) -> str:
             else: return "Short Put"
         return "Single Option (Unknown Type)" # Fallback, should not happen if Call/Put is present
 
-    # Metrics for option legs only
-    expirations = set(l['Exp Date'] for l in option_legs)
+    # Metrics for option legs only - Initialization for single-pass aggregation
+    expirations = set()
+    stats = {
+        'Call': {'long': {'count': 0, 'qty': 0.0, 'strikes': []}, 'short': {'count': 0, 'qty': 0.0, 'strikes': []}},
+        'Put':  {'long': {'count': 0, 'qty': 0.0, 'strikes': []}, 'short': {'count': 0, 'qty': 0.0, 'strikes': []}}
+    }
+
+    # Single-Pass Aggregation
+    for leg in option_legs:
+        expirations.add(leg['Exp Date'])
+        otype = leg['Call/Put']
+        raw_qty = parse_currency(leg['Quantity'])
+        qty_abs = abs(raw_qty)
+        strike = parse_currency(leg['Strike Price'])
+
+        side = 'long' if raw_qty > 0 else 'short'
+
+        if otype in stats:
+            bucket = stats[otype][side]
+            bucket['count'] += 1
+            bucket['qty'] += qty_abs
+            bucket['strikes'].append(strike)
+
     is_multi_exp = len(expirations) > 1
 
-    long_calls = sum(1 for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0)
-    short_calls = sum(1 for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0)
-    long_puts = sum(1 for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0)
-    short_puts = sum(1 for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0)
-    
-    long_call_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0)
-    short_call_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0)
-    long_put_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0)
-    short_put_qty = sum(abs(parse_currency(l['Quantity'])) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0)
-    
-    short_call_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0])
-    short_put_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0])
-    long_call_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) > 0])
-    long_put_strikes = sorted([parse_currency(l['Strike Price']) for l in option_legs if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0])
+    # Sort strikes
+    for otype in stats:
+        for side in stats[otype]:
+            stats[otype][side]['strikes'].sort()
+
+    # Unpack for compatibility with downstream logic
+    long_calls = stats['Call']['long']['count']
+    short_calls = stats['Call']['short']['count']
+    long_call_qty = stats['Call']['long']['qty']
+    short_call_qty = stats['Call']['short']['qty']
+    long_call_strikes = stats['Call']['long']['strikes']
+    short_call_strikes = stats['Call']['short']['strikes']
+
+    long_puts = stats['Put']['long']['count']
+    short_puts = stats['Put']['short']['count']
+    long_put_qty = stats['Put']['long']['qty']
+    short_put_qty = stats['Put']['short']['qty']
+    long_put_strikes = stats['Put']['long']['strikes']
+    short_put_strikes = stats['Put']['short']['strikes']
 
     # --- Stock-Option Combinations ---
     if stock_legs:
@@ -449,6 +458,56 @@ def cluster_strategies(positions: List[Dict[str, Any]]) -> List[List[Dict[str, A
     return final_clusters
 
 
+def map_strategy_to_id(name: str, net_cost: float) -> Optional[str]:
+    """
+    Maps the output of identify_strategy() to the ID in strategies.json.
+    """
+    name_lower = name.lower()
+
+    # 1. Strangles & Straddles
+    if "strangle" in name_lower:
+        return "short_strangle"  # Variance assumes Short Strangle
+    if "straddle" in name_lower:
+        return "short_straddle"
+
+    # 2. Iron Condors / Flies
+    if "iron condor" in name_lower: return "iron_condor"
+    if "iron butterfly" in name_lower: return "iron_fly"
+    if "iron fly" in name_lower: return "iron_fly"
+
+    # 3. Vertical Spreads (Directional)
+    if "vertical spread" in name_lower:
+        is_credit = net_cost < 0
+        if "call" in name_lower:
+            return "short_call_vertical_spread" if is_credit else "long_call_vertical_spread"
+        if "put" in name_lower:
+            return "short_put_vertical_spread" if is_credit else "long_put_vertical_spread"
+
+    # 4. Calendars
+    if "calendar spread" in name_lower:
+        if "call" in name_lower: return "call_calendar_spread"
+        if "put" in name_lower: return "put_calendar_spread"
+
+    # 5. Naked Options (Short)
+    if name_lower in ["short call"]: return "short_naked_call"
+    if name_lower in ["short put"]: return "short_naked_put"
+
+    # 6. Covered
+    if "covered call" in name_lower: return "covered_call"
+    if "covered put" in name_lower: return "covered_put"
+
+    # 7. Exotics
+    if "jade lizard" in name_lower: return "jade_lizard"
+    if "ratio spread" in name_lower:
+        if "call" in name_lower: return "call_front_ratio_spread"
+        if "put" in name_lower: return "put_front_ratio_spread"
+    if "butterfly" in name_lower:
+        if "call" in name_lower: return "call_butterfly"
+        if "put" in name_lower: return "put_butterfly"
+
+    return None
+
+
 def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
@@ -471,9 +530,10 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     # --- Data Freshness Check ---
     now = datetime.now()
     stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
-    widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > 0.5
-        
+    widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > RULES['global_staleness_threshold']
+
     all_position_reports = []
+    total_net_pl = 0.0
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0 # Initialize total portfolio theta
     total_liquidity_cost = 0.0 # Numerator for Friction Horizon (Φ)
@@ -494,7 +554,24 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         
         strategy_name = identify_strategy(legs)
         net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
-        
+        total_net_pl += net_pl
+
+        # Calculate net cost BEFORE using it in map_strategy_to_id
+        net_cost = sum(parse_currency(l['Cost']) for l in legs)
+
+        # Resolve Strategy Config
+        strategy_id = map_strategy_to_id(strategy_name, net_cost)
+        strategy_config = STRATEGIES.get(strategy_id)
+
+        # Set Defaults from Rules
+        target_profit_pct = RULES['profit_harvest_pct']
+        gamma_trigger_dte = RULES['gamma_dte_threshold']
+
+        # Override with Strategy Specifics if available
+        if strategy_config:
+            target_profit_pct = strategy_config['management']['profit_target_pct']
+            gamma_trigger_dte = strategy_config['metadata']['gamma_trigger_dte']
+
         strategy_delta = 0.0
         for l in legs:
             b_delta = parse_currency(l['beta_delta'])
@@ -513,29 +590,30 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             
             if ask > bid and qty > 0:
                 spread = ask - bid
-                
-                # Standard Option Multiplier is 100.
-                # For Futures, we attempt a best-effort match, otherwise default to 100.
+
+                # Get multiplier from config or default to 100 for standard options
                 multiplier = 100.0
                 sym = l['Symbol'].upper()
+
+                # Check if this is a future and get its multiplier from config
+                futures_multipliers = MARKET_CONFIG.get('FUTURES_MULTIPLIERS', {})
                 if sym.startswith('/'):
-                    if '/ES' in sym: multiplier = 50
-                    elif '/NQ' in sym: multiplier = 20
-                    elif '/CL' in sym: multiplier = 1000
-                    elif '/GC' in sym: multiplier = 100
-                    elif '/MES' in sym: multiplier = 5
-                    elif '/MNQ' in sym: multiplier = 2
-                    elif '/ZB' in sym: multiplier = 1000
-                    elif '/ZN' in sym: multiplier = 1000
-                
+                    # Try exact match first
+                    if sym in futures_multipliers:
+                        multiplier = futures_multipliers[sym]
+                    else:
+                        # Try prefix match (e.g., /ESZ24 matches /ES)
+                        for future_prefix, future_mult in futures_multipliers.items():
+                            if sym.startswith(future_prefix):
+                                multiplier = future_mult
+                                break
+
                 liquidity_cost = spread * qty * multiplier
                 total_liquidity_cost += liquidity_cost
 
             if not str(l['IV Rank']).strip():
                 missing_ivr_legs += 1
 
-        net_cost = sum(parse_currency(l['Cost']) for l in legs)
-        
         pl_pct = None
         # Treat negatives as credits received, positives as debits paid
         if net_cost < 0:
@@ -562,11 +640,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         proxy_note = m_data.get('proxy')
 
         # 1. Harvest (Short Premium only)
-        if net_cost < 0 and pl_pct is not None and pl_pct >= RULES['profit_harvest_pct']:
+        if net_cost < 0 and pl_pct is not None and pl_pct >= target_profit_pct:
             action_code = "HARVEST"
-            logic = f"Profit {pl_pct:.1%}"
+            logic = f"Profit {pl_pct:.1%} (Target: {target_profit_pct:.0%})"
             is_winner = True
-        
+
         # 2. Defense
         underlying_price = parse_currency(legs[0]['Underlying Last Price'])
         price_used = "static"
@@ -586,17 +664,17 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 if otype == 'Call' and underlying_price > strike: is_tested = True
                 elif otype == 'Put' and underlying_price < strike: is_tested = True
         
-        if not is_winner and is_tested and dte < RULES['gamma_dte_threshold']:
+        if not is_winner and is_tested and dte < gamma_trigger_dte:
             action_code = "DEFENSE"
-            logic = f"Tested & < {RULES['gamma_dte_threshold']} DTE"
-            
+            logic = f"Tested & < {gamma_trigger_dte} DTE"
+
         # 3. Gamma Zone (apply even if P/L% is unknown)
-        if not is_winner and not is_tested and dte < RULES['gamma_dte_threshold'] and dte > 0:
+        if not is_winner and not is_tested and dte < gamma_trigger_dte and dte > 0:
             action_code = "GAMMA"
-            logic = f"< {RULES['gamma_dte_threshold']} DTE Risk"
+            logic = f"< {gamma_trigger_dte} DTE Risk"
             
         # 4. Dead Money (Enhanced with Real-time Vol Bias)
-        if not is_winner and not is_tested and dte > RULES['gamma_dte_threshold']:
+        if not is_winner and not is_tested and dte > gamma_trigger_dte:
             if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
                 if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
                     action_code = "ZOMBIE"
@@ -622,7 +700,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 pass
         
         price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
-        if (price_used != "live" or is_stale) and not is_winner and dte < RULES['gamma_dte_threshold']:
+        if (price_used != "live" or is_stale) and not is_winner and dte < gamma_trigger_dte:
             # If we can't rely fully on tested logic due to stale/absent live price, note it
             note = "Price stale/absent; tested status uncertain"
             logic = f"{logic} | {note}" if logic else note
@@ -649,7 +727,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     if total_abs_theta > 1.0: # Avoid div/0 and noise
         friction_horizon_days = total_liquidity_cost / total_abs_theta
     elif total_liquidity_cost > 0:
-        friction_horizon_days = 99.9 # Infinite friction (trapped)
+        friction_horizon_days = TRAFFIC_JAM_FRICTION  # Infinite friction (trapped)
     
     # --- Generate Structured Report Data ---
     report = {
@@ -659,10 +737,12 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         "triage_actions": [],
         "portfolio_overview": [],
         "portfolio_summary": {
+            "total_net_pl": total_net_pl,
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
             "friction_horizon_days": friction_horizon_days,
-            "theta_net_liquidity_pct": 0.0
+            "theta_net_liquidity_pct": 0.0,
+            "delta_theta_ratio": 0.0
         },
         "data_integrity_warning": {"risk": False, "details": ""},
         "delta_spectrograph": [],
@@ -712,9 +792,12 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         report['portfolio_summary']['delta_theta_ratio'] = 0.0
 
     # Data Integrity Guardrail
-    if total_option_legs > 0 and abs(total_beta_delta) < 5.0 and total_portfolio_theta < 5.0:
+    # Check if average theta per leg is suspiciously low (< 0.5), which indicates per-share Greeks bug
+    # Threshold of 0.5 catches per-share bugs (0.02-0.15) while avoiding false positives on calendars/butterflies (0.75+)
+    avg_theta_per_leg = abs(total_portfolio_theta) / total_option_legs if total_option_legs > 0 else 0
+    if total_option_legs > 0 and avg_theta_per_leg < RULES['data_integrity_min_theta']:
         report['data_integrity_warning']['risk'] = True
-        report['data_integrity_warning']['details'] = "Your Delta/Theta totals are suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
+        report['data_integrity_warning']['details'] = f"Average theta per leg ({avg_theta_per_leg:.2f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
 
     # Populate Delta Spectrograph
     root_deltas = defaultdict(float)
@@ -779,7 +862,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             equity_pct = item['percentage']
             break
 
-    if equity_pct > 0.80:
+    if equity_pct > RULES['asset_mix_equity_threshold']:
         report['asset_mix_warning'] = {
             "risk": True,
             "details": f"Equity exposure is {equity_pct:.0%}. Portfolio is correlation-heavy. Consider adding Commodities, FX, or Fixed Income."
@@ -807,15 +890,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             pass
             
     if beta_price > 0:
-        scenarios = [
-            ("Crash (-5%)", -0.05),
-            ("Dip (-3%)", -0.03),
-            ("Flat", 0.0),
-            ("Rally (+3%)", 0.03),
-            ("Moon (+5%)", 0.05)
-        ]
+        scenarios = RULES.get('stress_scenarios', DEFAULT_TRADING_RULES['stress_scenarios'])
         stress_box_scenarios = []
-        for label, pct in scenarios:
+        for s in scenarios:
+            label = s['label']
+            pct = s['move_pct']
             spy_points = beta_price * pct
             est_pl = total_beta_delta * spy_points
             stress_box_scenarios.append({

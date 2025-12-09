@@ -1,0 +1,808 @@
+[
+  {
+    "id": "covered_call",
+    "name": "Covered Call",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Long 100 shares with short OTM/ATM call to reduce cost basis and cap upside.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "None (Campaign Mode)",
+      "management_mechanics": {
+        "profit_taking": "50% of collected credit or ~21 DTE roll/close.",
+        "defense": "Call ITM: Roll up and out (higher strike, later date) for a Net Credit.",
+        "rolling": "Stock Drops: Roll the Call down to generate more credit, but avoid locking in loss."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 70%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "long_call_vertical_spread",
+    "name": "Long Call Vertical Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Bullish defined-risk debit: buy ITM/ATM call, sell higher strike call.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "Any",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Debit Paid (Max Loss)",
+      "management_mechanics": {
+        "profit_taking": "50% of max profit.",
+        "defense": "Generally do nothing. Defined risk.",
+        "rolling": "Rarely roll. If IV crushes, maybe."
+      }
+    },
+    "metadata": {
+      "win_rate": "40% to 60%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_zebra",
+    "name": "Call ZEBRA",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Synthetic long stock: buy 2 ITM calls, sell 1 ATM/near ATM call to remove extrinsic.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "Any",
+      "ideal_dte": "Any"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "25-50% of debit or stock-like move toward short strike.",
+        "defense": "Defined risk; do nothing.",
+        "rolling": "Close or roll structure if assumption holds."
+      }
+    },
+    "metadata": {
+      "win_rate": "50%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "poor_mans_covered_call",
+    "name": "Poor Man's Covered Call (Call Diagonal)",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "LEAP ITM call + short near-term OTM/ATM call to mimic covered call with lower capital.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "Low",
+      "ideal_dte": "45 to 60"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "50% of estimated max profit.",
+        "defense": "Short ITM: Roll out to next cycle to reduce basis.",
+        "rolling": "Goal: Reduce debit to zero."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 60%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_calendar_spread",
+    "name": "Call Calendar Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Buy longer-dated call, sell near-term call same strike; neutral to mildly bullish vol play.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "Low",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "10-25% of debit on IV expansion/decay.",
+        "defense": "Short ITM: Roll out to next cycle to reduce basis.",
+        "rolling": "Goal: Reduce debit to zero."
+      }
+    },
+    "metadata": {
+      "win_rate": "N/A",
+      "gamma_trigger_dte": 14,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_butterfly",
+    "name": "Call Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Defined-risk, low-probability bullish pin: long call spread plus short call spread sharing body.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "Any",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Max Loss (Defined Risk)",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit.",
+        "defense": "Do not roll tested side. Roll untested wing closer.",
+        "rolling": "Hold through expiration or close at stop."
+      }
+    },
+    "metadata": {
+      "win_rate": "20% to 40%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "big_lizard",
+    "name": "Big Lizard",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "ATM short put + short call vertical same body; credit > call spread width to remove upside risk.",
+      "directional_assumption": "Bullish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Downside: Manage like Naked Put (2x credit stop or roll). Upside: No risk.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit.",
+        "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
+        "rolling": "Roll put leg for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "covered_put",
+    "name": "Covered Put",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Short 100 shares with short OTM/ATM put to reduce cost basis and cap downside gains.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "None (Campaign Mode)",
+      "management_mechanics": {
+        "profit_taking": "50% of collected credit or ~21 DTE roll/close.",
+        "defense": "ITM: Roll down and out for credit. Stock Rises: Roll up.",
+        "rolling": "Always roll for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 70%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "long_put_vertical_spread",
+    "name": "Long Put Vertical Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Bearish defined-risk debit: buy ITM/ATM put, sell lower strike put.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "Any",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Debit Paid (Max Loss)",
+      "management_mechanics": {
+        "profit_taking": "50% of max profit.",
+        "defense": "Generally do nothing. Defined risk.",
+        "rolling": "Rarely roll. If IV crushes, maybe."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 60%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_zebra",
+    "name": "Put ZEBRA",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Synthetic short stock: buy 2 ITM puts, sell 1 ATM/near ATM put to strip extrinsic.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "Any",
+      "ideal_dte": "Any"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "25-50% of debit or stock-like move toward short strike.",
+        "defense": "Defined risk; do nothing.",
+        "rolling": "Close or roll structure if assumption holds."
+      }
+    },
+    "metadata": {
+      "win_rate": "50%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "poor_mans_covered_put",
+    "name": "Poor Man's Covered Put (Put Diagonal)",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "LEAP ITM put + short near-term OTM/ATM put to mimic covered put with lower capital.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "Low",
+      "ideal_dte": "45 to 60"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "50% of estimated max profit.",
+        "defense": "Short ITM: Roll out to next cycle to reduce basis.",
+        "rolling": "Goal: Reduce debit to zero."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 60%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_calendar_spread",
+    "name": "Put Calendar Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Buy longer-dated put, sell near-term put same strike; neutral to mildly bearish vol play.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "Low",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "debit_paid",
+      "stop_loss_description": "Debit Paid",
+      "management_mechanics": {
+        "profit_taking": "10-25% of debit on IV expansion/decay.",
+        "defense": "Short ITM: Roll out to next cycle to reduce basis.",
+        "rolling": "Goal: Reduce debit to zero."
+      }
+    },
+    "metadata": {
+      "win_rate": "N/A",
+      "gamma_trigger_dte": 14,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_butterfly",
+    "name": "Put Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Defined-risk, low-probability bearish pin: long put spread plus short put spread sharing body.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "Any",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Max Loss (Defined Risk)",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit.",
+        "defense": "Do not roll tested side. Roll untested wing closer.",
+        "rolling": "Hold through expiration or close at stop."
+      }
+    },
+    "metadata": {
+      "win_rate": "20% to 40%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "reverse_big_lizard",
+    "name": "Reverse Big Lizard",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "ATM short call + short put vertical same body; credit > put spread width to remove downside risk.",
+      "directional_assumption": "Bearish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Downside: Manage like Naked Put (2x credit stop or roll). Upside: No risk.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit.",
+        "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
+        "rolling": "Roll put leg for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_front_ratio_spread",
+    "name": "Put Front-Ratio Spread",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Buy ATM/OTM put, sell two further OTM puts for a net credit/debit; bullish-to-neutral with downside tail risk.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Cut if naked unit threatened.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of embedded long spread value.",
+        "defense": "Tested short: Roll naked unit out or close. Tested long: Hold.",
+        "rolling": "Roll naked unit for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_front_ratio_spread",
+    "name": "Call Front-Ratio Spread",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Buy ATM/OTM call, sell two further OTM calls for a net credit/debit; bearish-to-neutral with upside tail risk.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Cut if naked unit threatened.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of embedded long spread value.",
+        "defense": "Tested short: Roll naked unit out or close. Tested long: Hold.",
+        "rolling": "Roll naked unit for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_broken_wing_butterfly",
+    "name": "Put Broken Wing Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Asymmetric put butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Widest Wing - Credit",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit/credit.",
+        "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
+        "rolling": "Roll for credit if available."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_broken_wing_butterfly",
+    "name": "Call Broken Wing Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Asymmetric call butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "15 to 45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Widest Wing - Credit",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit/credit.",
+        "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
+        "rolling": "Roll for credit if available."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "call_broken_heart_butterfly",
+    "name": "Call Broken Heart Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Disconnected call BWB (long call spread, wider short call spread) routed for credit to widen profit zone.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Widest Wing - Credit",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit/credit.",
+        "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
+        "rolling": "Roll for credit if available."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "put_broken_heart_butterfly",
+    "name": "Put Broken Heart Butterfly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Disconnected put BWB (long put spread, wider short put spread) routed for credit to widen profit zone.",
+      "directional_assumption": "Omnidirectional",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "max_profit",
+      "stop_loss_description": "Widest Wing - Credit",
+      "management_mechanics": {
+        "profit_taking": "25-50% of max profit/credit.",
+        "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
+        "rolling": "Roll for credit if available."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 10,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_strangle",
+    "name": "Short Strangle",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Sell OTM call and OTM put; neutral, short vol premium play.",
+      "directional_assumption": "Neutral",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "2x Initial Credit Received",
+      "management_mechanics": {
+        "profit_taking": "50% of credit.",
+        "defense": "Roll untested side closer (e.g. 30 Delta). If < 21 DTE, roll both legs out.",
+        "rolling": "Roll for credit. If inverted, look to scratch."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_straddle",
+    "name": "Short Straddle",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Sell ATM call and ATM put; high-theta, high-gamma neutral premium sell.",
+      "directional_assumption": "Neutral",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "2x Credit",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit (faster exit due to gamma).",
+        "defense": "Roll untested side. Manage gamma early.",
+        "rolling": "Roll for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "50% to 60%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "iron_condor",
+    "name": "Iron Condor",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Defined-risk short strangle using OTM put and call credit spreads.",
+      "directional_assumption": "Neutral",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Max Loss (Defined Risk)",
+      "management_mechanics": {
+        "profit_taking": "50% of credit.",
+        "defense": "Roll untested spread closer (turn into Iron Fly).",
+        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80% The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides and the trade can be bought back for a profit over time.",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "dynamic_width_iron_condor",
+    "name": "Dynamic Width Iron Condor",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Iron condor with asymmetric wing widths sized to skew risk/credit.",
+      "directional_assumption": "Neutral",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Max Loss (Defined Risk)",
+      "management_mechanics": {
+        "profit_taking": "50% of credit.",
+        "defense": "Roll untested spread closer (turn into Iron Fly).",
+        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80% 1 Sell an OTM put spread 2 Sell an OTM call spread The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides, and the trade can be bought back for a profit over time.",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "iron_fly",
+    "name": "Iron Fly",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "ATM straddle wrapped with wings (defined-risk short straddle).",
+      "directional_assumption": "Neutral",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.25,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Max Loss (Defined Risk)",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit.",
+        "defense": "Do not roll tested side. Roll untested wing closer.",
+        "rolling": "Hold through expiration or close at stop."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 14,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_naked_put",
+    "name": "Short Naked Put",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Sell OTM/ATM put; bullish premium sell with assignment risk.",
+      "directional_assumption": "Neutral-Bullish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "2x Initial Credit Received",
+      "management_mechanics": {
+        "profit_taking": "50% of credit.",
+        "defense": "Tested & <21 DTE: Roll out for credit.",
+        "rolling": "Roll for credit or convert to defined risk."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_put_vertical_spread",
+    "name": "Short Put Vertical Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Bullish defined-risk put credit spread.",
+      "directional_assumption": "Neutral-Bullish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Spread Width - Credit (Max Loss)",
+      "management_mechanics": {
+        "profit_taking": "50% of max profit.",
+        "defense": "Generally do nothing. Defined risk.",
+        "rolling": "Rarely roll. If IV crushes, maybe."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "jade_lizard",
+    "name": "Jade Lizard",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Short OTM put + short OTM call spread, credit sized to remove upside risk.",
+      "directional_assumption": "Neutral-Bullish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Downside: Manage like Naked Put (2x credit stop or roll). Upside: No risk.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit.",
+        "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
+        "rolling": "Roll put leg for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_naked_call",
+    "name": "Short Naked Call",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Sell OTM/ATM call; bearish premium sell with unlimited upside risk.",
+      "directional_assumption": "Neutral-Bearish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "2x Initial Credit Received",
+      "management_mechanics": {
+        "profit_taking": "50% of credit.",
+        "defense": "Tested & <21 DTE: Roll out for credit.",
+        "rolling": "Roll for credit or convert to defined risk."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "short_call_vertical_spread",
+    "name": "Short Call Vertical Spread",
+    "type": "defined_risk",
+    "setup": {
+      "legs_description": "Bearish defined-risk call credit spread.",
+      "directional_assumption": "Neutral-Bearish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Spread Width - Credit (Max Loss)",
+      "management_mechanics": {
+        "profit_taking": "50% of max profit.",
+        "defense": "Generally do nothing. Defined risk.",
+        "rolling": "Rarely roll. If IV crushes, maybe."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  },
+  {
+    "id": "reverse_jade_lizard",
+    "name": "Reverse Jade Lizard",
+    "type": "undefined_risk",
+    "setup": {
+      "legs_description": "Short OTM call + short OTM put spread, credit sized to remove downside risk.",
+      "directional_assumption": "Neutral-Bearish",
+      "iv_environment": "High",
+      "ideal_dte": "45"
+    },
+    "management": {
+      "profit_target_pct": 0.5,
+      "profit_basis": "credit_received",
+      "stop_loss_description": "Downside: Manage like Naked Put (2x credit stop or roll). Upside: No risk.",
+      "management_mechanics": {
+        "profit_taking": "25-50% of credit.",
+        "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
+        "rolling": "Roll put leg for credit."
+      }
+    },
+    "metadata": {
+      "win_rate": "60% to 80%",
+      "gamma_trigger_dte": 21,
+      "source": "Variance Playbook"
+    }
+  }
+]
