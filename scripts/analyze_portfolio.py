@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from get_market_data import get_market_data
+from vol_screener import get_screener_results
 
 # Import common utilities
 try:
@@ -508,6 +509,96 @@ def map_strategy_to_id(name: str, net_cost: float) -> Optional[str]:
     return None
 
 
+def get_position_aware_opportunities(
+    positions: List[Dict[str, Any]],
+    clusters: List[List[Dict[str, Any]]],
+    net_liquidity: float
+) -> Dict[str, Any]:
+    """
+    Identifies concentrated vs. held positions and queries the vol screener.
+
+    The "Stacking Rule":
+    - Concentrated: >5% of Net Liq OR >= 3 distinct strategy clusters on same root
+    - Held: All other positions in portfolio
+
+    Args:
+        positions: List of normalized position dictionaries
+        clusters: List of strategy clusters from cluster_strategies()
+        net_liquidity: Account net liquidity value
+
+    Returns:
+        Dict with 'meta' (excluded info) and 'candidates' (screening results)
+    """
+    from collections import defaultdict
+    from datetime import datetime
+
+    # 1. Extract all unique roots
+    held_roots = set()
+    for pos in positions:
+        root = get_root_symbol(pos.get('Symbol', ''))
+        if root:
+            held_roots.add(root)
+
+    # 2. Calculate concentration per root using "Stacking Rule"
+    # Group clusters by root symbol
+    root_clusters = defaultdict(list)
+    for cluster in clusters:
+        if cluster:
+            root = get_root_symbol(cluster[0].get('Symbol', ''))
+            if root:
+                root_clusters[root].append(cluster)
+
+    # Calculate total cost/margin per root
+    root_exposure = defaultdict(float)
+    for pos in positions:
+        root = get_root_symbol(pos.get('Symbol', ''))
+        if root:
+            # Try to get Cost (margin requirement), fallback to 0
+            cost_str = pos.get('Cost', '0')
+            try:
+                cost = abs(float(cost_str)) if cost_str else 0.0
+            except (ValueError, TypeError):
+                cost = 0.0
+            root_exposure[root] += cost
+
+    # 3. Apply Stacking Rule to identify concentrated positions
+    concentrated_roots = []
+    concentration_limit = net_liquidity * RULES.get('concentration_limit_pct', 0.05)
+    max_strategies = RULES.get('max_strategies_per_symbol', 3)
+
+    for root in held_roots:
+        exposure = root_exposure.get(root, 0.0)
+        strategy_count = len(root_clusters.get(root, []))
+
+        is_concentrated = (
+            exposure > concentration_limit or
+            strategy_count >= max_strategies
+        )
+
+        if is_concentrated:
+            concentrated_roots.append(root)
+
+    # 4. Call vol screener with position context
+    screener_results = get_screener_results(
+        exclude_symbols=concentrated_roots,
+        held_symbols=list(held_roots),
+        min_vol_bias=RULES.get('vol_bias_threshold', 0.85),
+        limit=20,
+        filter_illiquid=True
+    )
+
+    # 5. Package results
+    return {
+        "meta": {
+            "excluded_count": len(concentrated_roots),
+            "excluded_symbols": concentrated_roots,
+            "scan_timestamp": datetime.now().isoformat()
+        },
+        "candidates": screener_results.get('candidates', []),
+        "summary": screener_results.get('summary', {})
+    }
+
+
 def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
@@ -906,6 +997,27 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "beta_symbol": beta_sym,
             "beta_price": beta_price,
             "scenarios": stress_box_scenarios
+        }
+
+    # Get position-aware opportunities (vol screener with context)
+    try:
+        opportunities_data = get_position_aware_opportunities(
+            positions=positions,
+            clusters=clusters,
+            net_liquidity=net_liq
+        )
+        report['opportunities'] = opportunities_data
+    except Exception as e:
+        # Graceful degradation: If screener fails, add empty opportunities section
+        report['opportunities'] = {
+            "meta": {
+                "excluded_count": 0,
+                "excluded_symbols": [],
+                "scan_timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            },
+            "candidates": [],
+            "summary": {}
         }
 
     return report

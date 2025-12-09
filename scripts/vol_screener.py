@@ -43,6 +43,32 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     except (ValueError, TypeError):
         return "N/A"
 
+def _is_illiquid(metrics: Dict[str, Any], rules: Dict[str, Any]) -> bool:
+    """Checks if a symbol fails the liquidity rules."""
+    liquidity = metrics.get('liquidity') or {}
+    atm_volume = liquidity.get('atm_volume')
+    bid = liquidity.get('bid')
+    ask = liquidity.get('ask')
+
+    if atm_volume is not None and atm_volume < rules['min_atm_volume']:
+        return True
+
+    if bid is not None and ask is not None:
+        mid = (bid + ask) / 2
+        if mid > 0:
+            slippage_pct = (ask - bid) / mid
+            if slippage_pct > rules['max_slippage_pct']:
+                return True
+    return False
+
+def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], rules: Dict[str, Any]) -> Dict[str, bool]:
+    """Creates a dictionary of boolean flags for a candidate."""
+    return {
+        'is_rich': bool(vol_bias is not None and vol_bias > rules.get('vol_bias_rich_threshold', 1.0)),
+        'is_fair': bool(vol_bias is not None and rules['vol_bias_threshold'] < vol_bias <= rules.get('vol_bias_rich_threshold', 1.0)),
+        'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
+    }
+
 def screen_volatility(
     limit: Optional[int] = None,
     show_all: bool = False,
@@ -50,7 +76,8 @@ def screen_volatility(
     exclude_sectors: Optional[List[str]] = None,
     include_asset_classes: Optional[List[str]] = None,
     exclude_asset_classes: Optional[List[str]] = None,
-    exclude_symbols: Optional[List[str]] = None
+    exclude_symbols: Optional[List[str]] = None,
+    held_symbols: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
@@ -100,6 +127,7 @@ def screen_volatility(
     excluded_symbols_skipped = 0
     bats_zone_count = 0 # Initialize bats zone counter
     exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
+    held_symbols_set = set(s.upper() for s in held_symbols) if held_symbols else set()
 
     for sym, metrics in data.items():
         if 'error' in metrics:
@@ -115,22 +143,9 @@ def screen_volatility(
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
-        liquidity = metrics.get('liquidity') or {}
-        atm_volume = liquidity.get('atm_volume')
-        bid = liquidity.get('bid')
-        ask = liquidity.get('ask')
 
-        slippage_pct = None
-        if bid is not None and ask is not None:
-            mid = (bid + ask) / 2
-            if mid > 0:
-                slippage_pct = (ask - bid) / mid
-
-        is_illiquid = False
-        if atm_volume is not None and atm_volume < RULES['min_atm_volume']:
-            is_illiquid = True
-        if slippage_pct is not None and slippage_pct > RULES['max_slippage_pct']:
-            is_illiquid = True
+        # Refactored liquidity check
+        is_illiquid = _is_illiquid(metrics, RULES)
 
         # Sector Filter
         if exclude_sectors and sector in exclude_sectors:
@@ -169,11 +184,8 @@ def screen_volatility(
         if is_bats_efficient:
             bats_zone_count += 1
 
-        # Force native bools so JSON serialization never chokes on numpy/pandas dtypes.
-        is_rich = bool(vol_bias is not None and vol_bias > RULES.get('vol_bias_rich_threshold', 1.0))
-        is_fair = bool(vol_bias is not None and RULES['vol_bias_threshold'] < vol_bias <= RULES.get('vol_bias_rich_threshold', 1.0))
-        is_earnings_soon = bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= RULES['earnings_days_threshold'])
-
+        # Refactored flag creation
+        flags = _create_candidate_flags(vol_bias, days_to_earnings, RULES)
         # Prepare candidate data for return
         candidate_data = {
             'Symbol': sym,
@@ -185,12 +197,12 @@ def screen_volatility(
             'Proxy': metrics.get('proxy'),
             'Sector': sector, # Include sector in candidate data for JSON output
             'Asset Class': asset_class, # Include asset class in candidate data for JSON output
-            'is_rich': is_rich,
-            'is_fair': is_fair,
             'is_illiquid': is_illiquid,
-            'is_earnings_soon': is_earnings_soon,
-            'is_bats_efficient': is_bats_efficient
+            'is_earnings_soon': flags['is_earnings_soon'],
+            'is_bats_efficient': is_bats_efficient,
+            'is_held': bool(sym.upper() in held_symbols_set)
         }
+        candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
     # 4. Sort by signal quality: real bias first, proxy bias second, no-bias last; then bias desc within group
@@ -225,6 +237,44 @@ def screen_volatility(
 
     return {"candidates": candidates_with_status, "summary": summary}
 
+def get_screener_results(
+    exclude_symbols: Optional[List[str]] = None,
+    held_symbols: Optional[List[str]] = None,
+    min_vol_bias: float = 0.85,
+    limit: int = 20,
+    filter_illiquid: bool = True,
+    exclude_sectors: Optional[List[str]] = None,
+    include_asset_classes: Optional[List[str]] = None,
+    exclude_asset_classes: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Convenience wrapper for screen_volatility with sensible defaults.
+    Used by analyze_portfolio.py for position-aware screening.
+
+    Args:
+        exclude_symbols: List of symbols to exclude from the scan.
+        held_symbols: List of symbols currently held in the portfolio.
+        min_vol_bias: Minimum Vol Bias threshold for candidates.
+        limit: Maximum number of candidates to return.
+        filter_illiquid: If True, illiquid symbols are filtered out.
+        exclude_sectors: List of sector names to hide from results.
+        include_asset_classes: Only show these asset classes.
+        exclude_asset_classes: Hide these asset classes.
+
+    Returns:
+        Dict with 'candidates' (list of opportunities) and 'summary' (scan metadata)
+    """
+    return screen_volatility(
+        limit=limit,
+        show_all=(min_vol_bias <= 0),  # If min_vol_bias is 0 or negative, show all
+        show_illiquid=(not filter_illiquid),
+        exclude_symbols=exclude_symbols,
+        held_symbols=held_symbols,
+        exclude_sectors=exclude_sectors,
+        include_asset_classes=include_asset_classes,
+        exclude_asset_classes=exclude_asset_classes
+    )
+
 if __name__ == "__main__":
     warn_if_not_venv()
 
@@ -236,6 +286,7 @@ if __name__ == "__main__":
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-symbols', type=str, help='Comma-separated list of symbols to exclude (e.g., "NVDA,TSLA,AMD")')
+    parser.add_argument('--held-symbols', type=str, help='Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)')
 
     args = parser.parse_args()
 
@@ -255,6 +306,10 @@ if __name__ == "__main__":
     if args.exclude_symbols:
         exclude_symbols_list = [s.strip().upper() for s in args.exclude_symbols.split(',') if s.strip()]
 
+    held_symbols_list = None
+    if args.held_symbols:
+        held_symbols_list = [s.strip().upper() for s in args.held_symbols.split(',') if s.strip()]
+
     report_data = screen_volatility(
         limit=args.limit,
         show_all=args.show_all,
@@ -262,7 +317,8 @@ if __name__ == "__main__":
         exclude_sectors=exclude_list,
         include_asset_classes=include_assets,
         exclude_asset_classes=exclude_assets,
-        exclude_symbols=exclude_symbols_list
+        exclude_symbols=exclude_symbols_list,
+        held_symbols=held_symbols_list
     )
     
     if "error" in report_data:

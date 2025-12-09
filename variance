@@ -72,9 +72,12 @@ case "$COMMAND" in
         echo "  ./variance screen 10"
         echo "  ./variance triage positions/my_export.csv"
         ;;
-    *)
+    "")
         # Default behavior: Triage latest file
-        FILE=$(get_latest_position_file)
-        "$PYTHON" scripts/analyze_portfolio.py "$FILE" "$@"
+        "$PYTHON" scripts/analyze_portfolio.py "$(get_latest_position_file)" "$@"
+        ;;
+    *)
+        echo "Error: Unknown command '$COMMAND'. Use './variance help' for options."
+        exit 1
         ;;
 esac
