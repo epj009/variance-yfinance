@@ -51,38 +51,33 @@ except FileNotFoundError:
 
 class MarketCache:
     """
-    A thread-safe, SQLite-backed cache for market data to reduce API calls and improve performance.
-    
-    Attributes:
-        db_path (str): Path to the SQLite database file.
+    High-Performance SQLite Cache.
+    Features: Thread-local connections, WAL mode, Lock-free reads, Lazy expiration.
     """
     def __init__(self, db_path: Optional[str] = None) -> None:
-        """
-        Initialize the cache with a database connection and a thread lock.
-        
-        Args:
-            db_path: Optional path to the SQLite database file. Uses default if not provided.
-        """
         self.db_path = db_path if db_path else DB_PATH
-        self._lock = threading.Lock()
-        self._last_sweep = 0  # Throttle expiry pruning
+        # We use thread_local storage so each thread keeps its own open connection
+        # This prevents the massive overhead of opening/closing the file 400x per run.
+        self._local = threading.local()
+        self._write_lock = threading.Lock() # Only lock for writes
+        self._last_sweep = 0
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
-        """
-        Establish a connection to the SQLite database with a timeout.
-        
-        Returns:
-            SQLite connection object.
-        """
-        # Allow cross-thread use with a small busy timeout to reduce "database is locked" errors
-        return sqlite3.connect(self.db_path, timeout=5, check_same_thread=False)
+    def _get_conn(self) -> sqlite3.Connection:
+        """Get the persistent connection for the current thread."""
+        if not hasattr(self._local, 'conn'):
+            # Check_same_thread=False is safe because we map 1 conn per thread via _local
+            self._local.conn = sqlite3.connect(self.db_path, timeout=5, check_same_thread=False)
+            # Optimize SQLite for cache workload
+            self._local.conn.execute('PRAGMA journal_mode=WAL;') # Allow concurrent readers
+            self._local.conn.execute('PRAGMA synchronous=NORMAL;') # Faster writes, safe enough for cache
+            self._local.conn.execute('PRAGMA cache_size=-64000;') # Use 64MB memory cache
+        return self._local.conn
 
     def _init_db(self) -> None:
-        """Create the cache table if it doesn't exist."""
-        with self._connect() as conn:
+        """Initialize DB with a temporary connection."""
+        with sqlite3.connect(self.db_path) as conn:
             conn.execute('PRAGMA journal_mode=WAL;')
-            conn.execute('PRAGMA synchronous=NORMAL;')
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,
@@ -90,56 +85,53 @@ class MarketCache:
                     expiry REAL
                 )
             ''')
+            # Index expiry for fast cleanup sweeps
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_expiry ON cache(expiry);')
 
     def get(self, key: str) -> Optional[Any]:
         """
-        Retrieve a value from the cache if it exists and hasn't expired.
-        
-        Args:
-            key: The unique cache key.
-            
-        Returns:
-            The cached value, or None if missing/expired.
+        Lock-free Read.
+        Returns None if missing or expired. Does NOT delete on read (avoids write-lock).
         """
         try:
-            with self._lock:
-                with self._connect() as conn:
-                    cursor = conn.execute('SELECT value, expiry FROM cache WHERE key = ?', (key,))
-                    row = cursor.fetchone()
-                    if row:
-                        val, expiry = row
-                        if time.time() < expiry:
-                            return json.loads(val)
-                        else:
-                            # Expired
-                            conn.execute('DELETE FROM cache WHERE key = ?', (key,))
+            conn = self._get_conn()
+            # No python lock here. SQLite WAL handles concurrent reads perfectly.
+            cursor = conn.execute('SELECT value, expiry FROM cache WHERE key = ?', (key,))
+            row = cursor.fetchone()
+            if row:
+                val, expiry = row
+                if time.time() < expiry:
+                    return json.loads(val)
+                # If expired, just return None. Don't DELETE here. 
+                # Deleting requires a write lock and slows down the reader.
+                # Let the 'set' method or background sweep handle cleanup.
             return None
-        except Exception as exc:
-            print(f"[cache] get failed for {key}: {exc}", file=sys.stderr)
+        except Exception:
             return None
 
     def set(self, key: str, value: Any, ttl_seconds: int) -> None:
         """
-        Store a value in the cache with a specific time-to-live (TTL).
-        
-        Args:
-            key: The unique cache key.
-            value: The data to store (must be JSON-serializable).
-            ttl_seconds: Duration in seconds before the entry expires.
+        Write with Lock.
         """
+        # Variance Upgrade: Never cache "None" or Error dictionaries
+        if value is None or (isinstance(value, dict) and 'error' in value):
+            return 
+        
         try:
             expiry = time.time() + ttl_seconds
-            with self._lock:
-                with self._connect() as conn:
+            
+            # Writes still need serialization to avoid "Database is locked" on heavy contention
+            with self._write_lock:
+                conn = self._get_conn()
+                with conn: # Context manager automatically commits
                     conn.execute('INSERT OR REPLACE INTO cache (key, value, expiry) VALUES (?, ?, ?)', 
                                  (key, json.dumps(value), expiry))
-                    # Light-weight hygiene: periodically prune expired rows to keep DB small
-                    now = time.time()
-                    if now - self._last_sweep > 300:  # sweep every 5 minutes at most
-                        conn.execute('DELETE FROM cache WHERE expiry < ?', (now,))
-                        self._last_sweep = now
-        except Exception as exc:
-            print(f"[cache] set failed for {key}: {exc}", file=sys.stderr)
+                    
+                    # Opportunistic Hygiene: Prune 1% of the time to keep DB small
+                    # This is better than checking time.time() every call
+                    if random.random() < 0.01: 
+                        conn.execute('DELETE FROM cache WHERE expiry < ?', (time.time(),))
+        except Exception:
             pass
 
 cache = MarketCache()

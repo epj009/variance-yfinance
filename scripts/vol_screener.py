@@ -71,7 +71,8 @@ def screen_volatility(
     show_illiquid: bool = False,
     exclude_sectors: Optional[List[str]] = None,
     include_asset_classes: Optional[List[str]] = None,
-    exclude_asset_classes: Optional[List[str]] = None
+    exclude_asset_classes: Optional[List[str]] = None,
+    exclude_symbols: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
@@ -118,10 +119,16 @@ def screen_volatility(
     sector_skipped = 0
     asset_class_skipped = 0
     illiquid_skipped = 0
+    excluded_symbols_skipped = 0
     bats_zone_count = 0 # Initialize bats zone counter
+    exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
 
     for sym, metrics in data.items():
         if 'error' in metrics:
+            continue
+
+        if exclude_symbols_set and sym.upper() in exclude_symbols_set:
+            excluded_symbols_skipped += 1
             continue
 
         iv30 = metrics.get('iv30')
@@ -227,6 +234,7 @@ def screen_volatility(
         "asset_class_skipped_count": asset_class_skipped,
         "missing_bias_count": missing_bias,
         "illiquid_skipped_count": illiquid_skipped,
+        "excluded_symbols_skipped_count": excluded_symbols_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
         "filter_note": f"{bias_note}; {liquidity_note}"
     }
@@ -243,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
+    parser.add_argument('--exclude-symbols', type=str, help='Comma-separated list of symbols to exclude (e.g., "NVDA,TSLA,AMD")')
 
     args = parser.parse_args()
 
@@ -258,13 +267,18 @@ if __name__ == "__main__":
     if args.exclude_asset_classes:
         exclude_assets = [s.strip() for s in args.exclude_asset_classes.split(',')]
 
+    exclude_symbols_list = None
+    if args.exclude_symbols:
+        exclude_symbols_list = [s.strip().upper() for s in args.exclude_symbols.split(',') if s.strip()]
+
     report_data = screen_volatility(
         limit=args.limit,
         show_all=args.show_all,
         show_illiquid=args.show_illiquid,
         exclude_sectors=exclude_list,
         include_asset_classes=include_assets,
-        exclude_asset_classes=exclude_assets
+        exclude_asset_classes=exclude_assets,
+        exclude_symbols=exclude_symbols_list
     )
     
     if "error" in report_data:

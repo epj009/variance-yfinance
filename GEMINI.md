@@ -75,6 +75,11 @@ Analyze grouped strategies in this order:
 * *Check:* Is Portfolio Status "Too Long" (> +75) or "Too Short" (< -50)?
 * *Diversification Check:* **Read** the calculated `Asset Mix` percentages from the input data.
     * *Trigger:* If the input reports **Equity > 80%**, you are exposed to correlation risk.
+* **Concentration Defense (The Stacking Rule):**
+    * *Check:* Does any single root symbol account for **> 5% of Net Liquidity** or have **> 3 distinct positions**?
+    * *Action:* If yes, you must **exclude** this symbol from the new opportunity scan to prevent "Stacking Risk."
+    * *Command:* Run `vol_screener.py --exclude-symbols "SYM1,SYM2"` (replacing SYM1, SYM2 with the concentrated tickers).
+    * *Note:* Do not exclude a symbol just because we hold it (we like "Laddering" timeframes). Only exclude it if we are **over-allocated**.
 * *Action (Screener):* Run `vol_screener.py`.
     * *Correlation Defense:* If "Equity Heavy," explicitly filter for **Non-Equity** tickers (Gold, Oil, Bonds, FX) in the screener to break correlation.
     * *Hedge Preference:* When adding **Negative Deltas**, prioritize **Broad Market Indices (SPY/IWM)** or **Sector ETFs** over single stocks to minimize idiosyncratic basis risk.

@@ -319,22 +319,6 @@ def identify_strategy(legs: List[Dict[str, Any]]) -> str:
 
     return "Custom/Combo"
 
-def calculate_slippage_status(bid: float, ask: float) -> str:
-    """
-    Determine slippage status based on bid/ask spread.
-    Returns 'TIGHT' when spread <= 0.05, 'WIDE' when spread > 0.05 and spread/midpoint > 0.10, otherwise 'NORMAL'.
-    """
-    spread = ask - bid
-    if spread <= 0.05:
-        return "TIGHT"
-
-    midpoint = (ask + bid) / 2
-    relative_spread = spread / midpoint if midpoint != 0 else float("inf")
-
-    if relative_spread > 0.10:
-        return "WIDE"
-    return "NORMAL"
-
 def cluster_strategies(positions: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
     """
     Group individual position legs into logical strategies (e.g., combining a short call and short put into a Strangle).
@@ -502,11 +486,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             continue
         root = get_root_symbol(legs[0]['Symbol'])
         
-        # Calculate min_dte only for option legs
+        # Calculate DTE only for option legs
         option_legs = [l for l in legs if not is_stock_type(l['Type'])]
         total_option_legs += len(option_legs)
         dtes = [parse_dte(l['DTE']) for l in option_legs]
-        min_dte = min(dtes) if dtes else 0
+        dte = min(dtes) if dtes else 0
         
         strategy_name = identify_strategy(legs)
         net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
@@ -602,17 +586,17 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 if otype == 'Call' and underlying_price > strike: is_tested = True
                 elif otype == 'Put' and underlying_price < strike: is_tested = True
         
-        if not is_winner and is_tested and min_dte < RULES['gamma_dte_threshold']:
+        if not is_winner and is_tested and dte < RULES['gamma_dte_threshold']:
             action_code = "DEFENSE"
             logic = f"Tested & < {RULES['gamma_dte_threshold']} DTE"
             
         # 3. Gamma Zone (apply even if P/L% is unknown)
-        if not is_winner and not is_tested and min_dte < RULES['gamma_dte_threshold'] and min_dte > 0:
+        if not is_winner and not is_tested and dte < RULES['gamma_dte_threshold'] and dte > 0:
             action_code = "GAMMA"
             logic = f"< {RULES['gamma_dte_threshold']} DTE Risk"
             
         # 4. Dead Money (Enhanced with Real-time Vol Bias)
-        if not is_winner and not is_tested and min_dte > RULES['gamma_dte_threshold']:
+        if not is_winner and not is_tested and dte > RULES['gamma_dte_threshold']:
             if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
                 if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
                     action_code = "ZOMBIE"
@@ -638,7 +622,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
                 pass
         
         price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
-        if (price_used != "live" or is_stale) and not is_winner and min_dte < RULES['gamma_dte_threshold']:
+        if (price_used != "live" or is_stale) and not is_winner and dte < RULES['gamma_dte_threshold']:
             # If we can't rely fully on tested logic due to stale/absent live price, note it
             note = "Price stale/absent; tested status uncertain"
             logic = f"{logic} | {note}" if logic else note
@@ -652,7 +636,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             'proxy_note': proxy_note,
             'net_pl': net_pl,
             'pl_pct': pl_pct,
-            'min_dte': min_dte,
+            'dte': dte,
             'action_code': action_code,
             'logic': logic,
             'sector': sector,
@@ -689,7 +673,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         "caution_items": [],
         "stress_box": None,
         "health_check": {
-            "liquidity_warnings": [f'{r["root"]}: Wide spread detected' for r in all_position_reports if r.get('liquidity_status') == 'WIDE']
+            "liquidity_warnings": []
         }
     }
 
@@ -704,7 +688,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "proxy_note": r['proxy_note'],
             "net_pl": r['net_pl'],
             "pl_pct": r['pl_pct'],
-            "dte": r['min_dte'],
+            "dte": r['dte'],
             "logic": r['logic'],
             "sector": r['sector']
         }
@@ -712,7 +696,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             entry["action_code"] = r['action_code']
             report['triage_actions'].append(entry)
         else:
-            entry["status"] = "HOLD"
+            entry["action_code"] = None
             report['portfolio_overview'].append(entry)
 
     # Populate Portfolio Summary
