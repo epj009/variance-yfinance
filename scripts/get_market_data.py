@@ -36,9 +36,11 @@ try:
         SYS_CONFIG = json.load(f)
     DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
     TTL = SYS_CONFIG.get('cache_ttl_seconds', DEFAULT_TTL)
+    HV_MIN_HISTORY_DAYS = SYS_CONFIG.get('hv_min_history_days', 200)
 except FileNotFoundError:
     DB_PATH = '.market_cache.db'
     TTL = DEFAULT_TTL
+    HV_MIN_HISTORY_DAYS = 200
 
 try:
     with open('config/market_config.json', 'r') as f:
@@ -54,6 +56,7 @@ try:
     TARGET_DTE = DATA_FETCHING.get('target_dte', 30)
     STRIKE_LOWER = DATA_FETCHING.get('strike_limit_lower', 0.8)
     STRIKE_UPPER = DATA_FETCHING.get('strike_limit_upper', 1.2)
+    OPTION_CHAIN_LIMIT = DATA_FETCHING.get('option_chain_limit', 50)
 except FileNotFoundError:
     SKIP_EARNINGS = set()
     SKIP_SYMBOLS = set()
@@ -65,6 +68,7 @@ except FileNotFoundError:
     TARGET_DTE = 30
     STRIKE_LOWER = 0.8
     STRIKE_UPPER = 1.2
+    OPTION_CHAIN_LIMIT = 50
 
 # --- OPTIMIZED SQLITE ENGINE ---
 class MarketCache:
@@ -190,9 +194,9 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
 
     def _fetch():
         hist = ticker_obj.history(period="1y", auto_adjust=True)
-        if len(hist) < 200: return None
+        if len(hist) < HV_MIN_HISTORY_DAYS: return None
         adj_close = hist['Close'].dropna()
-        if len(adj_close) < 200: return None
+        if len(adj_close) < HV_MIN_HISTORY_DAYS: return None
         log_ret = np.log(adj_close / adj_close.shift(1)).dropna()
         if log_ret.empty: return None
         return log_ret.std() * np.sqrt(252) * 100 
@@ -247,11 +251,11 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
             lower, upper = current_price * STRIKE_LOWER, current_price * STRIKE_UPPER
             band_calls = calls[(calls['strike'] >= lower) & (calls['strike'] <= upper)]
             band_puts = puts[(puts['strike'] >= lower) & (puts['strike'] <= upper)]
-            calls = _prep(band_calls if not band_calls.empty else calls).sort_values('dist').head(50)
-            puts = _prep(band_puts if not band_puts.empty else puts).sort_values('dist').head(50)
+            calls = _prep(band_calls if not band_calls.empty else calls).sort_values('dist').head(OPTION_CHAIN_LIMIT)
+            puts = _prep(band_puts if not band_puts.empty else puts).sort_values('dist').head(OPTION_CHAIN_LIMIT)
         else:
-            calls = _prep(calls).sort_values('dist').head(50)
-            puts = _prep(puts).sort_values('dist').head(50)
+            calls = _prep(calls).sort_values('dist').head(OPTION_CHAIN_LIMIT)
+            puts = _prep(puts).sort_values('dist').head(OPTION_CHAIN_LIMIT)
 
         if calls.empty or puts.empty: return None
 

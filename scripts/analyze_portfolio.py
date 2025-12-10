@@ -1,5 +1,4 @@
 import argparse
-import csv
 import json
 import sys
 from collections import defaultdict
@@ -13,10 +12,20 @@ from vol_screener import get_screener_results
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
     from .config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
+    from .portfolio_parser import (
+        PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
+    )
+    from .strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
+    from .triage_engine import triage_portfolio, get_position_aware_opportunities
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
     from config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
+    from portfolio_parser import (
+        PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
+    )
+    from strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
+    from triage_engine import triage_portfolio, get_position_aware_opportunities
 
 # Load Configurations
 RULES = load_trading_rules()
@@ -26,799 +35,50 @@ STRATEGIES = load_strategies()
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
 
-class PortfolioParser:
-    """
-    Normalizes CSV headers from various broker exports to a standard internal format.
-    """
-    # Internal Key : [Possible CSV Headers]
-    MAPPING = {
-        'Symbol': ['Symbol', 'Sym', 'Ticker'],
-        'Type': ['Type', 'Asset Class'],
-        'Quantity': ['Quantity', 'Qty', 'Position', 'Size'],
-        'Exp Date': ['Exp Date', 'Expiration', 'Expiry'],
-        'DTE': ['DTE', 'Days To Expiration', 'Days to Exp'],
-        'Strike Price': ['Strike Price', 'Strike'],
-        'Call/Put': ['Call/Put', 'Side', 'C/P'],
-        'Underlying Last Price': ['Underlying Last Price', 'Underlying Price', 'Current Price'],
-        'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
-        'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
-        'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
-        'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
-        'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
-        'Bid': ['Bid', 'Bid Price'],
-        'Ask': ['Ask', 'Ask Price'],
-        'Mark': ['Mark', 'Mark Price', 'Mid']
-    }
-
-    @staticmethod
-    def normalize_row(row: Dict[str, str]) -> Dict[str, str]:
-        """
-        Convert a raw CSV row into a normalized dictionary using MAPPING.
-        
-        Args:
-            row: A single row from the CSV reader.
-            
-        Returns:
-            A dictionary with standard keys (Symbol, Type, etc.) and normalized values.
-        """
-        normalized = {}
-        for internal_key, aliases in PortfolioParser.MAPPING.items():
-            found = False
-            for alias in aliases:
-                if alias in row:
-                    val = row[alias]
-                    # Canonicalize option side to keep strategy detection stable across casing
-                    if internal_key == 'Call/Put' and val:
-                        upper_val = str(val).strip().upper()
-                        if upper_val == 'CALL':
-                            val = 'Call'
-                        elif upper_val == 'PUT':
-                            val = 'Put'
-                    normalized[internal_key] = val
-                    found = True
-                    break
-            if not found:
-                normalized[internal_key] = ""
-        return normalized
-
-    @staticmethod
-    def parse(file_path: str) -> List[Dict[str, str]]:
-        """
-        Read and parse the CSV file at the given path.
-        
-        Args:
-            file_path: Path to the CSV file.
-            
-        Returns:
-            A list of normalized position rows.
-            
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            csv.Error: If there's an error parsing the CSV.
-        """
-        positions = []
-        try:
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    positions.append(PortfolioParser.normalize_row(row))
-        except FileNotFoundError:
-            print(f"Error: File not found: {file_path}", file=sys.stderr)
-            raise
-        except csv.Error as e:
-            print(f"Error parsing CSV: {e}", file=sys.stderr)
-            raise
-        except Exception as e:
-            print(f"Error reading CSV: {e}", file=sys.stderr)
-            raise
-        return positions
-
-def parse_currency(value: Optional[str]) -> float:
-    """
-    Clean and convert currency strings (e.g., '$1,234.56') to floats.
-    
-    Args:
-        value: Currency string that may contain $, commas, or % symbols.
-        
-    Returns:
-        Float value, or 0.0 if parsing fails.
-    """
-    if not value:
-        return 0.0
-    clean = value.replace(',', '').replace('$', '').replace('%', '').strip()
-    if clean == '--':
-        return 0.0
-    try:
-        return float(clean)
-    except ValueError:
-        return 0.0
-
-def parse_dte(value: Optional[str]) -> int:
-    """
-    Clean and convert DTE strings (e.g., '45d') to integers.
-    
-    Args:
-        value: DTE string that may contain 'd' suffix.
-        
-    Returns:
-        Integer value, or 0 if parsing fails.
-    """
-    if not value:
-        return 0
-    clean = value.replace('d', '').strip()
-    try:
-        return int(clean)
-    except ValueError:
-        return 0
-
-def get_root_symbol(raw_symbol: Optional[str]) -> str:
-    """
-    Extract the root symbol from a ticker, handling futures (e.g., /ESZ4 -> /ES).
-    
-    Args:
-        raw_symbol: Raw symbol string that may include expiration codes.
-        
-    Returns:
-        Root symbol string.
-    """
-    if not raw_symbol:
-        return ""
-    # Normalize multi-space and single-space separated symbols
-    token = raw_symbol.strip().split()[0] if raw_symbol else ""
-
-    # Handle Futures: ./CLG6 LOG6 ... -> /CL
-    if token.startswith('./'):
-        token = token.replace('./', '/')
-
-    # Futures roots like /ESZ4 -> /ES
-    if token.startswith('/') and len(token) >= 3:
-        return token[:3]
-
-    return token
-
-def is_stock_type(type_str: Optional[str]) -> bool:
-    """
-    Determine if a position leg is underlying stock/equity.
-    
-    Args:
-        type_str: Type string from the position data.
-        
-    Returns:
-        True if the type represents stock/equity, False otherwise.
-    """
-    if not type_str:
-        return False
-    normalized = type_str.strip().lower()
-    return normalized in {"stock", "equity", "equities", "equity stock"}
-
-def identify_strategy(legs: List[Dict[str, Any]]) -> str:
-    """
-    Identify the option strategy based on a list of position legs.
-    
-    Analyzes the combination of Calls/Puts, Long/Short quantities, and strike prices
-    to name the complex strategy (e.g., 'Iron Condor', 'Strangle', 'Covered Call').
-    
-    Args:
-        legs: A list of normalized position legs belonging to one symbol group.
-        
-    Returns:
-        The name of the strategy.
-    """
-    # This function now expects a list of legs that are already grouped as a potential strategy.
-    # It will also be called with stock legs included for Covered strategies.
-
-    if not legs: return "Empty"
-
-    stock_legs = [l for l in legs if is_stock_type(l['Type'])]
-    option_legs = [l for l in legs if not is_stock_type(l['Type'])]
-    total_opt_legs = len(option_legs)
-
-    if len(legs) == 1:
-        leg = legs[0]
-        if is_stock_type(leg['Type']): return "Stock"
-        
-        # Specific identification for single options
-        qty = parse_currency(leg['Quantity'])
-        otype = leg['Call/Put']
-        if otype == 'Call':
-            if qty > 0: return "Long Call"
-            else: return "Short Call"
-        elif otype == 'Put':
-            if qty > 0: return "Long Put"
-            else: return "Short Put"
-        return "Single Option (Unknown Type)" # Fallback, should not happen if Call/Put is present
-
-    # Metrics for option legs only - Initialization for single-pass aggregation
-    expirations = set()
-    stats = {
-        'Call': {'long': {'count': 0, 'qty': 0.0, 'strikes': []}, 'short': {'count': 0, 'qty': 0.0, 'strikes': []}},
-        'Put':  {'long': {'count': 0, 'qty': 0.0, 'strikes': []}, 'short': {'count': 0, 'qty': 0.0, 'strikes': []}}
-    }
-
-    # Single-Pass Aggregation
-    for leg in option_legs:
-        expirations.add(leg['Exp Date'])
-        otype = leg['Call/Put']
-        raw_qty = parse_currency(leg['Quantity'])
-        qty_abs = abs(raw_qty)
-        strike = parse_currency(leg['Strike Price'])
-
-        side = 'long' if raw_qty > 0 else 'short'
-
-        if otype in stats:
-            bucket = stats[otype][side]
-            bucket['count'] += 1
-            bucket['qty'] += qty_abs
-            bucket['strikes'].append(strike)
-
-    is_multi_exp = len(expirations) > 1
-
-    # Sort strikes
-    for otype in stats:
-        for side in stats[otype]:
-            stats[otype][side]['strikes'].sort()
-
-    # Unpack for compatibility with downstream logic
-    long_calls = stats['Call']['long']['count']
-    short_calls = stats['Call']['short']['count']
-    long_call_qty = stats['Call']['long']['qty']
-    short_call_qty = stats['Call']['short']['qty']
-    long_call_strikes = stats['Call']['long']['strikes']
-    short_call_strikes = stats['Call']['short']['strikes']
-
-    long_puts = stats['Put']['long']['count']
-    short_puts = stats['Put']['short']['count']
-    long_put_qty = stats['Put']['long']['qty']
-    short_put_qty = stats['Put']['short']['qty']
-    long_put_strikes = stats['Put']['long']['strikes']
-    short_put_strikes = stats['Put']['short']['strikes']
-
-    # --- Stock-Option Combinations ---
-    if stock_legs:
-        if len(stock_legs) == 1:
-            if total_opt_legs == 1:
-                if short_calls == 1: return "Covered Call"
-                if short_puts == 1: return "Covered Put" # This is usually a Cash-Secured Put, not a Covered Put
-            if total_opt_legs == 2:
-                if short_calls == 1 and short_puts == 1: return "Covered Strangle"
-                if short_calls == 1 and long_puts == 1: return "Collar" # Assumes short call to offset long put
-        # Add more complex stock-option combos here if needed
-        return "Custom/Combo (Stock)" # Fallback for complex stock options
-
-    # --- Pure Option Strategies ---
-    if is_multi_exp:
-        if total_opt_legs == 2:
-            if short_calls == 1 and long_calls == 1:
-                # Same strike = Calendar, Different strike = Diagonal
-                if short_call_strikes and short_call_strikes[0] == long_call_strikes[0]:
-                    return "Calendar Spread (Call)"
-                return "Diagonal Spread (Call)"
-            if short_puts == 1 and long_puts == 1:
-                if short_put_strikes and short_put_strikes[0] == long_put_strikes[0]:
-                    return "Calendar Spread (Put)"
-                return "Diagonal Spread (Put)"
-        if total_opt_legs == 4:
-             return "Double Diagonal / Calendar"
-        return "Custom/Combo (Multi-Exp)"
-
-    if total_opt_legs == 4:
-        # Standard 4-leg defined risk strategies
-        if short_calls == 1 and long_calls == 1 and short_puts == 1 and long_puts == 1:
-            if short_call_strikes and short_put_strikes and short_call_strikes[0] == short_put_strikes[0]:
-                 return "Iron Butterfly" # Shorts share the same strike (ATM)
-            return "Iron Condor" # Shorts are at different strikes (OTM)
-    
-    if total_opt_legs == 3:
-        # 3-Leg strategies: Jade Lizard, Twisted Sister, Butterflies
-        if short_puts >= 1 and short_calls >= 1 and long_calls >= 1 and long_puts == 0:
-            return "Jade Lizard" # Short Put + Short Call Spread
-        if short_calls >= 1 and short_puts >= 1 and long_puts >= 1 and long_calls == 0:
-            return "Twisted Sister" # Short Call + Short Put Spread
-        if long_calls == 2 and short_calls == 1 and long_call_qty == abs(short_call_qty): return "Long Call Butterfly"
-        if long_puts == 2 and short_puts == 1 and long_put_qty == abs(short_put_qty): return "Long Put Butterfly"
-
-    if total_opt_legs == 2:
-        # Standard 2-leg strategies
-        if short_calls >= 1 and short_puts >= 1: return "Strangle" # Short Call + Short Put
-        if (long_calls >= 1 and short_calls >= 1):
-            if long_call_qty != short_call_qty: return "Ratio Spread (Call)" # Uneven quantity
-            return "Vertical Spread (Call)" # 1 Long, 1 Short
-        if (long_puts >= 1 and short_puts >= 1):
-            if long_put_qty != short_put_qty: return "Ratio Spread (Put)"
-            return "Vertical Spread (Put)"
-
-    return "Custom/Combo"
-
-def cluster_strategies(positions: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-    """
-    Group individual position legs into logical strategies (e.g., combining a short call and short put into a Strangle).
-    
-    Logic:
-    1. Group all legs by Root Symbol.
-    2. Within each Root:
-       a. Group options by Expiration Date to find standard vertical/horizontal spreads.
-       b. Match Stock legs with remaining Option legs to find Covered Calls/Collars.
-       
-    Args:
-        positions: List of flat position rows.
-        
-    Returns:
-        A list of lists, where each inner list is a group of legs forming a strategy.
-    """
-    by_root_all_legs = defaultdict(list)
-    for row in positions:
-        root = get_root_symbol(row['Symbol'])
-        if root: # Ensure root is not empty
-            by_root_all_legs[root].append(row)
-
-    final_clusters = [] 
-
-    for root, root_legs_original in by_root_all_legs.items():
-        # Make a mutable copy for this root's legs
-        root_legs = list(root_legs_original)
-        
-        stock_legs = [l for l in root_legs if is_stock_type(l['Type'])]
-        option_legs = [l for l in root_legs if not is_stock_type(l['Type'])]
-        
-        # Used flags for options within this root to prevent double-counting legs
-        option_used_flags = [False] * len(option_legs)
-        stock_used_flags = [False] * len(stock_legs) # Keep track of used stocks
-        
-        # Phase 1: Identify pure option strategies (grouped by expiration)
-        # Use a list of lists to build clusters within this root
-        
-        # Group options by expiration date to find standard spreads first
-        by_exp_options = defaultdict(list)
-        for i, leg in enumerate(option_legs):
-            by_exp_options[leg['Exp Date']].append((i, leg))
-
-        for exp, exp_legs_with_indices in by_exp_options.items():
-            current_exp_options = [leg for idx, leg in exp_legs_with_indices if not option_used_flags[idx]] # Only consider unused options
-            
-            if len(current_exp_options) > 1: # Only look for strategies if > 1 option in this expiration
-                # Temporarily create a sub-cluster
-                temp_cluster = list(current_exp_options)
-                strat_name = identify_strategy(temp_cluster)
-                
-                # If it's a known multi-leg strategy (not single option or custom/combo or stock)
-                # We prioritize finding 'named' strategies over leaving them as loose legs
-                if strat_name not in ["Single Option (Unknown Type)", "Custom/Combo", "Stock", "Empty", "Custom/Combo (Stock)"]:
-                    final_clusters.append(temp_cluster)
-                    # Mark all legs in this temp_cluster as used
-                    for leg in temp_cluster:
-                        # Find original index for this leg in option_legs and mark as used
-                        original_idx = next((j for j, l in enumerate(option_legs) if l == leg), None)
-                        if original_idx is not None:
-                            option_used_flags[original_idx] = True
-        
-        # Phase 2: Handle stock-option combinations with remaining options
-        unclustered_options_after_phase1 = [leg for i, leg in enumerate(option_legs) if not option_used_flags[i]]
-        
-        if stock_legs:
-            # First, try 3-leg combinations: Covered Strangle, Collar
-            
-            # Covered Strangle (1 Stock + 1 Short Call + 1 Short Put)
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]: continue
-                
-                temp_short_calls = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0]
-                temp_short_puts = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) < 0]
-                
-                if temp_short_calls and temp_short_puts:
-                    # Greedily take the first available
-                    current_combo = [s_leg, temp_short_calls[0], temp_short_puts[0]]
-                    if identify_strategy(current_combo) == "Covered Strangle":
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(temp_short_calls[0])
-                        unclustered_options_after_phase1.remove(temp_short_puts[0])
-                        break # Break from stock loop, move to next
-            
-            # Collar (1 Stock + 1 Short Call + 1 Long Put)
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]: continue
-                
-                temp_short_calls = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Call' and parse_currency(l['Quantity']) < 0]
-                temp_long_puts = [l for l in unclustered_options_after_phase1 if l['Call/Put'] == 'Put' and parse_currency(l['Quantity']) > 0]
-                
-                if temp_short_calls and temp_long_puts:
-                    current_combo = [s_leg, temp_short_calls[0], temp_long_puts[0]]
-                    if identify_strategy(current_combo) == "Collar":
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(temp_short_calls[0])
-                        unclustered_options_after_phase1.remove(temp_long_puts[0])
-                        break
-            
-            # Now, try 2-leg combinations: Covered Call / Covered Put
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]: continue
-                
-                for o_idx, o_leg in enumerate(unclustered_options_after_phase1):
-                    current_combo = [s_leg, o_leg]
-                    strat_name = identify_strategy(current_combo)
-                    if strat_name in ["Covered Call", "Covered Put"]:
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(o_leg)
-                        break # Move to next stock or stop trying for this stock
-
-            # Add any remaining stock legs as single stock positions
-            for s_idx, s_leg in enumerate(stock_legs):
-                if not stock_used_flags[s_idx]:
-                    final_clusters.append([s_leg])
-            
-            # Add any remaining (truly single) options
-            for o_leg in unclustered_options_after_phase1:
-                final_clusters.append([o_leg])
-
-        else: # No stock legs, just add all option legs to final clusters
-            for leg in unclustered_options_after_phase1: # Use the already processed ones
-                final_clusters.append([leg])
-            
-    return final_clusters
-
-
-def map_strategy_to_id(name: str, net_cost: float) -> Optional[str]:
-    """
-    Maps the output of identify_strategy() to the ID in strategies.json.
-    """
-    name_lower = name.lower()
-
-    # 1. Strangles & Straddles
-    if "strangle" in name_lower:
-        return "short_strangle"  # Variance assumes Short Strangle
-    if "straddle" in name_lower:
-        return "short_straddle"
-
-    # 2. Iron Condors / Flies
-    if "iron condor" in name_lower: return "iron_condor"
-    if "iron butterfly" in name_lower: return "iron_fly"
-    if "iron fly" in name_lower: return "iron_fly"
-
-    # 3. Vertical Spreads (Directional)
-    if "vertical spread" in name_lower:
-        is_credit = net_cost < 0
-        if "call" in name_lower:
-            return "short_call_vertical_spread" if is_credit else "long_call_vertical_spread"
-        if "put" in name_lower:
-            return "short_put_vertical_spread" if is_credit else "long_put_vertical_spread"
-
-    # 4. Calendars
-    if "calendar spread" in name_lower:
-        if "call" in name_lower: return "call_calendar_spread"
-        if "put" in name_lower: return "put_calendar_spread"
-
-    # 5. Naked Options (Short)
-    if name_lower in ["short call"]: return "short_naked_call"
-    if name_lower in ["short put"]: return "short_naked_put"
-
-    # 6. Covered
-    if "covered call" in name_lower: return "covered_call"
-    if "covered put" in name_lower: return "covered_put"
-
-    # 7. Exotics
-    if "jade lizard" in name_lower: return "jade_lizard"
-    if "ratio spread" in name_lower:
-        if "call" in name_lower: return "call_front_ratio_spread"
-        if "put" in name_lower: return "put_front_ratio_spread"
-    if "butterfly" in name_lower:
-        if "call" in name_lower: return "call_butterfly"
-        if "put" in name_lower: return "put_butterfly"
-
-    return None
-
-
-def get_position_aware_opportunities(
-    positions: List[Dict[str, Any]],
-    clusters: List[List[Dict[str, Any]]],
-    net_liquidity: float
-) -> Dict[str, Any]:
-    """
-    Identifies concentrated vs. held positions and queries the vol screener.
-
-    The "Stacking Rule":
-    - Concentrated: >5% of Net Liq OR >= 3 distinct strategy clusters on same root
-    - Held: All other positions in portfolio
-
-    Args:
-        positions: List of normalized position dictionaries
-        clusters: List of strategy clusters from cluster_strategies()
-        net_liquidity: Account net liquidity value
-
-    Returns:
-        Dict with 'meta' (excluded info) and 'candidates' (screening results)
-    """
-    from collections import defaultdict
-    from datetime import datetime
-
-    # 1. Extract all unique roots
-    held_roots = set()
-    for pos in positions:
-        root = get_root_symbol(pos.get('Symbol', ''))
-        if root:
-            held_roots.add(root)
-
-    # 2. Calculate concentration per root using "Stacking Rule"
-    # Group clusters by root symbol
-    root_clusters = defaultdict(list)
-    for cluster in clusters:
-        if cluster:
-            root = get_root_symbol(cluster[0].get('Symbol', ''))
-            if root:
-                root_clusters[root].append(cluster)
-
-    # Calculate total cost/margin per root
-    root_exposure = defaultdict(float)
-    for pos in positions:
-        root = get_root_symbol(pos.get('Symbol', ''))
-        if root:
-            # Try to get Cost (margin requirement), fallback to 0
-            cost_str = pos.get('Cost', '0')
-            try:
-                cost = abs(float(cost_str)) if cost_str else 0.0
-            except (ValueError, TypeError):
-                cost = 0.0
-            root_exposure[root] += cost
-
-    # 3. Apply Stacking Rule to identify concentrated positions
-    concentrated_roots = []
-    concentration_limit = net_liquidity * RULES.get('concentration_limit_pct', 0.05)
-    max_strategies = RULES.get('max_strategies_per_symbol', 3)
-
-    for root in held_roots:
-        exposure = root_exposure.get(root, 0.0)
-        strategy_count = len(root_clusters.get(root, []))
-
-        is_concentrated = (
-            exposure > concentration_limit or
-            strategy_count >= max_strategies
-        )
-
-        if is_concentrated:
-            concentrated_roots.append(root)
-
-    # 4. Call vol screener with position context
-    screener_results = get_screener_results(
-        exclude_symbols=concentrated_roots,
-        held_symbols=list(held_roots),
-        min_vol_bias=RULES.get('vol_bias_threshold', 0.85),
-        limit=20,
-        filter_illiquid=True
-    )
-
-    # 5. Package results
-    return {
-        "meta": {
-            "excluded_count": len(concentrated_roots),
-            "excluded_symbols": concentrated_roots,
-            "scan_timestamp": datetime.now().isoformat()
-        },
-        "candidates": screener_results.get('candidates', []),
-        "summary": screener_results.get('summary', {})
-    }
-
 
 def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
+
+    Thin orchestrator that delegates to specialized modules:
+    - portfolio_parser: CSV parsing
+    - strategy_detector: Strategy identification
+    - triage_engine: Position analysis and action detection
     """
-    # 1. Parse CSV
+    # Step 1: Parse CSV
     positions = PortfolioParser.parse(file_path)
     if not positions:
         return {"error": "No positions found in CSV or error parsing file."}
 
-    # 2. Cluster Strategies
+    # Step 2: Cluster Strategies
     clusters = cluster_strategies(positions)
-    
-    # 3. Gather Unique Roots for Live Data
-    unique_roots = list(set(get_root_symbol(l['Symbol']) for l in positions))
-    # Filter out empty roots
-    unique_roots = [r for r in unique_roots if r]
 
+    # Step 3: Fetch Market Data
+    unique_roots = list(set(get_root_symbol(l['Symbol']) for l in positions))
+    unique_roots = [r for r in unique_roots if r]  # Filter empty roots
     market_data = get_market_data(unique_roots)
-    
-    # --- Data Freshness Check ---
+
+    # Step 4: Data Freshness Check
     now = datetime.now()
     stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
     widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > RULES['global_staleness_threshold']
 
-    all_position_reports = []
-    total_net_pl = 0.0
-    total_beta_delta = 0.0
-    total_portfolio_theta = 0.0 # Initialize total portfolio theta
-    total_liquidity_cost = 0.0 # Numerator for Friction Horizon (Φ)
-    total_abs_theta = 0.0 # Denominator for Friction Horizon (Φ)
-    missing_ivr_legs = 0
-    total_option_legs = 0 # Count active option legs for data integrity check
+    # Step 5: Triage Portfolio (delegate to triage_engine)
+    triage_context = {
+        'market_data': market_data,
+        'rules': RULES,
+        'market_config': MARKET_CONFIG,
+        'strategies': STRATEGIES,
+        'traffic_jam_friction': TRAFFIC_JAM_FRICTION
+    }
+    all_position_reports, metrics = triage_portfolio(clusters, triage_context)
 
-    for legs in clusters:
-        if not legs:
-            continue
-        root = get_root_symbol(legs[0]['Symbol'])
-        
-        # Calculate DTE only for option legs
-        option_legs = [l for l in legs if not is_stock_type(l['Type'])]
-        total_option_legs += len(option_legs)
-        dtes = [parse_dte(l['DTE']) for l in option_legs]
-        dte = min(dtes) if dtes else 0
-        
-        strategy_name = identify_strategy(legs)
-        net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
-        total_net_pl += net_pl
-
-        # Calculate net cost BEFORE using it in map_strategy_to_id
-        net_cost = sum(parse_currency(l['Cost']) for l in legs)
-
-        # Resolve Strategy Config
-        strategy_id = map_strategy_to_id(strategy_name, net_cost)
-        strategy_config = STRATEGIES.get(strategy_id)
-
-        # Set Defaults from Rules
-        target_profit_pct = RULES['profit_harvest_pct']
-        gamma_trigger_dte = RULES['gamma_dte_threshold']
-
-        # Override with Strategy Specifics if available
-        if strategy_config:
-            target_profit_pct = strategy_config['management']['profit_target_pct']
-            gamma_trigger_dte = strategy_config['metadata']['gamma_trigger_dte']
-
-        strategy_delta = 0.0
-        for l in legs:
-            b_delta = parse_currency(l['beta_delta'])
-            strategy_delta += b_delta
-            total_beta_delta += b_delta
-            
-            leg_theta = parse_currency(l['Theta'])
-            total_portfolio_theta += leg_theta # Sum Net Theta
-            total_abs_theta += abs(leg_theta) # Sum Abs Theta for Friction Engine
-            
-            # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
-            # We must convert Unit Price Spread -> Total Dollar Cost to match Total Dollar Theta.
-            bid = parse_currency(l['Bid'])
-            ask = parse_currency(l['Ask'])
-            qty = abs(parse_currency(l['Quantity']))
-            
-            if ask > bid and qty > 0:
-                spread = ask - bid
-
-                # Get multiplier from config or default to 100 for standard options
-                multiplier = 100.0
-                sym = l['Symbol'].upper()
-
-                # Check if this is a future and get its multiplier from config
-                futures_multipliers = MARKET_CONFIG.get('FUTURES_MULTIPLIERS', {})
-                if sym.startswith('/'):
-                    # Try exact match first
-                    if sym in futures_multipliers:
-                        multiplier = futures_multipliers[sym]
-                    else:
-                        # Try prefix match (e.g., /ESZ24 matches /ES)
-                        for future_prefix, future_mult in futures_multipliers.items():
-                            if sym.startswith(future_prefix):
-                                multiplier = future_mult
-                                break
-
-                liquidity_cost = spread * qty * multiplier
-                total_liquidity_cost += liquidity_cost
-
-            if not str(l['IV Rank']).strip():
-                missing_ivr_legs += 1
-
-        pl_pct = None
-        # Treat negatives as credits received, positives as debits paid
-        if net_cost < 0:
-            max_profit = abs(net_cost)
-            if max_profit > 0:
-                pl_pct = net_pl / max_profit
-        elif net_cost > 0:
-            pl_pct = net_pl / net_cost
-        
-        # Initialize variables
-        action_code = None
-        logic = ""
-        is_winner = False
-        
-        # Retrieve live data
-        m_data = market_data.get(root, {})
-        vol_bias = m_data.get('vol_bias', 0)
-        if vol_bias is None: vol_bias = 0
-        
-        live_price = m_data.get('price', 0)
-        is_stale = m_data.get('is_stale', False)
-        earnings_date = m_data.get('earnings_date')
-        sector = m_data.get('sector', 'Unknown')
-        proxy_note = m_data.get('proxy')
-
-        # 1. Harvest (Short Premium only)
-        if net_cost < 0 and pl_pct is not None and pl_pct >= target_profit_pct:
-            action_code = "HARVEST"
-            logic = f"Profit {pl_pct:.1%} (Target: {target_profit_pct:.0%})"
-            is_winner = True
-
-        # 2. Defense
-        underlying_price = parse_currency(legs[0]['Underlying Last Price'])
-        price_used = "static"
-        # Use live price if available
-        if live_price:
-            underlying_price = live_price
-            price_used = "live_stale" if is_stale else "live"
-            
-        is_tested = False
-        for l in legs:
-            # Only check option legs for "tested" status
-            if is_stock_type(l['Type']): continue 
-            qty = parse_currency(l['Quantity'])
-            otype = l['Call/Put']
-            strike = parse_currency(l['Strike Price'])
-            if qty < 0:
-                if otype == 'Call' and underlying_price > strike: is_tested = True
-                elif otype == 'Put' and underlying_price < strike: is_tested = True
-        
-        if not is_winner and is_tested and dte < gamma_trigger_dte:
-            action_code = "DEFENSE"
-            logic = f"Tested & < {gamma_trigger_dte} DTE"
-
-        # 3. Gamma Zone (apply even if P/L% is unknown)
-        if not is_winner and not is_tested and dte < gamma_trigger_dte and dte > 0:
-            action_code = "GAMMA"
-            logic = f"< {gamma_trigger_dte} DTE Risk"
-            
-        # 4. Dead Money (Enhanced with Real-time Vol Bias)
-        if not is_winner and not is_tested and dte > gamma_trigger_dte:
-            if pl_pct is not None and RULES['dead_money_pl_pct_low'] <= pl_pct <= RULES['dead_money_pl_pct_high']:
-                if vol_bias > 0 and vol_bias < RULES['dead_money_vol_bias_threshold']:
-                    action_code = "ZOMBIE"
-                    logic = f"Bias {vol_bias:.2f} & Flat P/L"
-                elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < RULES['low_ivr_threshold']:
-                     # Fallback if no live data
-                     action_code = "ZOMBIE"
-                     logic = "Low IVR (Stale) & Flat P/L"
-
-        # 5. Earnings Warning
-        earnings_note = ""
-        if earnings_date and earnings_date != "Unavailable":
-            try:
-                edate = datetime.fromisoformat(earnings_date).date()
-                days_to_earn = (edate - datetime.now().date()).days
-                if 0 <= days_to_earn <= RULES['earnings_days_threshold']:
-                    earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
-                    if not action_code:
-                        action_code = "EARNINGS_WARNING"
-                        logic = "Binary Event Risk"
-                    logic = f"{logic} | {earnings_note}" if logic else earnings_note
-            except (ValueError, TypeError):
-                pass
-        
-        price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
-        if (price_used != "live" or is_stale) and not is_winner and dte < gamma_trigger_dte:
-            # If we can't rely fully on tested logic due to stale/absent live price, note it
-            note = "Price stale/absent; tested status uncertain"
-            logic = f"{logic} | {note}" if logic else note
-
-        all_position_reports.append({
-            'root': root,
-            'strategy_name': strategy_name,
-            'price': price_value,
-            'is_stale': bool(is_stale),
-            'vol_bias': vol_bias if vol_bias is not None else None,
-            'proxy_note': proxy_note,
-            'net_pl': net_pl,
-            'pl_pct': pl_pct,
-            'dte': dte,
-            'action_code': action_code,
-            'logic': logic,
-            'sector': sector,
-            'delta': strategy_delta
-        })
-    
-    # Calculate Friction Horizon (Φ)
-    # How many days of Theta does it take to pay for the Spread?
-    friction_horizon_days = 0.0
-    if total_abs_theta > 1.0: # Avoid div/0 and noise
-        friction_horizon_days = total_liquidity_cost / total_abs_theta
-    elif total_liquidity_cost > 0:
-        friction_horizon_days = TRAFFIC_JAM_FRICTION  # Infinite friction (trapped)
+    # Unpack metrics
+    total_net_pl = metrics['total_net_pl']
+    total_beta_delta = metrics['total_beta_delta']
+    total_portfolio_theta = metrics['total_portfolio_theta']
+    friction_horizon_days = metrics['friction_horizon_days']
+    total_option_legs = metrics['total_option_legs']
     
     # --- Generate Structured Report Data ---
     report = {
@@ -999,12 +259,13 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "scenarios": stress_box_scenarios
         }
 
-    # Get position-aware opportunities (vol screener with context)
+    # Step 6: Get Position-Aware Opportunities (vol screener with context)
     try:
         opportunities_data = get_position_aware_opportunities(
             positions=positions,
             clusters=clusters,
-            net_liquidity=net_liq
+            net_liquidity=net_liq,
+            rules=RULES
         )
         report['opportunities'] = opportunities_data
     except Exception as e:
@@ -1020,6 +281,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "summary": {}
         }
 
+    # Step 7: Return Complete Report
     return report
 
 if __name__ == "__main__":

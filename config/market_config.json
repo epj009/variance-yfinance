@@ -155,7 +155,8 @@
         "dte_window_max": 50,
         "target_dte": 30,
         "strike_limit_lower": 0.8,
-        "strike_limit_upper": 1.2
+        "strike_limit_upper": 1.2,
+        "option_chain_limit": 50
     },
     "ASSET_CLASS_MAP": {
         "Equity": [
