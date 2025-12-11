@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # Virtual Environment
 venv/
@@ -13,12 +14,16 @@ env/
 positions/
 *.csv
 *.pdf
+
+# Claude Code (track agents, ignore settings)
+.claude/settings.local.json
+.gemini/
+.mcp.json
+
+# System files
 .DS_Store
 .cursorrules
 .scratchpad
-.claude
-.gemini/
-.mcp.json
 
 # Editor
 .vscode/
