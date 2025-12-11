@@ -185,12 +185,19 @@ NVDA (Iron Condor) ........................... [DEFENSE] -$120 🛡️
 You are responsible for rendering raw data codes into the Variance visual language. Do not output the raw codes (e.g., "HARVEST"); output the rendered badge.
 
 **1. Portfolio Action Codes (`action_code`):**
-* `HARVEST`          → 💰 `[HARVEST]`
-* `DEFENSE`          → 🛡️ `[DEFENSE]`
-* `GAMMA`            → ☢️ `[GAMMA]`
-* `ZOMBIE`           → 💀 `[ZOMBIE]`
-* `EARNINGS_WARNING` → ⚠️ `[EARNINGS]`
+* `HARVEST`          → 💰 `[HARVEST]` (take profit at 50%+)
+* `DEFENSE`          → 🛡️ `[DEFENSE]` (tested position, needs attention)
+* `GAMMA`            → ⚡ `[GAMMA]` (< 21 DTE, high gamma risk)
+* `ZOMBIE`           → ☠️ `[ZOMBIE]` (low vol, stagnant P/L, dead money)
+* `HEDGE_CHECK`      → 🛡️ `[HEDGE]` (protective position, review if still needed)
+* `EARNINGS_WARNING` → 📅 `[EARNINGS]` (binary event approaching)
 * `None`             → ⏳ `[HOLD]`
+
+**HEDGE_CHECK Rendering:**
+- Badge: 🛡️ `[HEDGE]`
+- Do NOT show theta bleed as a warning
+- Context: "This position is structural insurance, not speculative"
+- Review question: "Is protection still relevant given current portfolio delta?"
 
 **2. Screener Flags (`vol_screener.py`):**
 * If `is_rich` is True            → 🔥 `[RICH]`

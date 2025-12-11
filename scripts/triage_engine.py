@@ -32,6 +32,7 @@ class TriageResult(TypedDict, total=False):
     logic: str
     sector: str
     delta: float
+    is_hedge: bool  # NEW: True if position is a structural hedge
 
 
 class TriageContext(TypedDict, total=False):
@@ -41,6 +42,7 @@ class TriageContext(TypedDict, total=False):
     market_config: Dict[str, Any]
     strategies: Dict[str, Any]
     traffic_jam_friction: float
+    portfolio_beta_delta: float  # NEW: Total portfolio delta for hedge validation
 
 
 class TriageMetrics(TypedDict, total=False):
@@ -52,6 +54,65 @@ class TriageMetrics(TypedDict, total=False):
     total_abs_theta: float
     total_option_legs: int
     friction_horizon_days: float
+
+
+def detect_hedge_tag(
+    root: str,
+    strategy_name: str,
+    strategy_delta: float,
+    portfolio_beta_delta: float,
+    rules: Dict[str, Any]
+) -> bool:
+    """
+    Determine if a position qualifies as a structural portfolio hedge.
+
+    A position is a hedge if:
+    1. Underlying is a broad market index (SPY, QQQ, IWM, etc.)
+    2. Strategy is protective (Long Put, Put Vertical, Put Diagonal)
+    3. Position delta is negative (below threshold)
+    4. (Optional) Portfolio is net long
+
+    Args:
+        root: Root symbol of the position (e.g., "SPY")
+        strategy_name: Identified strategy name (e.g., "Long Put")
+        strategy_delta: Net delta of the position cluster
+        portfolio_beta_delta: Total portfolio beta-weighted delta
+        rules: Trading rules configuration
+
+    Returns:
+        True if position qualifies as a hedge, False otherwise
+    """
+    # Get hedge rules from config with safe defaults
+    hedge_rules = rules.get('hedge_rules', {})
+
+    # Check if hedge detection is enabled
+    if not hedge_rules.get('enabled', False):
+        return False
+
+    # Default values if not in config
+    index_symbols = hedge_rules.get('index_symbols', ['SPY', 'QQQ', 'IWM'])
+    qualifying_strategies = hedge_rules.get('qualifying_strategies', ['Long Put', 'Vertical Spread (Put)'])
+    delta_threshold = hedge_rules.get('delta_threshold', -5)
+    require_portfolio_long = hedge_rules.get('require_portfolio_long', True)
+
+    # Check 1: Is underlying a broad market index?
+    if root not in index_symbols:
+        return False
+
+    # Check 2: Is strategy protective?
+    if strategy_name not in qualifying_strategies:
+        return False
+
+    # Check 3: Is position delta negative enough?
+    if strategy_delta >= delta_threshold:
+        return False
+
+    # Check 4: Is portfolio actually long? (only if required)
+    if require_portfolio_long and portfolio_beta_delta <= 0:
+        return False
+
+    # All conditions met - this is a hedge
+    return True
 
 
 def triage_cluster(
@@ -164,8 +225,25 @@ def triage_cluster(
         action_code = "GAMMA"
         logic = f"< {gamma_trigger_dte} DTE Risk"
 
-    # 4. Dead Money (Enhanced with Real-time Vol Bias)
-    if not is_winner and not is_tested and dte > gamma_trigger_dte:
+    # 4. Hedge Detection (Protect structural hedges from ZOMBIE flag)
+    is_hedge = detect_hedge_tag(
+        root=root,
+        strategy_name=strategy_name,
+        strategy_delta=strategy_delta,
+        portfolio_beta_delta=context.get('portfolio_beta_delta', 0.0),
+        rules=rules
+    )
+
+    # 4.5. Hedge Check (Review protective positions)
+    if is_hedge and not is_winner and not is_tested and dte > gamma_trigger_dte:
+        # Check if this would have been flagged as ZOMBIE
+        if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
+            if vol_bias is not None and vol_bias < rules['dead_money_vol_bias_threshold']:
+                action_code = "HEDGE_CHECK"
+                logic = f"Protective hedge on {root}. Review: Is protection still relevant?"
+
+    # 5. Dead Money (Enhanced with Real-time Vol Bias) - SKIP FOR HEDGES
+    if not is_winner and not is_tested and dte > gamma_trigger_dte and not is_hedge:
         if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
             if vol_bias > 0 and vol_bias < rules['dead_money_vol_bias_threshold']:
                 action_code = "ZOMBIE"
@@ -175,7 +253,7 @@ def triage_cluster(
                  action_code = "ZOMBIE"
                  logic = "Low IVR (Stale) & Flat P/L"
 
-    # 5. Earnings Warning
+    # 6. Earnings Warning
     earnings_note = ""
     if earnings_date and earnings_date != "Unavailable":
         try:
@@ -209,7 +287,8 @@ def triage_cluster(
         'action_code': action_code,
         'logic': logic,
         'sector': sector,
-        'delta': strategy_delta
+        'delta': strategy_delta,
+        'is_hedge': is_hedge  # NEW
     }
 
 

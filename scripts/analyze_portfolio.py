@@ -63,13 +63,25 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
     widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > RULES['global_staleness_threshold']
 
-    # Step 5: Triage Portfolio (delegate to triage_engine)
+    # Step 5a: First pass - Calculate portfolio-level metrics
+    preliminary_context = {
+        'market_data': market_data,
+        'rules': RULES,
+        'market_config': MARKET_CONFIG,
+        'strategies': STRATEGIES,
+        'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
+        'portfolio_beta_delta': 0.0  # Placeholder for first pass
+    }
+    _, preliminary_metrics = triage_portfolio(clusters, preliminary_context)
+
+    # Step 5b: Second pass - Use portfolio context for hedge detection
     triage_context = {
         'market_data': market_data,
         'rules': RULES,
         'market_config': MARKET_CONFIG,
         'strategies': STRATEGIES,
-        'traffic_jam_friction': TRAFFIC_JAM_FRICTION
+        'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
+        'portfolio_beta_delta': preliminary_metrics['total_beta_delta']
     }
     all_position_reports, metrics = triage_portfolio(clusters, triage_context)
 
@@ -121,7 +133,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "pl_pct": r['pl_pct'],
             "dte": r['dte'],
             "logic": r['logic'],
-            "sector": r['sector']
+            "sector": r['sector'],
+            "is_hedge": r.get('is_hedge', False)
         }
         if r['action_code']:
             entry["action_code"] = r['action_code']

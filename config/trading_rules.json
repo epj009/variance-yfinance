@@ -31,5 +31,12 @@
         {"label": "Flat", "move_pct": 0.0},
         {"label": "Rally (+3%)", "move_pct": 0.03},
         {"label": "Moon (+5%)", "move_pct": 0.05}
-    ]
+    ],
+    "hedge_rules": {
+        "enabled": true,
+        "index_symbols": ["SPY", "QQQ", "IWM", "DIA", "/ES", "/NQ", "/RTY"],
+        "qualifying_strategies": ["Long Put", "Vertical Spread (Put)", "Diagonal Spread (Put)"],
+        "delta_threshold": -5,
+        "require_portfolio_long": true
+    }
 }
