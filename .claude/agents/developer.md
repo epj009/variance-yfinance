@@ -1,4 +1,4 @@
----
+l---
 name: developer
 description: High-velocity Python implementation for Variance. Use proactively to implement technical specifications, write code, fix bugs, and run tests. WRITE-ENABLED agent.
 tools: Read, Write, Edit, Glob, Grep, Bash, mcp__gemini-developer__*
