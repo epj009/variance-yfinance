@@ -186,6 +186,46 @@ def retry_fetch(func: Callable, *args, retries=3, backoff=1.5, **kwargs):
             delay *= backoff
     raise last_exc
 
+def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str) -> str:
+    """
+    Safely retrieve sector info with HTTP error suppression.
+
+    Args:
+        ticker_obj: yfinance Ticker object
+        raw_symbol: Original symbol (for SECTOR_OVERRIDES lookup)
+        symbol_key: Mapped symbol (for cache key)
+
+    Returns:
+        str: Sector name or 'Unknown' on failure
+    """
+    # Priority 1: Config override (never hits API)
+    override = SECTOR_OVERRIDES.get(raw_symbol)
+    if override:
+        return override
+
+    # Priority 2: Cache lookup
+    cache_key = f"sector_{symbol_key}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Priority 3: API call with error suppression
+    sector = 'Unknown'
+    try:
+        # Redirect stderr to suppress yfinance HTTP error messages
+        with contextlib.redirect_stderr(io.StringIO()):
+            info = ticker_obj.info
+            if info:
+                sector = info.get('sector', 'Unknown')
+    except Exception:
+        pass  # Non-fatal - use default
+
+    # Cache successful lookups (including 'Unknown' to prevent repeated API hits)
+    if sector != 'Unknown':
+        cache.set(cache_key, sector, TTL.get('sector', 2592000))
+
+    return sector
+
 # --- RESILIENT DATA FETCHING ---
 def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
     cache_key = f"hv_{symbol_key}"
@@ -415,7 +455,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
 
     earnings_date = get_earnings_date(ticker, raw_symbol, yf_symbol)
 
-    sector = SECTOR_OVERRIDES.get(raw_symbol, None) or ticker.info.get('sector', 'Unknown')
+    sector = safe_get_sector(ticker, raw_symbol, yf_symbol)
 
     data = {
         "price": current_price,

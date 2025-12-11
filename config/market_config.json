@@ -97,7 +97,18 @@
         "TQQQ": "Index",
         "SQQQ": "Index",
         "SPXU": "Index",
-        "SPXL": "Index"
+        "SPXL": "Index",
+        "XME": "Materials",
+        "HYG": "Fixed Income",
+        "XOP": "Energy",
+        "CPER": "Metals",
+        "IBB": "Healthcare",
+        "XRT": "Consumer Cyclical",
+        "XHB": "Real Estate",
+        "XLC": "Communication Services",
+        "XLRE": "Real Estate",
+        "XLI": "Industrials",
+        "XLB": "Materials"
     },
     "FUTURES_PROXY": {
         "/ES": {"type": "vol_index", "iv_symbol": "^VIX", "hv_symbol": "ES=F"},
