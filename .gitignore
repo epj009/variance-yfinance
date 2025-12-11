@@ -13,6 +13,7 @@ env/
 .market_cache.db
 positions/
 *.csv
+!util/sample_positions.csv  # Test fixture - should be tracked
 *.pdf
 
 # Claude Code (track agents, ignore settings)
