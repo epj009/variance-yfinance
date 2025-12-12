@@ -28,10 +28,13 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
     monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
     monkeypatch.setattr(vol_screener, "RULES", {
         "vol_bias_threshold": 0.8,
+        "vol_bias_rich_threshold": 1.0,
         "earnings_days_threshold": 5,
         "bats_efficiency_min_price": 15,
         "bats_efficiency_max_price": 75,
-        "bats_efficiency_vol_bias": 1.0
+        "bats_efficiency_vol_bias": 1.0,
+        "min_atm_volume": 500,
+        "max_slippage_pct": 0.05
     })
 
     report = vol_screener.screen_volatility(show_all=False, exclude_sectors=["Energy"])
@@ -40,7 +43,7 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
 
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
-    assert "🦇 Bat's Efficiency Zone" in candidates[0]["Status Icons"]
+    assert candidates[0]["is_bats_efficient"] == True
     # DEF excluded by sector, GHI skipped by low bias
     assert summary["sector_skipped_count"] == 1
     assert summary["low_bias_skipped_count"] == 1
@@ -66,10 +69,13 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
     monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
     monkeypatch.setattr(vol_screener, "RULES", {
         "vol_bias_threshold": 0.85,
+        "vol_bias_rich_threshold": 1.0,
         "earnings_days_threshold": 5,
         "bats_efficiency_min_price": 15,
         "bats_efficiency_max_price": 75,
-        "bats_efficiency_vol_bias": 1.0
+        "bats_efficiency_vol_bias": 1.0,
+        "min_atm_volume": 500,
+        "max_slippage_pct": 0.05
     })
 
     # Test: Include only Commodity and FX
@@ -112,10 +118,13 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path):
     monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
     monkeypatch.setattr(vol_screener, "RULES", {
         "vol_bias_threshold": 0.85,
+        "vol_bias_rich_threshold": 1.0,
         "earnings_days_threshold": 5,
         "bats_efficiency_min_price": 15,
         "bats_efficiency_max_price": 75,
-        "bats_efficiency_vol_bias": 1.0
+        "bats_efficiency_vol_bias": 1.0,
+        "min_atm_volume": 500,
+        "max_slippage_pct": 0.05
     })
 
     # Test: Exclude Equity

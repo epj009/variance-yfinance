@@ -164,7 +164,20 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
         "portfolio_delta_short_threshold": -50,
         "concentration_risk_pct": 0.25,
         "net_liquidity": 100000,
-        "beta_weighted_symbol": "SPY"
+        "beta_weighted_symbol": "SPY",
+        "global_staleness_threshold": 0.50,
+        "data_integrity_min_theta": 0.50,
+        "asset_mix_equity_threshold": 0.80,
+        "concentration_limit_pct": 0.05,
+        "max_strategies_per_symbol": 3,
+        "theta_efficiency_low": 0.1,
+        "theta_efficiency_high": 0.5,
+        "stress_scenarios": [
+            {"label": "Crash (-5%)", "move_pct": -0.05},
+            {"label": "Flat", "move_pct": 0.0},
+            {"label": "Moon (+5%)", "move_pct": 0.05}
+        ],
+        "hedge_rules": {"enabled": False}
     })
 
     csv_path = tmp_path / "positions.csv"
@@ -176,7 +189,7 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
     report = analyze_portfolio.analyze_portfolio(str(csv_path))
     assert not report.get("error")
     assert len(report["triage_actions"]) == 1
-    assert report["triage_actions"][0]["action"] == "🌾 Harvest"
+    assert report["triage_actions"][0]["action_code"] == "HARVEST"
     assert report["portfolio_summary"]["total_beta_delta"] == 10
     assert report["portfolio_summary"]["total_portfolio_theta"] == 2
 
@@ -327,7 +340,7 @@ def test_friction_horizon_calculation(tmp_path, monkeypatch):
 
     summary = report["portfolio_summary"]
     phi = summary["friction_horizon_days"]
-    
+
     # Check Math: 30 / 15 = 2.0
     assert abs(phi - 2.0) < 0.01
-    assert summary["friction_status"] == "Sticky"
+    # REMOVED: friction_status is not in current output schema

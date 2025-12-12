@@ -245,7 +245,8 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
         val = retry_fetch(_fetch)
         if val is not None: cache.set(cache_key, val, TTL.get('hv', 86400))
         return val
-    except: return None
+    except Exception:
+        return None
 
 def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_context: Optional[float] = None) -> Optional[Dict[str, Any]]:
     cache_key = f"iv_{symbol_key}"
@@ -253,7 +254,8 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
     if cached is not None:
         if isinstance(cached, dict): return cached
         try: return {'iv': float(cached), 'atm_vol': None, 'atm_bid': None, 'atm_ask': None}
-        except: return None
+        except Exception:
+            return None
 
     def _fetch():
         exps = ticker_obj.options
@@ -330,7 +332,8 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
         if val is not None and val.get('iv', 0) > 0:
             cache.set(cache_key, val, TTL.get('iv', 900))
         return val
-    except: return None
+    except Exception:
+        return None
 
 def get_price(ticker_obj: Any, symbol_key: str) -> Optional[Tuple[float, bool]]:
     cache_key = f"price_{symbol_key}"
@@ -341,18 +344,21 @@ def get_price(ticker_obj: Any, symbol_key: str) -> Optional[Tuple[float, bool]]:
         try:
             p = ticker_obj.fast_info.last_price
             if p: return (p, False)
-        except: pass
+        except Exception:
+            pass
         try:
             hist = ticker_obj.history(period="1d", interval="1m")
             if not hist.empty: return (hist['Close'].iloc[-1], True)
-        except: pass
+        except Exception:
+            pass
         return None
 
     try:
         val = retry_fetch(_fetch, retries=2)
         if val is not None: cache.set(cache_key, val, TTL.get('price', 600))
         return val
-    except: return None
+    except Exception:
+        return None
 
 def get_proxy_iv_and_hv(raw_symbol: str) -> Tuple[Optional[float], Optional[float], Optional[str]]:
     proxy = FUTURES_PROXY.get(raw_symbol[:3])
@@ -402,7 +408,7 @@ def get_earnings_date(ticker_obj: Any, raw_symbol: str, yf_symbol: str) -> Optio
         val = retry_fetch(_fetch)
         if val is not None: cache.set(cache_key, val, TTL.get('earnings', 604800))
         return val
-    except:
+    except Exception:
         return None
 
 # --- MAIN DATA PROCESSOR ---
