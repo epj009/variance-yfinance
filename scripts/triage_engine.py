@@ -54,6 +54,7 @@ class TriageMetrics(TypedDict, total=False):
     total_abs_theta: float
     total_option_legs: int
     friction_horizon_days: float
+    total_capital_at_risk: float
 
 
 def detect_hedge_tag(
@@ -316,6 +317,7 @@ def triage_portfolio(
     total_liquidity_cost = 0.0
     total_abs_theta = 0.0
     total_option_legs = 0
+    total_capital_at_risk = 0.0
 
     for legs in clusters:
         if not legs:
@@ -332,6 +334,10 @@ def triage_portfolio(
         # Accumulate portfolio metrics
         total_net_pl += triage_result['net_pl']
         total_beta_delta += triage_result['delta']
+
+        # Calculate capital at risk (sum of absolute cost basis for all positions)
+        net_cost = sum(parse_currency(l['Cost']) for l in legs)
+        total_capital_at_risk += abs(net_cost)
 
         # Calculate theta and friction metrics
         for l in legs:
@@ -381,7 +387,8 @@ def triage_portfolio(
         'total_liquidity_cost': total_liquidity_cost,
         'total_abs_theta': total_abs_theta,
         'total_option_legs': total_option_legs,
-        'friction_horizon_days': friction_horizon_days
+        'friction_horizon_days': friction_horizon_days,
+        'total_capital_at_risk': total_capital_at_risk
     }
 
     return all_position_reports, metrics

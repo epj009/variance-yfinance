@@ -91,6 +91,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     total_portfolio_theta = metrics['total_portfolio_theta']
     friction_horizon_days = metrics['friction_horizon_days']
     total_option_legs = metrics['total_option_legs']
+    total_capital_at_risk = metrics['total_capital_at_risk']
     
     # --- Generate Structured Report Data ---
     report = {
@@ -105,7 +106,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "total_portfolio_theta": total_portfolio_theta,
             "friction_horizon_days": friction_horizon_days,
             "theta_net_liquidity_pct": 0.0,
-            "delta_theta_ratio": 0.0
+            "delta_theta_ratio": 0.0,
+            "bp_usage_pct": 0.0
         },
         "data_integrity_warning": {"risk": False, "details": ""},
         "delta_spectrograph": [],
@@ -148,7 +150,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     if net_liq > 0:
         theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
         report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
-    
+
+        # Calculate BP Usage %
+        bp_usage_pct = (total_capital_at_risk / net_liq) * 100
+        report['portfolio_summary']['bp_usage_pct'] = bp_usage_pct
+
     # Delta/Theta Ratio
     if total_portfolio_theta != 0:
         report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta
