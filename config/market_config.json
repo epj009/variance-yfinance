@@ -5,6 +5,12 @@
         "XLF", "UVIX", "UVXY", "KRE", "SILJ", "IBB", "KWEB", "EWJ",
         "IBIT", "ETHA"
     ],
+    "ETF_SYMBOLS": [
+        "CPER", "DIA", "EEM", "EWZ", "FXI", "GDX", "GLD", "HYG", "IBB",
+        "IEF", "IBIT", "ETHA", "IWM", "KRE", "KWEB", "QQQ", "SILJ", "SLV",
+        "SMH", "SPY", "TLT", "TQQQ", "UNG", "USO", "UVIX", "UVXY", "VXX",
+        "XBI", "XLE", "XLF", "XLP", "XLU", "XLV", "XME", "XOP"
+    ],
     "SKIP_SYMBOLS": [
         "XSP", "LTHM"
     ],

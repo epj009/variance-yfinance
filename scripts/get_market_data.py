@@ -49,6 +49,7 @@ try:
     SKIP_SYMBOLS = set(_config.get('SKIP_SYMBOLS', []))
     SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
     SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
+    ETF_SYMBOLS = set(_config.get('ETF_SYMBOLS', []))
     FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
     DATA_FETCHING = _config.get('DATA_FETCHING', {})
     DTE_MIN = DATA_FETCHING.get('dte_window_min', 25)
@@ -62,6 +63,7 @@ except FileNotFoundError:
     SKIP_SYMBOLS = set()
     SYMBOL_MAP = {}
     SECTOR_OVERRIDES = {}
+    ETF_SYMBOLS = set()
     FUTURES_PROXY = {}
     DTE_MIN = 25
     DTE_MAX = 50
@@ -175,6 +177,18 @@ def should_skip_earnings(raw_symbol: str, yf_symbol: str) -> bool:
     if raw_symbol.startswith('/') or yf_symbol.endswith('=F') or yf_symbol.startswith('^'): return True
     return upper in SKIP_EARNINGS
 
+def is_etf(raw_symbol: str) -> bool:
+    """
+    Check if symbol is an ETF/ETP (no corporate fundamentals).
+
+    Args:
+        raw_symbol: Original symbol before mapping
+
+    Returns:
+        bool: True if symbol is in ETF_SYMBOLS set
+    """
+    return raw_symbol.upper() in ETF_SYMBOLS
+
 def retry_fetch(func: Callable, *args, retries=3, backoff=1.5, **kwargs):
     last_exc = None
     delay = 1.0
@@ -186,7 +200,7 @@ def retry_fetch(func: Callable, *args, retries=3, backoff=1.5, **kwargs):
             delay *= backoff
     raise last_exc
 
-def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str) -> str:
+def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str, skip_api: bool = False) -> str:
     """
     Safely retrieve sector info with HTTP error suppression.
 
@@ -194,11 +208,12 @@ def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str) -> str:
         ticker_obj: yfinance Ticker object
         raw_symbol: Original symbol (for SECTOR_OVERRIDES lookup)
         symbol_key: Mapped symbol (for cache key)
+        skip_api: If True, skip API call entirely (use for ETFs)
 
     Returns:
         str: Sector name or 'Unknown' on failure
     """
-    # Priority 1: Config override (never hits API)
+    # Priority 1: Config override (never hits API or cache)
     override = SECTOR_OVERRIDES.get(raw_symbol)
     if override:
         return override
@@ -209,7 +224,11 @@ def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str) -> str:
     if cached is not None:
         return cached
 
-    # Priority 3: API call with error suppression
+    # Priority 3: Skip API for ETFs (prevents 404)
+    if skip_api:
+        return 'Unknown'
+
+    # Priority 4: API call with error suppression
     sector = 'Unknown'
     try:
         # Redirect stderr to suppress yfinance HTTP error messages
@@ -424,6 +443,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         return raw_symbol, {"error": "skipped_symbol"}
 
     ticker = yf.Ticker(yf_symbol)
+    skip_fundamentals = is_etf(raw_symbol)
 
     price_data = get_price(ticker, yf_symbol)
     if not price_data:
@@ -459,9 +479,9 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     if vol_bias is None or vol_bias <= 0:
         return raw_symbol, {"error": "invalid_vol_bias"}
 
-    earnings_date = get_earnings_date(ticker, raw_symbol, yf_symbol)
+    earnings_date = None if skip_fundamentals else get_earnings_date(ticker, raw_symbol, yf_symbol)
 
-    sector = safe_get_sector(ticker, raw_symbol, yf_symbol)
+    sector = safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals)
 
     data = {
         "price": current_price,

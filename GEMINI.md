@@ -235,6 +235,10 @@ You are responsible for rendering raw data codes into the Variance visual langua
     * `Open P/L`: Display `total_net_pl` formatted as currency.
         * If Positive (> $0): Display `(🟢 Harvesting)` (Implies: Capital is becoming available).
         * If Negative (< $0): Display `(🔴 Dragging)` (Implies: Capital is trapped/burning).
+    * `BP Usage`: Display `bp_usage_pct` formatted as percentage.
+        * If < 50%: `(Low - Deploy)`
+        * If 50% - 75%: `(Optimal)`
+        * Else (> 75%): `(⚠️ High)`
 * **The Gyroscope (Balance):**
     * `Tilt`: Use `total_beta_delta`.
         * If < -50: "Bearish (Value Δ)"
