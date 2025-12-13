@@ -27,17 +27,61 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 - **Aggregation fix**: Ignores "Total" rows to prevent double-counting Beta Delta.
 - **Metrics**: Computes Friction Horizon (days of theta to clear spread costs) and Delta/Theta Ratio.
 
+## Prerequisites
+- **Python 3.10+**
+- **[Gemini CLI](https://www.npmjs.com/package/@google/generative-ai-cli)** - Install via npm:
+  ```bash
+  npm install -g @google/generative-ai-cli
+  ```
+- **Google Account** - Authenticate Gemini CLI (free tier available):
+  ```bash
+  gemini auth
+  ```
+
 ## Installation
 ```bash
-# 1. Create virtual environment and install dependencies
+# 1. Clone the repository
+git clone https://github.com/epj009/options-alchemist.git variance
+cd variance
+
+# 2. Create virtual environment and install dependencies
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 
-# 2. Set up Gemini CLI persona (for interactive ./variance sessions)
+# 3. Set up Gemini CLI persona (for interactive ./variance sessions)
+mkdir -p .gemini
 cp variance-system-prompt.md .gemini/GEMINI.md
 ```
 
 **Note:** The `variance-system-prompt.md` file defines the Variance trading persona. Copying it to `.gemini/GEMINI.md` enables the persona when running `./variance` interactively, while keeping MCP Gemini calls (used by Claude Code agents) persona-free for pure architect/developer/qa work.
+
+## Quick Start
+
+**First time setup - Add a portfolio:**
+```bash
+# Option A: Use the sample portfolio (for testing)
+mkdir -p positions
+cp util/sample_positions.csv positions/
+
+# Option B: Export your own portfolio from Tastytrade
+# Download CSV from Tastytrade → Positions → Export
+# Save to positions/ directory
+```
+
+**Run Variance:**
+```bash
+# Interactive mode - Gemini analyzes latest portfolio and provides trading guidance
+./variance
+
+# Or run direct Python analysis (JSON output only)
+./venv/bin/python3 scripts/analyze_portfolio.py positions/<your-file>.csv
+```
+
+The `./variance` script launches an interactive Gemini session that:
+1. Automatically finds and analyzes your latest portfolio CSV
+2. Identifies actionable trades (harvest winners, defend losers, gamma risks)
+3. Screens for new volatility opportunities based on current IV/HV
+4. Allows follow-up questions about specific positions or strategies
 
 ## Usage (Model commands)
 - **Daily Triage**  
