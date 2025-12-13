@@ -29,9 +29,15 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 
 ## Installation
 ```bash
+# 1. Create virtual environment and install dependencies
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
+
+# 2. Set up Gemini CLI persona (for interactive ./variance sessions)
+cp variance-system-prompt.md .gemini/GEMINI.md
 ```
+
+**Note:** The `variance-system-prompt.md` file defines the Variance trading persona. Copying it to `.gemini/GEMINI.md` enables the persona when running `./variance` interactively, while keeping MCP Gemini calls (used by Claude Code agents) persona-free for pure architect/developer/qa work.
 
 ## Usage (Model commands)
 - **Daily Triage**  
