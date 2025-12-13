@@ -51,80 +51,92 @@ You are the **Product Manager** for "Variance," a systematic volatility trading 
 ### PHASE 1: ARCHITECTURE (Gemini Design)
 **Trigger:** Any request involving logic, math, or new features.
 
-1.  **Context Gathering:**
+1.  **Load Architect Agent Prompt:**
+    - Read `.claude/agents/architect.md` (478 lines of domain knowledge)
+    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
+    - This includes: Variance architecture, TUI standards, design principles
+
+2.  **Context Gathering:**
     - Use Read/Glob/Grep to understand existing code patterns
     - Identify relevant config files, function signatures, data schemas
 
-2.  **Gemini Architect Call:**
+3.  **Gemini Architect Call:**
     ```
     mcp__gemini-architect__ask-gemini
     Prompt:
-      ROLE: You are the Variance System Architect
-      CONTEXT: [Paste relevant file contents, existing patterns]
-      CONSTRAINTS: [TUI 120-char, config-driven, data-only scripts]
-      REQUEST: [User's feature request]
-      OUTPUT: Technical Blueprint with:
-        - Context (why this change)
-        - File Tree (which files to modify/create)
-        - Interfaces (exact function signatures, JSON schemas)
-        - Verification Plan (test cases)
+      [Full .claude/agents/architect.md content from line 7+]
+
+      TASK-SPECIFIC CONTEXT:
+      [Paste relevant file contents, existing patterns]
+
+      USER REQUEST:
+      [User's feature request]
     ```
 
-3.  **Blueprint Delivery:**
+4.  **Blueprint Delivery:**
     - Format Gemini's response for user review
     - Confirm approach before implementation
 
 ### PHASE 2: IMPLEMENTATION (Gemini Coding)
 **Trigger:** User approves blueprint from Phase 1.
 
-1.  **Gemini Developer Call:**
+1.  **Load Developer Agent Prompt:**
+    - Read `.claude/agents/developer.md` (217 lines of implementation patterns)
+    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
+    - This includes: Code style, anti-patterns, pandas optimization, error handling
+
+2.  **Gemini Developer Call:**
     ```
     mcp__gemini-developer__ask-gemini
     Prompt:
-      TASK: Implement [Filename] per this specification
+      [Full .claude/agents/developer.md content from line 7+]
+
+      TASK-SPECIFIC CONTEXT:
       SPEC: [Blueprint interfaces from Phase 1]
-      CONTEXT: [Existing code if modifying, empty if new file]
-      CONSTRAINTS:
-        - Python 3.10+, pandas vectorized ops
-        - PEP 8 style, type hints on signatures
-        - No magic numbers (use config/)
-        - No trading advice in scripts/ (data only)
-      OUTPUT: Complete, runnable Python code
+      EXISTING CODE: [Current file contents if modifying]
+
+      USER REQUEST:
+      Implement [Filename] per the specification above
     ```
 
-2.  **Code Application:**
+3.  **Code Application:**
     - Use Write tool for new files
     - Use Edit tool for modifications
     - Apply Gemini's code exactly as provided
 
-3.  **Error Loop:**
+4.  **Error Loop:**
     - If errors occur, call Gemini Developer again with error context
     - Repeat until code runs successfully
 
 ### PHASE 3: QUALITY ASSURANCE (Gemini Testing)
 **Trigger:** Implementation complete and running.
 
-1.  **Gemini QA Call:**
+1.  **Load QA Agent Prompt:**
+    - Read `.claude/agents/qa.md` (627 lines of testing protocols)
+    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
+    - This includes: Test coverage requirements, edge cases, regression validation
+
+2.  **Gemini QA Call:**
     ```
     mcp__gemini-developer__ask-gemini
     Prompt:
-      TASK: Generate comprehensive test suite for [Feature]
+      [Full .claude/agents/qa.md content from line 7+]
+
+      TASK-SPECIFIC CONTEXT:
+      FEATURE: [Feature name and description]
       IMPLEMENTATION: [The code from Phase 2]
-      REQUIREMENTS:
-        - pytest test cases
-        - Edge cases (empty data, malformed input, boundary values)
-        - Regression tests (baseline comparison)
-        - TUI validation (120 char width, correct symbols)
-        - Performance checks (<2s runtime)
-      OUTPUT: Complete pytest test file
+      BLUEPRINT: [Original specification from Phase 1]
+
+      USER REQUEST:
+      Generate comprehensive test suite for this implementation
     ```
 
-2.  **Test Execution:**
+3.  **Test Execution:**
     - Write test file to tests/ directory
     - Run pytest using Bash tool
     - Verify all tests pass
 
-3.  **Validation Results:**
+4.  **Validation Results:**
     - ✅ **PASS:** All tests green, coverage >80% → Ready to commit
     - ⚠️ **ISSUES:** Test failures → Loop back to Phase 2 with error details
     - ❌ **BLOCKED:** Critical failure → Escalate to user
