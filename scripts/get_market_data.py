@@ -394,7 +394,7 @@ def get_proxy_iv_and_hv(raw_symbol: str) -> Tuple[Optional[float], Optional[floa
                 iv = iv_hist['Close'].iloc[-1]
                 note = f"IV via {iv_sym}"
         elif ptype == 'etf':
-            etf_sym = proxy['etf_symbol']
+            etf_sym = proxy.get('iv_symbol') or proxy.get('etf_symbol')
             etf_t = yf.Ticker(etf_sym)
             etf_data = get_market_data([etf_sym]).get(etf_sym, {})
             iv = etf_data.get('iv')

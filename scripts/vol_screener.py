@@ -43,12 +43,17 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     except (ValueError, TypeError):
         return "N/A"
 
-def _is_illiquid(metrics: Dict[str, Any], rules: Dict[str, Any]) -> bool:
+def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) -> bool:
     """Checks if a symbol fails the liquidity rules."""
-    liquidity = metrics.get('liquidity') or {}
-    atm_volume = liquidity.get('atm_volume')
-    bid = liquidity.get('bid')
-    ask = liquidity.get('ask')
+    # Futures exemption: Yahoo data for futures options volume is unreliable
+    # Assume major futures are liquid enough or rely on user discretion
+    if symbol.startswith('/'):
+        return False
+
+    # Read from flat structure (not nested)
+    atm_volume = metrics.get('atm_volume')
+    bid = metrics.get('atm_bid')
+    ask = metrics.get('atm_ask')
 
     if atm_volume is not None and atm_volume < rules['min_atm_volume']:
         return True
@@ -145,7 +150,7 @@ def screen_volatility(
         sector = metrics.get('sector', 'Unknown')
 
         # Refactored liquidity check
-        is_illiquid = _is_illiquid(metrics, RULES)
+        is_illiquid = _is_illiquid(sym, metrics, RULES)
 
         # Sector Filter
         if exclude_sectors and sector in exclude_sectors:
