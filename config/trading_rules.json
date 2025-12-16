@@ -13,6 +13,7 @@
     "concentration_risk_pct": 0.25,
     "concentration_limit_pct": 0.05,
     "max_strategies_per_symbol": 3,
+    "allow_proxy_stacking": false,
     "net_liquidity": 50000,
     "theta_efficiency_low": 0.1,
     "theta_efficiency_high": 0.5,

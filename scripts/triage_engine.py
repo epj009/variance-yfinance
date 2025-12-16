@@ -449,13 +449,41 @@ def get_position_aware_opportunities(
             root_exposure[root] += cost
 
     # 3. Apply Stacking Rule to identify concentrated positions
-    concentrated_roots = []
+    concentrated_roots_set = set()
     concentration_limit = net_liquidity * rules.get('concentration_limit_pct', 0.05)
     max_strategies = rules.get('max_strategies_per_symbol', 3)
 
+    # Track processed groups to avoid duplicates
+    processed_groups = set()
+
+    # Expand exposures to include equivalent symbols (futures ↔ ETF proxies)
+    if not rules.get('allow_proxy_stacking', False):
+        # Import the function from common.py
+        try:
+            from .common import get_equivalent_exposures
+        except ImportError:
+            from common import get_equivalent_exposures
+    else:
+        # If stacking is allowed, each symbol is its own group
+        get_equivalent_exposures = lambda x: {x}
+
     for root in held_roots:
-        exposure = root_exposure.get(root, 0.0)
-        strategy_count = len(root_clusters.get(root, []))
+        # Get exposure group for this root
+        group_members = get_equivalent_exposures(root)
+
+        # Only consider equivalents we actually hold
+        held_group_members = group_members & held_roots
+
+        # Create group ID to track if we've processed this group
+        group_id = tuple(sorted(held_group_members))
+
+        if group_id in processed_groups:
+            continue
+        processed_groups.add(group_id)
+
+        # Sum exposure and strategy counts across all equivalents in the group
+        exposure = sum(root_exposure.get(member, 0.0) for member in held_group_members)
+        strategy_count = sum(len(root_clusters.get(member, [])) for member in held_group_members)
 
         is_concentrated = (
             exposure > concentration_limit or
@@ -463,7 +491,10 @@ def get_position_aware_opportunities(
         )
 
         if is_concentrated:
-            concentrated_roots.append(root)
+            # Add ALL members of the exposure group to concentrated_roots
+            concentrated_roots_set.update(held_group_members)
+
+    concentrated_roots = list(concentrated_roots_set)
 
     # 4. Call vol screener with position context
     screener_results = get_screener_results(

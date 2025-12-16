@@ -8,7 +8,7 @@ This module provides shared functionality to avoid code duplication:
 """
 import json
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 # Load Market Config (for Asset Class Map)
 MARKET_CONFIG: Dict[str, Any] = {}
@@ -48,4 +48,41 @@ def map_sector_to_asset_class(sector: str) -> str:
         Asset class (e.g., "Equity", "Commodity", "Fixed Income", "FX", "Index")
     """
     return SECTOR_TO_ASSET_CLASS.get(sector, "Equity")  # Default to Equity if unknown
+
+
+def get_equivalent_exposures(symbol: str) -> Set[str]:
+    """
+    Returns a set of symbols representing the same underlying exposure.
+
+    Treats futures and their ETF proxies as equivalent for concentration risk management.
+    Example: '/SI' -> {'/SI', 'SLV'}
+    Example: 'SLV' -> {'SLV', '/SI'}
+
+    Args:
+        symbol: Symbol to find equivalents for (e.g., '/SI', 'SLV', 'AAPL')
+
+    Returns:
+        Set of equivalent symbols including the input symbol
+    """
+    result = {symbol}
+    futures_proxy = MARKET_CONFIG.get('FUTURES_PROXY', {})
+
+    # Forward Lookup (Future -> ETF)
+    if symbol in futures_proxy:
+        proxy_info = futures_proxy[symbol]
+        # Filter on type=='etf' to exclude vol_index proxies
+        if proxy_info.get('type') == 'etf':
+            if 'iv_symbol' in proxy_info:
+                result.add(proxy_info['iv_symbol'])
+            if 'hv_symbol' in proxy_info:
+                result.add(proxy_info['hv_symbol'])
+
+    # Reverse Lookup (ETF -> Future)
+    for fut_symbol, proxy_info in futures_proxy.items():
+        # Filter on type=='etf' to exclude vol_index proxies
+        if proxy_info.get('type') == 'etf':
+            if proxy_info.get('iv_symbol') == symbol or proxy_info.get('hv_symbol') == symbol:
+                result.add(fut_symbol)
+
+    return result
 
