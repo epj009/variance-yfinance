@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Variance TUI Renderer
+# Pure Python rendering (fast, deterministic)
+
+# Find latest portfolio CSV
+LATEST_CSV=$(ls -t positions/tastytrade_positions_*.csv 2>/dev/null | head -1)
+
+if [ -z "$LATEST_CSV" ]; then
+    echo "Error: No portfolio CSV found in positions/" >&2
+    exit 1
+fi
+
+echo "Analyzing: $LATEST_CSV" >&2
+echo "" >&2
+
+# Run analysis and render TUI
+./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null | \
+./venv/bin/python3 scripts/tui_renderer.py

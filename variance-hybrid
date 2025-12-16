@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Variance Hybrid Renderer
+# Step 1: Python TUI (deterministic rendering)
+# Step 2: Gemini Interactive Session (strategic insights & Q&A)
+
+# Find latest portfolio CSV
+LATEST_CSV=$(ls -t positions/tastytrade_positions_*.csv 2>/dev/null | head -1)
+
+if [ -z "$LATEST_CSV" ]; then
+    echo "Error: No portfolio CSV found in positions/" >&2
+    exit 1
+fi
+
+echo "╔════════════════════════════════════════════════════════════════╗" >&2
+echo "║  VARIANCE PORTFOLIO ANALYSIS                                   ║" >&2
+echo "║  Portfolio: $(basename $LATEST_CSV)                            " >&2
+echo "╚════════════════════════════════════════════════════════════════╝" >&2
+echo "" >&2
+
+# Generate JSON once (save to temp file for Gemini to read)
+JSON_FILE="/tmp/variance_analysis.json"
+./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE"
+
+# Step 1: Render deterministic TUI
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+echo " PORTFOLIO DASHBOARD (Python TUI)" >&2
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+echo "" >&2
+./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+
+# Step 2: Drop into Gemini interactive session
+echo "" >&2
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+echo " INTERACTIVE SESSION (Gemini)" >&2
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+echo "" >&2
+
+# Drop into interactive Gemini session with portfolio context
+exec gemini -y -i "I've just displayed the Variance TUI dashboard above showing portfolio metrics, triage actions, and vol screener opportunities. The full analysis JSON is available at /tmp/variance_analysis.json if you need it.
+
+Provide strategic commentary on:
+1. Priority actions from the triage (harvest, defense, gamma risks)
+2. Delta/theta balance concerns
+3. Top opportunities from the vol screener
+
+Then stay interactive for follow-up questions about the portfolio."
