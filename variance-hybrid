@@ -20,14 +20,16 @@ echo "" >&2
 
 # Generate JSON once (save to temp file for Gemini to read)
 JSON_FILE="/tmp/variance_analysis.json"
+TUI_FILE="/tmp/variance_tui_output.txt"
+
 ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE"
 
-# Step 1: Render deterministic TUI
+# Step 1: Render deterministic TUI (display AND save to file)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo " PORTFOLIO DASHBOARD (Python TUI)" >&2
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo "" >&2
-./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
 
 # Step 2: Drop into Gemini interactive session
 echo "" >&2
@@ -37,11 +39,14 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "" >&2
 
 # Drop into interactive Gemini session with portfolio context
-exec gemini -y -i "I've just displayed the Variance TUI dashboard above showing portfolio metrics, triage actions, and vol screener opportunities. The full analysis JSON is available at /tmp/variance_analysis.json if you need it.
+# First re-display the TUI (since Gemini clears screen), then provide commentary
+exec gemini -y -i "First, display the Variance TUI dashboard by running: cat /tmp/variance_tui_output.txt
 
-Provide strategic commentary on:
+Then provide strategic commentary on:
 1. Priority actions from the triage (harvest, defense, gamma risks)
 2. Delta/theta balance concerns
 3. Top opportunities from the vol screener
+
+The full analysis JSON is at /tmp/variance_analysis.json if you need detailed data.
 
 Then stay interactive for follow-up questions about the portfolio."
