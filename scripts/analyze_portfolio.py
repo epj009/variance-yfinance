@@ -147,12 +147,13 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
 
     # Populate Portfolio Summary
     net_liq = RULES['net_liquidity']
+    report['portfolio_summary']['net_liquidity'] = net_liq
     if net_liq > 0:
-        theta_as_pct_of_nl = (total_portfolio_theta / net_liq) * 100
+        theta_as_pct_of_nl = total_portfolio_theta / net_liq
         report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
 
-        # Calculate BP Usage %
-        bp_usage_pct = (total_capital_at_risk / net_liq) * 100
+        # Calculate BP Usage % (store as decimal ratio, not percentage)
+        bp_usage_pct = total_capital_at_risk / net_liq
         report['portfolio_summary']['bp_usage_pct'] = bp_usage_pct
 
     # Delta/Theta Ratio

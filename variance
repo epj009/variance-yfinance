@@ -4,4 +4,4 @@
 # Delegates to Gemini CLI for portfolio analysis, then drops into interactive session
 # YOLO mode: auto-approves file read/write operations
 
-exec gemini -i -y "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
