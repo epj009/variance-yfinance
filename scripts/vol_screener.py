@@ -131,6 +131,7 @@ def screen_volatility(
     illiquid_skipped = 0
     excluded_symbols_skipped = 0
     hv_rank_trap_skipped = 0  # Short vol trap filter
+    low_iv_rank_skipped = 0   # Low IV Rank filter (three-factor filter)
     bats_zone_count = 0 # Initialize bats zone counter
     exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
     held_symbols_set = set(s.upper() for s in held_symbols) if held_symbols else set()
@@ -191,6 +192,14 @@ def screen_volatility(
 
         if is_hv_rank_trap and not show_all:
             hv_rank_trap_skipped += 1
+            continue
+
+        # IV Rank Filter: Three-Factor Filter (premium elevation check)
+        iv_rank = metrics.get('iv_rank')
+        iv_rank_threshold = RULES.get('iv_rank_threshold', 30.0)
+
+        if iv_rank is not None and iv_rank < iv_rank_threshold and not show_all:
+            low_iv_rank_skipped += 1
             continue
 
         if is_illiquid and not show_illiquid:
@@ -254,6 +263,7 @@ def screen_volatility(
         "illiquid_skipped_count": illiquid_skipped,
         "excluded_symbols_skipped_count": excluded_symbols_skipped,
         "hv_rank_trap_skipped_count": hv_rank_trap_skipped,
+        "low_iv_rank_skipped_count": low_iv_rank_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
         "filter_note": f"{bias_note}; {liquidity_note}"
     }
