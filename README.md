@@ -18,12 +18,14 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 
 ### `scripts/vol_screener.py` (Scanner)
 - **Output**: Raw JSON with flags (`is_rich`, `is_fair`, `is_illiquid`, `is_earnings_soon`, `is_bats_efficient`).
-- **Three-Factor Entry Filter**: Implements tastylive optimal entry methodology:
-  1. Vol Bias > 1.0 (IV > HV statistical edge)
-  2. HV Rank > 15% (Market activity filter - expansion trap detector)
-  3. IV Rank > 30% (Premium elevation filter - entry timing)
+- **Variance Score**: Ranks opportunities (0-100) using a weighted composite:
+  - **IV Rank (40%)**: Is premium elevated?
+  - **Structural Bias (30%)**: Is it historically expensive?
+  - **Tactical Bias (30%)**: Is there a short-term edge?
+  - **Penalty**: -50% for "Dead Zone" traps (High Bias + Low HV Rank).
+- **Asset Lineage**: Prevents correlation stacking using `FAMILY_MAP` (e.g., holding `SLV` automatically flags `/SI` and `SIVR` as held).
 - **Liquidity logic**: Defaults to ATM volume ≥ 50. Illiquid names are allowed if `Vol Bias > 1.2` (extreme edge).
-- **Concentration defense**: Supports `--exclude-symbols` to avoid stacking risk; sector/asset-class filters remain.
+- **Concentration defense**: Supports `--exclude-symbols` and Family logic to avoid stacking risk.
 
 ### `scripts/analyze_portfolio.py` (Triage)
 - **Output**: Raw JSON with `action_code` enums (`HARVEST`, `DEFENSE`, `GAMMA`, `ZOMBIE`, `EARNINGS_WARNING`, or `None`), `dte` ints, `pl_pct` ratios, `is_stale` flags.
@@ -121,7 +123,7 @@ The `./variance` script launches an interactive Gemini session that:
   ./venv/bin/python3 scripts/vol_screener.py --exclude-symbols "NVDA,TSLA"
   ```
 
-## Key Metrics
+### Key Metrics
 
 ### Three-Factor Entry Filter
 The vol screener implements a comprehensive three-factor filter for optimal premium selling entries:
@@ -132,9 +134,15 @@ The vol screener implements a comprehensive three-factor filter for optimal prem
 
 ### Metric Definitions
 
-- **Vol Bias**: `IV30 / HV252` - Primary signal for rich premiums
-  - Measures relative value: Is implied volatility higher than realized volatility?
-  - Threshold: 1.0 (tastylive core principle: sell when IV > HV)
+- **Structural Vol Bias**: `IV30 / HV252` - Primary signal for rich premiums (Climate)
+  - Measures long-term relative value: Is implied volatility higher than the last year's realized volatility?
+  - **Purpose**: Identifies expensive asset classes (Structural Edge).
+  - Threshold: 1.0
+
+- **Tactical Vol Bias**: `IV30 / HV20` - Immediate entry signal (Weather)
+  - Measures short-term mean reversion: Is implied volatility higher than the last month's realized volatility?
+  - **Purpose**: Identifies "Fear Bubbles" where IV stays high despite price stabilizing (Tactical Edge).
+  - Use case: Catching the post-earnings "crush" or mean reversion after a panic.
 
 - **HV Rank**: Percentile of current 30-day HV vs 1-year rolling HVs (0-100%)
   - **Purpose**: Regime detection - Is the market active or dead?
