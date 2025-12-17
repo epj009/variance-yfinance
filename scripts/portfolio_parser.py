@@ -36,25 +36,25 @@ class PortfolioParser:
     """
     # Internal Key : [Possible CSV Headers]
     MAPPING = {
-        'Symbol': 'Symbol',
-        'Type': 'Type',
-        'DTE': 'DTE',
-        'Strike Price': 'Strike Price',
-        'Quantity': 'Quantity',
-        'Call/Put': 'Call/Put',
-        'P/L Open': 'P/L Open',
-        'Cost': 'Cost',
-        'Mark': 'Mark',
-        'Delta': 'Delta',
-        'Gamma': 'Gamma',
-        'Theta': 'Theta',
-        'Vega': 'Vega',
-        'Value': 'Value',
-        'Bid': 'Bid',
-        'Ask': 'Ask',
-        'Underlying Last Price': 'Underlying Last Price',
-        'IV Rank': 'IV Rank',
-        'Open Date': 'Open Date'
+        'Symbol': ['Symbol', 'Sym', 'Ticker'],
+        'Type': ['Type', 'Asset Class'],
+        'Quantity': ['Quantity', 'Qty', 'Position', 'Size'],
+        'Exp Date': ['Exp Date', 'Expiration', 'Expiry'],
+        'DTE': ['DTE', 'Days To Expiration', 'Days to Exp'],
+        'Strike Price': ['Strike Price', 'Strike'],
+        'Call/Put': ['Call/Put', 'Side', 'C/P'],
+        'Underlying Last Price': ['Underlying Last Price', 'Underlying Price', 'Current Price'],
+        'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
+        'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
+        'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
+        'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
+        'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
+        'Vega': ['Vega', '/ Vega'],
+        'Value': ['Value', 'Mkt Value', 'Net Liq'],
+        'Bid': ['Bid', 'Bid Price'],
+        'Ask': ['Ask', 'Ask Price'],
+        'Mark': ['Mark', 'Mark Price', 'Mid'],
+        'Open Date': ['Open Date', "D's Opn", 'Days Open']
     }
 
     @staticmethod

@@ -121,34 +121,47 @@ def detect_hedge_tag(
 def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
     """
     Calculate the number of days the position has been held.
-    Uses the earliest 'Open Date' found in the legs.
-    Returns 0 if no valid date found.
+    Supports standard date formats or "Xd" strings (e.g. "12d").
+    Returns the maximum days held (earliest entry) found in the legs.
     """
+    max_days = 0
     earliest_date = None
+    
     for leg in legs:
         open_date_str = leg.get('Open Date')
-        if open_date_str:
+        if not open_date_str:
+            continue
+            
+        # Case 1: "12d" format
+        if open_date_str.lower().endswith('d'):
             try:
-                # Tastytrade CSV format often MM/DD/YYYY
-                # Adjust format string based on your CSV parser output if different
-                # We'll assume ISO or common formats first, but parser might return raw string
-                # Let's try flexible parsing or assume parser normalized it if possible.
-                # For now, let's try standard formats.
-                # If parser returns raw, it might be '12/17/2024'.
-                for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d'):
-                    try:
-                        dt = datetime.strptime(open_date_str, fmt).date()
-                        if earliest_date is None or dt < earliest_date:
-                            earliest_date = dt
-                        break
-                    except ValueError:
-                        continue
-            except Exception:
+                days = int(open_date_str.lower().replace('d', '').strip())
+                if days > max_days:
+                    max_days = days
+                continue
+            except ValueError:
                 pass
+
+        # Case 2: Date string
+        try:
+            # Try flexible parsing
+            for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d'):
+                try:
+                    dt = datetime.strptime(open_date_str, fmt).date()
+                    if earliest_date is None or dt < earliest_date:
+                        earliest_date = dt
+                    break
+                except ValueError:
+                    continue
+        except Exception:
+            pass
     
     if earliest_date:
-        return (datetime.now().date() - earliest_date).days
-    return 0
+        calc_days = (datetime.now().date() - earliest_date).days
+        if calc_days > max_days:
+            max_days = calc_days
+            
+    return max_days
 
 
 def triage_cluster(
