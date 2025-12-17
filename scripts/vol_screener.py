@@ -95,27 +95,25 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     """
     score = 0.0
     
-    # 1. IV Rank Component (0-100) - Weight 40%
-    ivr = metrics.get('iv_rank')
-    if ivr is None: ivr = 0.0 # Conservative
-    score += ivr * 0.40
+    # 1. IV Rank Component - REMOVED
+    # ivr = metrics.get('iv_rank')
     
-    # 2. Vol Bias Component (Scaled) - Weight 30%
+    # 2. Vol Bias Component (Scaled) - Weight 50%
     # Target: Bias 1.5 = 100/100, Bias 1.0 = 50/100, Bias 0.5 = 0
     bias = metrics.get('vol_bias')
     if bias:
         # Scale: (Bias - 0.5) * 100. Cap at 100, Floor at 0.
         # Example: 1.2 -> (0.7) * 100 = 70
         bias_score = max(0, min(100, (bias - 0.5) * 100))
-        score += bias_score * 0.30
+        score += bias_score * 0.50
         
-    # 3. Vol Bias 20 Component (Scaled) - Weight 30%
+    # 3. Vol Bias 20 Component (Scaled) - Weight 50%
     bias20 = metrics.get('vol_bias_20')
     if bias20:
         bias20_score = max(0, min(100, (bias20 - 0.5) * 100))
-        score += bias20_score * 0.30
+        score += bias20_score * 0.50
     elif bias: # Fallback to standard bias if short-term missing
-        score += bias_score * 0.30
+        score += bias_score * 0.50
 
     # 4. Penalties
     # HV Rank Trap: High Bias but extremely low realized vol (Dead stock with wide spreads?)
@@ -259,13 +257,13 @@ def screen_volatility(
             hv_rank_trap_skipped += 1
             continue
 
-        # IV Rank Filter: Three-Factor Filter (premium elevation check)
-        iv_rank = metrics.get('iv_rank')
-        iv_rank_threshold = RULES.get('iv_rank_threshold', 30.0)
+        # IV Rank Filter - REMOVED
+        # iv_rank = metrics.get('iv_rank')
+        # iv_rank_threshold = RULES.get('iv_rank_threshold', 30.0)
 
-        if iv_rank is not None and iv_rank < iv_rank_threshold and not show_all:
-            low_iv_rank_skipped += 1
-            continue
+        # if iv_rank is not None and iv_rank < iv_rank_threshold and not show_all:
+        #    low_iv_rank_skipped += 1
+        #    continue
 
         if is_illiquid and not show_illiquid:
             illiquid_skipped += 1

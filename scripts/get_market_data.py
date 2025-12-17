@@ -21,13 +21,8 @@ except ModuleNotFoundError:
     print("Error: Missing dependency 'yfinance'. Activate your venv.", file=sys.stderr)
     sys.exit(1)
 
-# Optional Tastytrade SDK for IV Rank
-try:
-    from tastytrade import Session
-    from tastytrade.metrics import get_market_metrics
-    TASTYTRADE_AVAILABLE = True
-except ImportError:
-    TASTYTRADE_AVAILABLE = False
+# Optional Tastytrade SDK for IV Rank - REMOVED
+TASTYTRADE_AVAILABLE = False
 
 # --- CONFIGURATION ---
 # Default Cache TTL values (seconds)
@@ -80,16 +75,8 @@ except FileNotFoundError:
     STRIKE_UPPER = 1.2
     OPTION_CHAIN_LIMIT = 50
 
-# --- TASTYTRADE SESSION (Optional) ---
+# --- TASTYTRADE SESSION (Optional) - REMOVED ---
 _tastytrade_session = None
-if TASTYTRADE_AVAILABLE:
-    client_secret = os.environ.get('TASTY_CLIENT_SECRET')
-    refresh_token = os.environ.get('TASTY_REFRESH_TOKEN')
-    if client_secret and refresh_token:
-        try:
-            _tastytrade_session = Session(client_secret, refresh_token)
-        except Exception:
-            pass  # Silently fail - IV Rank will be unavailable
 
 # --- OPTIMIZED SQLITE ENGINE ---
 class MarketCache:
@@ -346,46 +333,6 @@ def calculate_hv_rank(ticker_obj: Any, symbol_key: str) -> Optional[float]:
     except Exception:
         return None
 
-def get_tasty_iv_rank(symbol: str) -> Optional[float]:
-    """
-    Fetch IV Rank from Tastytrade API (0-100).
-
-    Args:
-        symbol: The symbol to fetch (e.g., 'SPY', '/ES').
-
-    Returns:
-        float: IV Rank (0-100), or None if unavailable/error.
-    """
-    if not _tastytrade_session:
-        return None
-
-    cache_key = f"ivr_{symbol}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    def _fetch():
-        try:
-            # get_market_metrics expects a list of symbols
-            data = get_market_metrics(_tastytrade_session, [symbol])
-            if data and len(data) > 0:
-                metric = data[0]
-                # tw_implied_volatility_index_rank is 0.0-1.0
-                raw_rank = metric.tw_implied_volatility_index_rank
-                if raw_rank is not None:
-                    return float(raw_rank) * 100.0
-        except Exception:
-            return None
-        return None
-
-    try:
-        val = retry_fetch(_fetch)
-        if val is not None:
-            cache.set(cache_key, val, TTL.get('hv', 86400))
-        return val
-    except Exception:
-        return None
-
 def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_context: Optional[float] = None) -> Optional[Dict[str, Any]]:
     cache_key = f"iv_{symbol_key}"
     cached = cache.get(cache_key)
@@ -577,7 +524,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     hv20_val = hv_data.get('hv20') if hv_data else None
 
     hv_rank_val = calculate_hv_rank(ticker, yf_symbol)
-    iv_rank_val = get_tasty_iv_rank(raw_symbol)
+    iv_rank_val = None # Tastytrade Removed
 
     iv_payload = get_current_iv(ticker, current_price, yf_symbol, hv_context=hv252_val)
 
