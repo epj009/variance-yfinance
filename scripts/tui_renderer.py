@@ -96,7 +96,7 @@ class TUIRenderer:
         gyro_lines = [
             "THE GYROSCOPE (Risk)",
             f"• Tilt:      {tilt_str}",
-            f"• Decay:     {fmt_currency(theta)}/day",
+            f"• Theta:     {fmt_currency(theta)}/day",
             f"• Vega:      {fmt_currency(self.data.get('stress_box', {}).get('total_portfolio_vega', 0.0))}/pt",
             f"• Stability: {fmt_decimal(stability)} {stab_status}"
         ]
