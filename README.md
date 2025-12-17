@@ -18,7 +18,10 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 
 ### `scripts/vol_screener.py` (Scanner)
 - **Output**: Raw JSON with flags (`is_rich`, `is_fair`, `is_illiquid`, `is_earnings_soon`, `is_bats_efficient`).
-- **HV Rank Trap Detection**: Automatically filters short vol traps (Vol Bias > 1.0 AND HV Rank < 15%) to prevent selling premium in dead volatility regimes.
+- **Three-Factor Entry Filter**: Implements tastylive optimal entry methodology:
+  1. Vol Bias > 1.0 (IV > HV statistical edge)
+  2. HV Rank > 15% (Market activity filter - expansion trap detector)
+  3. IV Rank > 30% (Premium elevation filter - entry timing)
 - **Liquidity logic**: Defaults to ATM volume ≥ 50. Illiquid names are allowed if `Vol Bias > 1.2` (extreme edge).
 - **Concentration defense**: Supports `--exclude-symbols` to avoid stacking risk; sector/asset-class filters remain.
 
@@ -55,6 +58,26 @@ cp variance-system-prompt.md .gemini/GEMINI.md
 ```
 
 **Note:** The `variance-system-prompt.md` file defines the Variance trading persona. Copying it to `.gemini/GEMINI.md` enables the persona when running `./variance` interactively, while keeping MCP Gemini calls (used by Claude Code agents) persona-free for pure architect/developer/qa work.
+
+## Optional: Tastytrade IV Rank Integration
+
+To enable the three-factor filter with IV Rank (premium elevation timing), set up Tastytrade OAuth credentials:
+
+```bash
+# 1. Log into Tastytrade → Settings → OAuth Applications
+# 2. Create new OAuth application
+# 3. Add http://localhost:8000 as valid callback URL
+# 4. Save the CLIENT_SECRET
+
+# 5. Go to OAuth Applications → Manage → Create Grant
+# 6. Save the REFRESH_TOKEN
+
+# 7. Set environment variables (add to ~/.bashrc or ~/.zshrc for persistence)
+export TASTY_CLIENT_SECRET='your_client_secret_here'
+export TASTY_REFRESH_TOKEN='your_refresh_token_here'
+```
+
+**Without Tastytrade credentials**, the vol screener operates in **two-factor mode** (Vol Bias + HV Rank only), which still catches expansion traps but skips entry timing optimization.
 
 ## Quick Start
 
@@ -99,18 +122,47 @@ The `./variance` script launches an interactive Gemini session that:
   ```
 
 ## Key Metrics
+
+### Three-Factor Entry Filter
+The vol screener implements a comprehensive three-factor filter for optimal premium selling entries:
+
+1. **Vol Bias > 1.0**: `IV30 / HV252` - Statistical edge (IV > HV)
+2. **HV Rank > 15%**: Market activity filter (avoid dead markets)
+3. **IV Rank > 30%**: Premium elevation filter (entry timing)
+
+### Metric Definitions
+
 - **Vol Bias**: `IV30 / HV252` - Primary signal for rich premiums
+  - Measures relative value: Is implied volatility higher than realized volatility?
+  - Threshold: 1.0 (tastylive core principle: sell when IV > HV)
+
 - **HV Rank**: Percentile of current 30-day HV vs 1-year rolling HVs (0-100%)
+  - **Purpose**: Regime detection - Is the market active or dead?
   - **Short Vol Trap Detection**: Filters symbols with Vol Bias > 1.0 AND HV Rank < 15%
-  - Prevents selling premium in crushed volatility regimes (expansion risk)
-  - Configurable threshold via `hv_rank_trap_threshold` in `trading_rules.json`
+  - **Prevents**: Selling premium in crushed volatility regimes (expansion risk)
+  - **Example**: /6A with Vol Bias 2.05 but HV Rank 5% = TRAP (market asleep)
+  - **Configurable**: `hv_rank_trap_threshold` in `trading_rules.json` (default: 15%)
+  - **Data Source**: Yahoo Finance (calculated locally, zero dependencies)
+
+- **IV Rank**: Percentile of current IV vs 52-week IV range (0-100%)
+  - **Purpose**: Entry timing - Are premiums elevated or cheap?
+  - **Premium Elevation Filter**: Skips symbols with IV Rank < 30%
+  - **Prevents**: Selling premium when it's at historic lows (wait for spike)
+  - **Example**: /SI with HV Rank 86% but IV Rank 7% = WAIT (market moving, premiums cheap)
+  - **Configurable**: `iv_rank_threshold` in `trading_rules.json` (default: 30%)
+  - **Data Source**: Tastytrade API (optional, requires OAuth credentials)
+  - **Graceful Degradation**: If Tastytrade unavailable, filter bypasses (two-factor mode)
+
 - **Bat's Efficiency Zone**: Price $15–$75 AND Vol Bias > 1.0
 - **Friction Horizon**: `Total Liquidity Cost / Daily Portfolio Theta`
 
 ## Configuration
 - `config/system_config.json`: Cache DB path, TTLs.
 - `config/market_config.json`: Symbol map, sector overrides, futures proxies, skip lists.
-- `config/trading_rules.json`: Vol Bias thresholds, DTE gates, profit targets, delta limits, Bat's zone parameters.
+- `config/trading_rules.json`: Vol Bias thresholds, DTE gates, profit targets, delta limits, three-factor filter thresholds:
+  - `vol_bias_rich_threshold`: 1.0 (IV > HV requirement)
+  - `hv_rank_trap_threshold`: 15.0 (minimum market activity)
+  - `iv_rank_threshold`: 30.0 (minimum premium elevation)
 - `config/strategies.json`: Strategy-specific management rules (profit targets, gamma DTEs, defense mechanics) for 30+ option strategies.
 
 ## Notes
