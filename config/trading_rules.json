@@ -30,11 +30,13 @@
     "data_integrity_min_theta": 0.50,
     "asset_mix_equity_threshold": 0.80,
     "stress_scenarios": [
-        {"label": "Crash (-5%)", "move_pct": -0.05},
-        {"label": "Dip (-3%)", "move_pct": -0.03},
-        {"label": "Flat", "move_pct": 0.0},
-        {"label": "Rally (+3%)", "move_pct": 0.03},
-        {"label": "Moon (+5%)", "move_pct": 0.05}
+        {"label": "Crash (-5%)", "move_pct": -0.05, "vol_point_move": 15.0},
+        {"label": "Dip (-3%)", "move_pct": -0.03, "vol_point_move": 5.0},
+        {"label": "Flat", "move_pct": 0.0, "vol_point_move": 0.0},
+        {"label": "Rally (+3%)", "move_pct": 0.03, "vol_point_move": -5.0},
+        {"label": "Moon (+5%)", "move_pct": 0.05, "vol_point_move": -10.0},
+        {"label": "Vol Spike", "move_pct": 0.0, "vol_point_move": 10.0},
+        {"label": "Vol Crush", "move_pct": 0.0, "vol_point_move": -10.0}
     ],
     "hedge_rules": {
         "enabled": true,

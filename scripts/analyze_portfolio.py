@@ -263,13 +263,20 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             pass
             
     if beta_price > 0:
+        total_portfolio_vega = metrics.get('total_portfolio_vega', 0.0)
         scenarios = RULES.get('stress_scenarios', DEFAULT_TRADING_RULES['stress_scenarios'])
         stress_box_scenarios = []
         for s in scenarios:
             label = s['label']
             pct = s['move_pct']
+            vol_move = s.get('vol_point_move', 0.0) # Absolute IV point change
+            
             spy_points = beta_price * pct
-            est_pl = total_beta_delta * spy_points
+            delta_pl = total_beta_delta * spy_points
+            vega_pl = total_portfolio_vega * vol_move
+            
+            est_pl = delta_pl + vega_pl
+            
             stress_box_scenarios.append({
                 "label": label,
                 "beta_move": spy_points,
@@ -278,6 +285,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         report['stress_box'] = {
             "beta_symbol": beta_sym,
             "beta_price": beta_price,
+            "total_portfolio_vega": total_portfolio_vega, # Expose for UI if needed
             "scenarios": stress_box_scenarios
         }
 

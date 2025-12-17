@@ -97,6 +97,7 @@ class TUIRenderer:
             "THE GYROSCOPE (Risk)",
             f"• Tilt:      {tilt_str}",
             f"• Decay:     {fmt_currency(theta)}/day",
+            f"• Vega:      {fmt_currency(self.data.get('stress_box', {}).get('total_portfolio_vega', 0.0))}/pt",
             f"• Stability: {fmt_decimal(stability)} {stab_status}"
         ]
 
@@ -127,7 +128,7 @@ class TUIRenderer:
         # Merge Columns
         # Left col width: 60 chars (including padding), Sep: "|", Right: Rest
         col_width = 58
-        for i in range(4):
+        for i in range(5):
             left = gyro_lines[i] if i < len(gyro_lines) else ""
             right = engine_lines[i] if i < len(engine_lines) else ""
             lines.append(f"{left:<{col_width}} | {right}")

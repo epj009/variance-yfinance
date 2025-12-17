@@ -51,6 +51,7 @@ class TriageMetrics(TypedDict, total=False):
     total_net_pl: float
     total_beta_delta: float
     total_portfolio_theta: float
+    total_portfolio_vega: float # NEW
     total_liquidity_cost: float
     total_abs_theta: float
     total_option_legs: int
@@ -401,6 +402,7 @@ def triage_portfolio(
     total_net_pl = 0.0
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0
+    total_portfolio_vega = 0.0
     total_liquidity_cost = 0.0
     total_abs_theta = 0.0
     total_option_legs = 0
@@ -426,11 +428,15 @@ def triage_portfolio(
         net_cost = sum(parse_currency(l['Cost']) for l in legs)
         total_capital_at_risk += abs(net_cost)
 
-        # Calculate theta and friction metrics
+        # Calculate theta, vega and friction metrics
         for l in legs:
             leg_theta = parse_currency(l['Theta'])
             total_portfolio_theta += leg_theta
             total_abs_theta += abs(leg_theta)
+            
+            # Vega Aggregation
+            leg_vega = parse_currency(l['Vega'])
+            total_portfolio_vega += leg_vega
 
             # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
             bid = parse_currency(l['Bid'])
@@ -471,6 +477,7 @@ def triage_portfolio(
         'total_net_pl': total_net_pl,
         'total_beta_delta': total_beta_delta,
         'total_portfolio_theta': total_portfolio_theta,
+        'total_portfolio_vega': total_portfolio_vega,
         'total_liquidity_cost': total_liquidity_cost,
         'total_abs_theta': total_abs_theta,
         'total_option_legs': total_option_legs,
