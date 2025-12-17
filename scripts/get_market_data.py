@@ -590,18 +590,23 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     proxy_note = None
     if iv_val is None or hv252_val is None:
         proxy_iv, proxy_hv, note = get_proxy_iv_and_hv(raw_symbol)
+        
+        # Use proxy data to fill gaps
         if iv_val is None and proxy_iv is not None:
             iv_val = proxy_iv
             proxy_note = note
+            
         if hv252_val is None and proxy_hv is not None:
             hv252_val = proxy_hv
             # For proxies, we typically don't have historical data to calc HV20 easily 
             # without fetching the ETF history. For now, leave HV20 None or mirror HV252 if desperate.
             # Leaving as None is safer.
-            proxy_note = note if note else proxy_note
+            if not proxy_note: proxy_note = note # Set note if not already set
 
     if iv_val is None or hv252_val is None or hv252_val == 0:
-        return raw_symbol, {"error": "insufficient_iv_hv"}
+        # Final check: Do we have a valid proxy fallback that was missed?
+        # Sometimes yfinance fails silently on the main symbol but proxy might work.
+        return raw_symbol, {"error": "insufficient_iv_hv", "details": f"IV: {iv_val}, HV: {hv252_val}, Proxy: {proxy_note}"}
 
     vol_bias = iv_val / hv252_val if hv252_val else None
     

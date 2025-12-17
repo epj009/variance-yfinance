@@ -43,6 +43,17 @@
         "NDX": "^NDX",
         "RUT": "^RUT"
     },
+    "FAMILY_MAP": {
+        "SILVER": ["/SI", "SLV", "SIVR"],
+        "GOLD": ["/GC", "/MGC", "GLD", "IAU"],
+        "OIL": ["/CL", "/MCL", "USO", "XLE"],
+        "BONDS": ["/ZB", "/ZN", "/ZF", "/ZT", "TLT", "IEF", "SHY"],
+        "NATGAS": ["/NG", "UNG", "BOIL", "KOLD"],
+        "SP500": ["/ES", "/MES", "SPY", "SPX"],
+        "NASDAQ": ["/NQ", "/MNQ", "QQQ", "NDX", "TQQQ", "SQQQ"],
+        "RUSSELL": ["/RTY", "/M2K", "IWM", "TNA", "TZA"],
+        "VIX": ["/VX", "VIX", "UVXY", "VXX"]
+    },
     "SECTOR_OVERRIDES": {
         "/CL": "Energy",
         "/NG": "Energy",

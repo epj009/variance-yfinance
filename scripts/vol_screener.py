@@ -20,6 +20,13 @@ except ImportError:
 RULES = load_trading_rules()
 SYS_CONFIG = load_system_config()
 
+try:
+    with open('config/market_config.json', 'r') as f:
+        MARKET_CONFIG = json.load(f)
+        FAMILY_MAP = MARKET_CONFIG.get('FAMILY_MAP', {})
+except Exception:
+    FAMILY_MAP = {}
+
 WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
 FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
 
@@ -73,6 +80,53 @@ def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[i
         'is_fair': bool(vol_bias is not None and rules['vol_bias_threshold'] < vol_bias <= rules.get('vol_bias_rich_threshold', 1.0)),
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
     }
+
+def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) -> float:
+    """
+    Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
+    
+    Weights:
+    - IV Rank (Richness): 40%
+    - Vol Bias (Structural Edge): 30%
+    - Vol Bias 20 (Tactical Edge): 30%
+    
+    Penalties:
+    - HV Rank Trap: -50% score if Short Vol Trap detected.
+    """
+    score = 0.0
+    
+    # 1. IV Rank Component (0-100) - Weight 40%
+    ivr = metrics.get('iv_rank')
+    if ivr is None: ivr = 0.0 # Conservative
+    score += ivr * 0.40
+    
+    # 2. Vol Bias Component (Scaled) - Weight 30%
+    # Target: Bias 1.5 = 100/100, Bias 1.0 = 50/100, Bias 0.5 = 0
+    bias = metrics.get('vol_bias')
+    if bias:
+        # Scale: (Bias - 0.5) * 100. Cap at 100, Floor at 0.
+        # Example: 1.2 -> (0.7) * 100 = 70
+        bias_score = max(0, min(100, (bias - 0.5) * 100))
+        score += bias_score * 0.30
+        
+    # 3. Vol Bias 20 Component (Scaled) - Weight 30%
+    bias20 = metrics.get('vol_bias_20')
+    if bias20:
+        bias20_score = max(0, min(100, (bias20 - 0.5) * 100))
+        score += bias20_score * 0.30
+    elif bias: # Fallback to standard bias if short-term missing
+        score += bias_score * 0.30
+
+    # 4. Penalties
+    # HV Rank Trap: High Bias but extremely low realized vol (Dead stock with wide spreads?)
+    hv_rank = metrics.get('hv_rank')
+    trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
+    rich_threshold = rules.get('vol_bias_rich_threshold', 1.0)
+    
+    if bias and bias > rich_threshold and hv_rank is not None and hv_rank < trap_threshold:
+        score *= 0.50 # Slash score by half for traps
+        
+    return round(score, 1)
 
 def screen_volatility(
     limit: Optional[int] = None,
@@ -134,7 +188,18 @@ def screen_volatility(
     low_iv_rank_skipped = 0   # Low IV Rank filter (three-factor filter)
     bats_zone_count = 0 # Initialize bats zone counter
     exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
-    held_symbols_set = set(s.upper() for s in held_symbols) if held_symbols else set()
+    
+    # Expand held symbols using Family Map
+    raw_held_set = set(s.upper() for s in held_symbols) if held_symbols else set()
+    held_symbols_set = set(raw_held_set)
+    
+    # "Lineage Check": If we hold one member of a family, we effectively hold them all for screening purposes
+    for family_name, siblings in FAMILY_MAP.items():
+        siblings_upper = [s.upper() for s in siblings]
+        # If any sibling is in our raw held list
+        if not raw_held_set.isdisjoint(siblings_upper):
+            # Add all siblings to the "held" set (e.g., if SLV is held, add /SI, SIVR to held set)
+            held_symbols_set.update(siblings_upper)
 
     for sym, metrics in data.items():
         if 'error' in metrics:
@@ -217,6 +282,10 @@ def screen_volatility(
 
         # Refactored flag creation
         flags = _create_candidate_flags(vol_bias, days_to_earnings, RULES)
+        
+        # Calculate Variance Score
+        variance_score = _calculate_variance_score(metrics, RULES)
+        
         # Prepare candidate data for return
         candidate_data = {
             'Symbol': sym,
@@ -224,6 +293,8 @@ def screen_volatility(
             'IV30': iv30,
             'HV252': hv252,
             'Vol Bias': vol_bias,
+            'Vol Bias 20': metrics.get('vol_bias_20'), # Add Vol Bias 20 here
+            'Score': variance_score, # The Golden Metric
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
             'Sector': sector, # Include sector in candidate data for JSON output
@@ -236,20 +307,17 @@ def screen_volatility(
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
-    # 4. Sort by signal quality: real bias first, proxy bias second, no-bias last; then bias desc within group
+    # 4. Sort by signal quality: Variance Score (Desc), then Proxy bias second
     def _signal_key(c):
         # Sorting Logic:
-        # 1. Primary Key: Data Quality (0=Real Bias, 1=Proxy Bias, 2=No Bias). Lower is better.
-        # 2. Secondary Key: Vol Bias (Descending). Higher is better.
-        # Returns a tuple for comparison.
-        bias = c['Vol Bias']
+        # 1. Primary Key: Variance Score (Descending). Higher is better.
+        # 2. Secondary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
+        score = c['Score']
         proxy = c.get('Proxy')
-        if bias is None:
-            return (2, 0)
-        if proxy:
-            return (1, bias)
-        return (0, bias)
-    candidates_with_status.sort(key=lambda c: (_signal_key(c)[0], -_signal_key(c)[1]))
+        quality = 1 if proxy else 0
+        return (score, -quality) # Sort by Score DESC, then Quality ASC (real first)
+        
+    candidates_with_status.sort(key=_signal_key, reverse=True)
     
     bias_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
     liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
