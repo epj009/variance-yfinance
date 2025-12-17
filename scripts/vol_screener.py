@@ -130,6 +130,7 @@ def screen_volatility(
     asset_class_skipped = 0
     illiquid_skipped = 0
     excluded_symbols_skipped = 0
+    hv_rank_trap_skipped = 0  # Short vol trap filter
     bats_zone_count = 0 # Initialize bats zone counter
     exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
     held_symbols_set = set(s.upper() for s in held_symbols) if held_symbols else set()
@@ -174,6 +175,22 @@ def screen_volatility(
                 continue
         elif vol_bias <= RULES['vol_bias_threshold'] and not show_all:
             low_bias_skipped += 1
+            continue
+
+        # HV Rank Trap Detection: Filter short vol traps (high Vol Bias in dead volatility regimes)
+        hv_rank = metrics.get('hv_rank')
+        rich_threshold = RULES.get('vol_bias_rich_threshold', 1.0)
+        trap_threshold = RULES.get('hv_rank_trap_threshold', 15.0)
+
+        is_hv_rank_trap = (
+            vol_bias is not None and
+            vol_bias > rich_threshold and
+            hv_rank is not None and
+            hv_rank < trap_threshold
+        )
+
+        if is_hv_rank_trap and not show_all:
+            hv_rank_trap_skipped += 1
             continue
 
         if is_illiquid and not show_illiquid:
@@ -236,6 +253,7 @@ def screen_volatility(
         "missing_bias_count": missing_bias,
         "illiquid_skipped_count": illiquid_skipped,
         "excluded_symbols_skipped_count": excluded_symbols_skipped,
+        "hv_rank_trap_skipped_count": hv_rank_trap_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
         "filter_note": f"{bias_note}; {liquidity_note}"
     }

@@ -246,10 +246,13 @@ def safe_get_sector(ticker_obj: Any, raw_symbol: str, symbol_key: str, skip_api:
     return sector
 
 # --- RESILIENT DATA FETCHING ---
-def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
+def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[Dict[str, float]]:
     cache_key = f"hv_{symbol_key}"
     cached = cache.get(cache_key)
-    if cached is not None: return cached
+    # If cached value is not a dictionary, it's an old format. Force re-computation.
+    if isinstance(cached, dict):
+        return cached
+    # If cached is not a dict or None, proceed to fetch
 
     def _fetch():
         hist = ticker_obj.history(period="1y", auto_adjust=True)
@@ -258,11 +261,68 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[float]:
         if len(adj_close) < HV_MIN_HISTORY_DAYS: return None
         log_ret = np.log(adj_close / adj_close.shift(1)).dropna()
         if log_ret.empty: return None
-        return log_ret.std() * np.sqrt(252) * 100 
+        
+        hv252 = log_ret.std() * np.sqrt(252) * 100
+        
+        # Calculate HV20 (last 20 days)
+        # We need at least 20 days of data
+        hv20 = None
+        if len(log_ret) >= 20:
+            hv20 = log_ret.tail(20).std() * np.sqrt(252) * 100
+
+        return {'hv252': hv252, 'hv20': hv20}
 
     try:
         val = retry_fetch(_fetch)
         if val is not None: cache.set(cache_key, val, TTL.get('hv', 86400))
+        return val
+    except Exception:
+        return None
+
+def calculate_hv_rank(ticker_obj: Any, symbol_key: str) -> Optional[float]:
+    """
+    Calculate HV Rank: percentile of current 30-day HV vs 1-year rolling 30-day HVs.
+
+    Returns:
+        float: HV Rank as percentage (0-100), or None if insufficient data
+    """
+    cache_key = f"hv_rank_{symbol_key}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    def _fetch():
+        hist = ticker_obj.history(period="1y", auto_adjust=True)
+        if len(hist) < 60:  # Need at least 60 days for meaningful rolling HV
+            return None
+
+        adj_close = hist['Close'].dropna()
+        if len(adj_close) < 60:
+            return None
+
+        log_ret = np.log(adj_close / adj_close.shift(1)).dropna()
+        if len(log_ret) < 60:
+            return None
+
+        # Current HV (30-day trailing, annualized)
+        current_hv = log_ret.tail(30).std() * np.sqrt(252) * 100
+
+        # Rolling 30-day HV for entire year
+        rolling_hv = log_ret.rolling(window=30).std() * np.sqrt(252) * 100
+        rolling_hv = rolling_hv.dropna()
+
+        if len(rolling_hv) < 30:
+            return None
+
+        # Calculate rank (percentile: what % of rolling HVs are below current HV)
+        hv_rank = (rolling_hv < current_hv).sum() / len(rolling_hv) * 100
+
+        return hv_rank
+
+    try:
+        val = retry_fetch(_fetch)
+        if val is not None:
+            cache.set(cache_key, val, TTL.get('hv', 86400))  # Same TTL as HV
         return val
     except Exception:
         return None
@@ -452,9 +512,14 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     if current_price is None or current_price <= 0:
         return raw_symbol, {"error": "bad_price"}
 
-    # Fetch HV and IV
-    hv_val = calculate_hv(ticker, yf_symbol)
-    iv_payload = get_current_iv(ticker, current_price, yf_symbol, hv_context=hv_val)
+    # Fetch HV, HV Rank, and IV
+    hv_data = calculate_hv(ticker, yf_symbol)
+    hv252_val = hv_data.get('hv252') if hv_data else None
+    hv20_val = hv_data.get('hv20') if hv_data else None
+
+    hv_rank_val = calculate_hv_rank(ticker, yf_symbol)
+
+    iv_payload = get_current_iv(ticker, current_price, yf_symbol, hv_context=hv252_val)
 
     iv_val = iv_payload.get('iv') if iv_payload else None
     atm_vol = iv_payload.get('atm_vol') if iv_payload else None
@@ -463,19 +528,26 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     iv_warning = iv_payload.get('warning') if iv_payload else None
 
     proxy_note = None
-    if iv_val is None or hv_val is None:
+    if iv_val is None or hv252_val is None:
         proxy_iv, proxy_hv, note = get_proxy_iv_and_hv(raw_symbol)
         if iv_val is None and proxy_iv is not None:
             iv_val = proxy_iv
             proxy_note = note
-        if hv_val is None and proxy_hv is not None:
-            hv_val = proxy_hv
+        if hv252_val is None and proxy_hv is not None:
+            hv252_val = proxy_hv
+            # For proxies, we typically don't have historical data to calc HV20 easily 
+            # without fetching the ETF history. For now, leave HV20 None or mirror HV252 if desperate.
+            # Leaving as None is safer.
             proxy_note = note if note else proxy_note
 
-    if iv_val is None or hv_val is None or hv_val == 0:
+    if iv_val is None or hv252_val is None or hv252_val == 0:
         return raw_symbol, {"error": "insufficient_iv_hv"}
 
-    vol_bias = iv_val / hv_val if hv_val else None
+    vol_bias = iv_val / hv252_val if hv252_val else None
+    
+    # Calculate Short-Term Bias (Tactical Edge)
+    vol_bias_20 = iv_val / hv20_val if (hv20_val and hv20_val > 0) else None
+
     if vol_bias is None or vol_bias <= 0:
         return raw_symbol, {"error": "invalid_vol_bias"}
 
@@ -487,8 +559,11 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "price": current_price,
         "is_stale": is_stale,
         "iv": iv_val,
-        "hv252": hv_val,
+        "hv252": hv252_val,
+        "hv20": hv20_val,
+        "hv_rank": hv_rank_val,
         "vol_bias": vol_bias,
+        "vol_bias_20": vol_bias_20,
         "atm_volume": atm_vol,
         "atm_bid": atm_bid,
         "atm_ask": atm_ask,

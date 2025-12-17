@@ -1,6 +1,7 @@
 {
     "vol_bias_threshold": 0.85,
     "vol_bias_rich_threshold": 1.0,
+    "hv_rank_trap_threshold": 15.0,
     "dead_money_vol_bias_threshold": 0.80,
     "dead_money_pl_pct_low": -0.10,
     "dead_money_pl_pct_high": 0.10,
