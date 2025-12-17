@@ -18,6 +18,7 @@ Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`
 
 ### `scripts/vol_screener.py` (Scanner)
 - **Output**: Raw JSON with flags (`is_rich`, `is_fair`, `is_illiquid`, `is_earnings_soon`, `is_bats_efficient`).
+- **HV Rank Trap Detection**: Automatically filters short vol traps (Vol Bias > 1.0 AND HV Rank < 15%) to prevent selling premium in dead volatility regimes.
 - **Liquidity logic**: Defaults to ATM volume ≥ 50. Illiquid names are allowed if `Vol Bias > 1.2` (extreme edge).
 - **Concentration defense**: Supports `--exclude-symbols` to avoid stacking risk; sector/asset-class filters remain.
 
@@ -98,7 +99,11 @@ The `./variance` script launches an interactive Gemini session that:
   ```
 
 ## Key Metrics
-- **Vol Bias**: `IV30 / HV252`
+- **Vol Bias**: `IV30 / HV252` - Primary signal for rich premiums
+- **HV Rank**: Percentile of current 30-day HV vs 1-year rolling HVs (0-100%)
+  - **Short Vol Trap Detection**: Filters symbols with Vol Bias > 1.0 AND HV Rank < 15%
+  - Prevents selling premium in crushed volatility regimes (expansion risk)
+  - Configurable threshold via `hv_rank_trap_threshold` in `trading_rules.json`
 - **Bat's Efficiency Zone**: Price $15–$75 AND Vol Bias > 1.0
 - **Friction Horizon**: `Total Liquidity Cost / Daily Portfolio Theta`
 
