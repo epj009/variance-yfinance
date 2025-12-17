@@ -22,6 +22,8 @@
     "metadata": {
       "win_rate": "50% to 70%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -48,6 +50,7 @@
     "metadata": {
       "win_rate": "40% to 60%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -74,6 +77,7 @@
     "metadata": {
       "win_rate": "50%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -100,6 +104,7 @@
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -126,6 +131,7 @@
     "metadata": {
       "win_rate": "N/A",
       "gamma_trigger_dte": 14,
+      "earnings_stance": "long_vol",
       "source": "Variance Playbook"
     }
   },
@@ -178,6 +184,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -204,6 +211,7 @@
     "metadata": {
       "win_rate": "50% to 70%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -230,6 +238,7 @@
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -256,6 +265,7 @@
     "metadata": {
       "win_rate": "50%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -282,6 +292,7 @@
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -308,6 +319,7 @@
     "metadata": {
       "win_rate": "N/A",
       "gamma_trigger_dte": 14,
+      "earnings_stance": "long_vol",
       "source": "Variance Playbook"
     }
   },
@@ -360,6 +372,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -386,6 +399,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -412,6 +426,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -542,6 +557,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -568,6 +584,7 @@
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -594,6 +611,8 @@
     "metadata": {
       "win_rate": "60% to 80% The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides and the trade can be bought back for a profit over time.",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -620,6 +639,7 @@
     "metadata": {
       "win_rate": "60% to 80% 1 Sell an OTM put spread 2 Sell an OTM call spread The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides, and the trade can be bought back for a profit over time.",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -672,6 +692,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -698,6 +719,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -724,6 +746,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -750,6 +773,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -776,6 +800,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   },
@@ -802,6 +827,7 @@
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
+      "earnings_stance": "avoid",
       "source": "Variance Playbook"
     }
   }

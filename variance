@@ -1,7 +1,106 @@
 #!/bin/bash
 
-# Variance Launcher
-# Delegates to Gemini CLI for portfolio analysis, then drops into interactive session
-# YOLO mode: auto-approves file read/write operations
+# VARIANCE: The Unified Launcher
+# Usage:
+#   ./variance          # Default: Hybrid Mode (TUI + Interactive Strategy)
+#   ./variance --tui    # TUI Only (Fast, Deterministic)
+#   ./variance --chat   # Chat Only (No pre-analysis)
 
-exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+MODE="hybrid"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --tui)
+            MODE="tui"
+            shift
+            ;;
+        --chat|--gemini)
+            MODE="chat"
+            shift
+            ;;
+        --hybrid)
+            MODE="hybrid"
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: ./variance [options]"
+            echo "Options:"
+            echo "  --tui     Run Python TUI dashboard only (fast)"
+            echo "  --chat    Run Gemini chat only (no pre-analysis)"
+            echo "  --hybrid  Run TUI then start interactive Gemini strategy session (default)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage."
+            exit 1
+            ;;
+    esac
+done
+
+# Find latest portfolio CSV
+LATEST_CSV=$(ls -t positions/tastytrade_positions_*.csv 2>/dev/null | head -1)
+
+if [ -z "$LATEST_CSV" ]; then
+    echo "Error: No portfolio CSV found in positions/" >&2
+    exit 1
+fi
+
+# Define temp files
+JSON_FILE="/tmp/variance_analysis.json"
+TUI_FILE="/tmp/variance_tui_output.txt"
+
+# Execution Logic
+case "$MODE" in
+    tui)
+        echo "╔════════════════════════════════════════════════════════════════╗" >&2
+        echo "║  VARIANCE: TUI MODE                                            ║" >&2
+        echo "║  Portfolio: $(basename $LATEST_CSV)                            " >&2
+        echo "╚════════════════════════════════════════════════════════════════╝" >&2
+        echo "" >&2
+        
+        # Run analysis pipe directly
+        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null |
+        ./venv/bin/python3 scripts/tui_renderer.py
+        ;;
+
+    hybrid)
+        echo "╔════════════════════════════════════════════════════════════════╗" >&2
+        echo "║  VARIANCE: STRATEGY MODE                                       ║" >&2
+        echo "║  Portfolio: $(basename $LATEST_CSV)                            " >&2
+        echo "╚════════════════════════════════════════════════════════════════╝" >&2
+        echo "Generating analysis..." >&2
+
+        # 1. Generate Data
+        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE"
+
+        # 2. Render TUI to console AND file
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo " PORTFOLIO DASHBOARD" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
+
+        # 3. Launch Gemini
+        echo "" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        echo " STRATEGIC ANALYSIS (Gemini)" >&2
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+        
+        exec gemini -y -i "First, display the Variance TUI dashboard by running: cat $TUI_FILE
+
+Then provide strategic commentary on:
+1. Priority actions from the triage (harvest, defense, gamma risks)
+2. Delta/theta balance concerns
+3. Top opportunities from the vol screener
+
+The full analysis JSON is at $JSON_FILE if you need detailed data.
+
+Then stay interactive for follow-up questions about the portfolio."
+        ;;
+
+    chat)
+        echo "Starting Gemini Chat..." >&2
+        exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+        ;;
+esac

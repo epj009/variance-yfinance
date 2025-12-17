@@ -43,6 +43,7 @@ class TriageContext(TypedDict, total=False):
     strategies: Dict[str, Any]
     traffic_jam_friction: float
     portfolio_beta_delta: float  # NEW: Total portfolio delta for hedge validation
+    net_liquidity: float # NEW: For size threat checks
 
 
 class TriageMetrics(TypedDict, total=False):
@@ -116,6 +117,39 @@ def detect_hedge_tag(
     return True
 
 
+def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
+    """
+    Calculate the number of days the position has been held.
+    Uses the earliest 'Open Date' found in the legs.
+    Returns 0 if no valid date found.
+    """
+    earliest_date = None
+    for leg in legs:
+        open_date_str = leg.get('Open Date')
+        if open_date_str:
+            try:
+                # Tastytrade CSV format often MM/DD/YYYY
+                # Adjust format string based on your CSV parser output if different
+                # We'll assume ISO or common formats first, but parser might return raw string
+                # Let's try flexible parsing or assume parser normalized it if possible.
+                # For now, let's try standard formats.
+                # If parser returns raw, it might be '12/17/2024'.
+                for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d'):
+                    try:
+                        dt = datetime.strptime(open_date_str, fmt).date()
+                        if earliest_date is None or dt < earliest_date:
+                            earliest_date = dt
+                        break
+                    except ValueError:
+                        continue
+            except Exception:
+                pass
+    
+    if earliest_date:
+        return (datetime.now().date() - earliest_date).days
+    return 0
+
+
 def triage_cluster(
     legs: List[Dict[str, Any]],
     context: TriageContext
@@ -135,6 +169,7 @@ def triage_cluster(
     market_config = context['market_config']
     strategies = context['strategies']
     traffic_jam_friction = context['traffic_jam_friction']
+    net_liquidity = context.get('net_liquidity', 50000.0) # Default if missing
 
     root = get_root_symbol(legs[0]['Symbol'])
 
@@ -156,11 +191,13 @@ def triage_cluster(
     # Set Defaults from Rules
     target_profit_pct = rules['profit_harvest_pct']
     gamma_trigger_dte = rules['gamma_dte_threshold']
+    earnings_stance = "avoid" # Default to caution
 
     # Override with Strategy Specifics if available
     if strategy_config:
         target_profit_pct = strategy_config['management']['profit_target_pct']
         gamma_trigger_dte = strategy_config['metadata']['gamma_trigger_dte']
+        earnings_stance = strategy_config['metadata'].get('earnings_stance', 'avoid')
 
     strategy_delta = 0.0
     for l in legs:
@@ -175,6 +212,9 @@ def triage_cluster(
             pl_pct = net_pl / max_profit
     elif net_cost > 0:
         pl_pct = net_pl / net_cost
+
+    # Calculate Days Held for Velocity
+    days_held = calculate_days_held(legs)
 
     # Initialize variables
     action_code = None
@@ -192,13 +232,42 @@ def triage_cluster(
     sector = m_data.get('sector', 'Unknown')
     proxy_note = m_data.get('proxy')
 
-    # 1. Harvest (Short Premium only)
+    # --- 0. Size Threat Check (New) ---
+    # Check if margin usage exceeds threshold (e.g., 5% of Net Liq)
+    # Use absolute net cost as a proxy for margin/capital usage
+    capital_usage = abs(net_cost)
+    size_threat_pct = rules.get('size_threat_pct', 0.05)
+    
+    if net_liquidity > 0 and (capital_usage / net_liquidity) > size_threat_pct:
+        # Only flag if not already a winner (winning big positions are good problems)
+        # But even winners should be trimmed. Let's make it a warning.
+        is_size_threat = True
+    else:
+        is_size_threat = False
+
+
+    # --- 1. Harvest Logic (Enhanced with Velocity) ---
+    # Standard Harvest
     if net_cost < 0 and pl_pct is not None and pl_pct >= target_profit_pct:
         action_code = "HARVEST"
         logic = f"Profit {pl_pct:.1%} (Target: {target_profit_pct:.0%})"
         is_winner = True
+    
+    # Velocity Harvest (Early Profit)
+    # If profit > 25% AND held < 5 days
+    elif net_cost < 0 and pl_pct is not None and pl_pct >= 0.25 and 0 < days_held < 5:
+        action_code = "HARVEST"
+        logic = f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
+        is_winner = True
 
-    # 2. Defense
+    # Size Threat Action (If not already harvesting)
+    if not is_winner and is_size_threat:
+        usage_pct = (capital_usage / net_liquidity)
+        action_code = "SIZE_THREAT"
+        logic = f"Size {usage_pct:.1%} > Limit {size_threat_pct:.0%}"
+
+
+    # --- 2. Defense ---
     underlying_price = parse_currency(legs[0]['Underlying Last Price'])
     price_used = "static"
     # Use live price if available
@@ -217,16 +286,16 @@ def triage_cluster(
             if otype == 'Call' and underlying_price > strike: is_tested = True
             elif otype == 'Put' and underlying_price < strike: is_tested = True
 
-    if not is_winner and is_tested and dte < gamma_trigger_dte:
+    if not is_winner and not action_code and is_tested and dte < gamma_trigger_dte:
         action_code = "DEFENSE"
         logic = f"Tested & < {gamma_trigger_dte} DTE"
 
-    # 3. Gamma Zone (apply even if P/L% is unknown)
-    if not is_winner and not is_tested and dte < gamma_trigger_dte and dte > 0:
+    # --- 3. Gamma Zone ---
+    if not is_winner and not action_code and not is_tested and dte < gamma_trigger_dte and dte > 0:
         action_code = "GAMMA"
         logic = f"< {gamma_trigger_dte} DTE Risk"
 
-    # 4. Hedge Detection (Protect structural hedges from ZOMBIE flag)
+    # --- 4. Hedge Detection ---
     is_hedge = detect_hedge_tag(
         root=root,
         strategy_name=strategy_name,
@@ -235,43 +304,61 @@ def triage_cluster(
         rules=rules
     )
 
-    # 4.5. Hedge Check (Review protective positions)
-    if is_hedge and not is_winner and not is_tested and dte > gamma_trigger_dte:
-        # Check if this would have been flagged as ZOMBIE
+    # 4.5. Hedge Check
+    if is_hedge and not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte:
         if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
             if vol_bias is not None and vol_bias < rules['dead_money_vol_bias_threshold']:
                 action_code = "HEDGE_CHECK"
-                logic = f"Protective hedge on {root}. Review: Is protection still relevant?"
+                logic = f"Protective hedge on {root}. Review utility."
 
-    # 5. Dead Money (Enhanced with Real-time Vol Bias) - SKIP FOR HEDGES
-    if not is_winner and not is_tested and dte > gamma_trigger_dte and not is_hedge:
+    # --- 5. Dead Money ---
+    if not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
         if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
             if vol_bias > 0 and vol_bias < rules['dead_money_vol_bias_threshold']:
                 action_code = "ZOMBIE"
                 logic = f"Bias {vol_bias:.2f} & Flat P/L"
             elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
-                 # Fallback if no live data
                  action_code = "ZOMBIE"
                  logic = "Low IVR (Stale) & Flat P/L"
 
-    # 6. Earnings Warning
+    # --- 6. Earnings Check (Enhanced with Stance) ---
     earnings_note = ""
     if earnings_date and earnings_date != "Unavailable":
         try:
             edate = datetime.fromisoformat(earnings_date).date()
             days_to_earn = (edate - datetime.now().date()).days
+            
             if 0 <= days_to_earn <= rules['earnings_days_threshold']:
-                earnings_note = f"Earnings {days_to_earn}d (Binary Event)"
-                if not action_code:
-                    action_code = "EARNINGS_WARNING"
-                    logic = "Binary Event Risk"
-                logic = f"{logic} | {earnings_note}" if logic else earnings_note
+                earnings_note = f"Earnings {days_to_earn}d"
+                
+                # Logic based on Earnings Stance
+                if earnings_stance == "avoid":
+                    # Standard warning for short vol
+                    if not action_code:
+                        action_code = "EARNINGS_WARNING"
+                        logic = "Binary Event Risk (Avoid)"
+                    elif action_code == "HARVEST":
+                        # If harvesting, emphasize closing before event
+                        logic = f"{logic} | Close before Earnings!"
+                
+                elif earnings_stance == "long_vol":
+                    # Opportunity for long vol
+                    earnings_note = f"{earnings_note} (Play)"
+                    # Do NOT flag as warning, just append note
+                
+                elif earnings_stance == "neutral":
+                    # Just informational
+                    pass
+                
+                # Append note to logic if not already main reason
+                if action_code != "EARNINGS_WARNING":
+                     logic = f"{logic} | {earnings_note}" if logic else earnings_note
+
         except (ValueError, TypeError):
             pass
 
     price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
     if (price_used != "live" or is_stale) and not is_winner and dte < gamma_trigger_dte:
-        # If we can't rely fully on tested logic due to stale/absent live price, note it
         note = "Price stale/absent; tested status uncertain"
         logic = f"{logic} | {note}" if logic else note
 
@@ -289,7 +376,7 @@ def triage_cluster(
         'logic': logic,
         'sector': sector,
         'delta': strategy_delta,
-        'is_hedge': is_hedge  # NEW
+        'is_hedge': is_hedge
     }
 
 

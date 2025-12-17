@@ -70,7 +70,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         'market_config': MARKET_CONFIG,
         'strategies': STRATEGIES,
         'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
-        'portfolio_beta_delta': 0.0  # Placeholder for first pass
+        'portfolio_beta_delta': 0.0,  # Placeholder for first pass
+        'net_liquidity': RULES.get('net_liquidity', 50000.0) # Default
     }
     _, preliminary_metrics = triage_portfolio(clusters, preliminary_context)
 
@@ -81,7 +82,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         'market_config': MARKET_CONFIG,
         'strategies': STRATEGIES,
         'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
-        'portfolio_beta_delta': preliminary_metrics['total_beta_delta']
+        'portfolio_beta_delta': preliminary_metrics['total_beta_delta'],
+        'net_liquidity': RULES.get('net_liquidity', 50000.0)
     }
     all_position_reports, metrics = triage_portfolio(clusters, triage_context)
 
