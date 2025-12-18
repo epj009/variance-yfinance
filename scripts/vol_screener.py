@@ -73,15 +73,37 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
                 return True
     return False
 
-def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
+def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
     return {
         'is_rich': bool(vol_bias is not None and vol_bias > rules.get('vol_bias_rich_threshold', 1.0)),
         'is_fair': bool(vol_bias is not None and rules['vol_bias_threshold'] < vol_bias <= rules.get('vol_bias_rich_threshold', 1.0)),
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
         'is_coiled': bool(compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.5)),
-        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.0))
+        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.0)),
+        'is_cheap': bool(nvrp is not None and nvrp < rules.get('nvrp_cheap_threshold', -0.10))
     }
+
+def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules: Dict[str, Any]) -> str:
+    """
+    Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
+    Hierarchy: EVENT > DISCOUNT > COILED > RICH > FAIR
+    """
+    if flags['is_earnings_soon']:
+        return "EVENT"
+    
+    if flags.get('is_cheap'): # NVRP < -10%
+        return "DISCOUNT"
+        
+    if flags['is_coiled']: # Ratio < 0.75
+        return "COILED"
+        
+    # Rich Logic: Not coiled, but high markup
+    # If NVRP > 20% (0.20)
+    if nvrp is not None and nvrp > 0.20:
+        return "RICH"
+        
+    return "FAIR"
 
 def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) -> float:
     """
@@ -291,7 +313,10 @@ def screen_volatility(
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vol_bias, days_to_earnings, compression_ratio, RULES)
+        flags = _create_candidate_flags(vol_bias, days_to_earnings, compression_ratio, nvrp, RULES)
+        
+        # Determine Signal Type
+        signal_type = _determine_signal_type(flags, nvrp, RULES)
         
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, RULES)
@@ -308,6 +333,7 @@ def screen_volatility(
             'Vol Bias 20': metrics.get('vol_bias_20'), # Add Vol Bias 20 here
             'NVRP': nvrp,
             'Score': variance_score, # The Golden Metric
+            'Signal': signal_type,
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
             'Sector': sector, # Include sector in candidate data for JSON output
@@ -320,15 +346,17 @@ def screen_volatility(
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
-    # 4. Sort by signal quality: Variance Score (Desc), then Proxy bias second
+    # 4. Sort by signal quality: Variance Score (Desc), then NVRP, then Proxy bias last
     def _signal_key(c):
         # Sorting Logic:
         # 1. Primary Key: Variance Score (Descending). Higher is better.
-        # 2. Secondary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
+        # 2. Secondary Key: NVRP (Descending). Fattest premium markup over movement.
+        # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
         score = c['Score']
+        nvrp = c.get('NVRP') or -9.9 # Default to low if missing
         proxy = c.get('Proxy')
         quality = 1 if proxy else 0
-        return (score, -quality) # Sort by Score DESC, then Quality ASC (real first)
+        return (score, nvrp, -quality) # Sort by Score DESC, then NVRP DESC, then Quality ASC (real first)
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
