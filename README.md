@@ -6,10 +6,12 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 
 ## 🚀 Key Features
 
-*   **🛡️ Coiled Spring Detection (`🗜️`)**: Automatically flags "Traps" where high Implied Volatility is driven by price compression rather than fear. Prevents buying into breakouts.
-*   **📊 NVRP (Normalized Volatility Risk Premium)**: Calculates the exact "Insurer's Markup" you are collecting over recent realized volatility.
-*   **🔥 Vol Bias**: Identifies structural edges where `IV > HV` on an annualized basis.
+*   **📡 Signal Synthesis**: Automatically synthesizes Vol Bias, NVRP, and Compression into a single, actionable regime signal (`RICH`, `COILED`, `DISCOUNT`).
+*   **🧠 Strategy Menu**: Maps the mathematical state of the market to specific option mechanics (e.g., "Coiled" → "Iron Condor").
+*   **🛡️ Coiled Spring Detection (`🗜️`)**: Prevents buying into breakout traps by detecting price compression.
+*   **📊 NVRP Ranking**: Sorts opportunities by the **"Insurer's Markup"**—the premium you collect relative to actual movement.
 *   **🧘 Zero-Auth**: Uses `yfinance` for market data. No brokerage API keys required.
+*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface.
 
 ## 🛠️ Architecture
 
@@ -22,18 +24,23 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 ### 1. The "Vol Bias" (Structural Edge)
 *   **Formula**: `IV30 / HV252`
 *   **Goal**: Find assets that are expensive relative to their long-term behavior.
-*   **Signal**: > 1.0 = **Rich** (`🔥`).
+*   **Signal**: > 1.0 = **Rich**.
 
-### 2. The "Compression Ratio" (Safety Shim)
-*   **Formula**: `HV20 / HV252`
-*   **Goal**: Detect "Coiled Springs" — assets that have stopped moving and are priming for a breakout.
-*   **Signal**: < 0.75 = **Coiled** (`🗜️`).
-*   **Action**: If Coiled, enforce **Defined Risk** (Iron Condors). Avoid Strangles.
-
-### 3. NVRP (Tactical Edge)
+### 2. NVRP (Tactical Edge)
 *   **Formula**: `(IV30 - HV20) / HV20`
 *   **Goal**: Measure the "Premium Markup" relative to *current* market conditions.
 *   **Signal**: Positive % = You are selling over-priced insurance.
+
+### 3. The "Signal" Logic (Regime Detection)
+The system synthesizes multiple metrics into a single "Signal" for the TUI:
+
+| Signal | Icon | Condition | Meaning | Strategy |
+| :--- | :--- | :--- | :--- | :--- |
+| **RICH** | `🚀` | `NVRP > 20%` & `Ratio > 1.0` | High Premium, Expanding Vol. | **Short Strangle** |
+| **COILED** | `🗜️` | `Ratio < 0.75` | Price is squeezed. Breakout imminent. | **Iron Condor** |
+| **DISCOUNT** | `❄️` | `NVRP < -10%` | Options are underpriced. | **Long Straddle** |
+| **EVENT** | `📅` | `Earnings < 5d` | Binary event risk. | **Avoid / Spec** |
+| **FAIR** | `😐` | None of above | Fairly priced risk. | **Pass** |
 
 ## 📦 Installation
 
@@ -72,7 +79,7 @@ Scan your watchlist for new opportunities using the "Rich & Coiled" filter.
 ```bash
 ./venv/bin/python3 scripts/vol_screener.py
 ```
-*Outputs JSON candidates with flags for Rich (`🔥`) and Coiled (`🗜️`).*
+*Outputs a ranked list of opportunities sorted by NVRP (Markup), with specific strategy recommendations.*
 
 ## ⚙️ Configuration
 
@@ -80,6 +87,7 @@ Control the engine's physics in `config/trading_rules.json`:
 
 *   `vol_bias_rich_threshold`: Level to trigger "Fire" (Default: 1.0)
 *   `compression_coiled_threshold`: Level to trigger "Clamp" (Default: 0.75)
+*   `nvrp_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
 *   `net_liquidity`: Your account size (used for risk sizing).
 
 ## 📂 Project Structure
