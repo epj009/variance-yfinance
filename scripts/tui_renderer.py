@@ -10,7 +10,7 @@ def visible_len(s):
     
     # Heuristic for wide emojis that have len=1 in Python but width=2 in terminal
     # These cause misalignment if not accounted for.
-    wide_len_1 = ["🔥", "🦇", "🌀", "📅", "✅", "💰", "💀", "🐳", "❓", "🚀", "😐"]
+    wide_len_1 = ["💸", "🤝", "🦇", "📅", "✅", "💰", "💀", "🐳", "❓"]
     
     for char in wide_len_1:
         length += s.count(char)
@@ -347,7 +347,7 @@ class TUIRenderer:
             return ""
 
         output = [
-            "🔍 VOL SCREENER OPPORTUNITIES (Top 10)",
+            "🔍 VOL SCREENER OPPORTUNITIES",
             "   High Vol Bias candidates for portfolio diversification",
             ""
         ]
@@ -362,11 +362,11 @@ class TUIRenderer:
             output.append(f"   ⚠️  {excluded_count} concentrated position(s) excluded: {excluded_str}")
             output.append("")
 
-        # Take top 10
-        top_opps = candidates[:10]
+        # Show all candidates
+        top_opps = candidates
 
         # Header row
-        output.append("┌────────┬────────────┬────────┬─────────┬──────────────┬─────────────────┬─────────────────┐")
+        output.append("┌────────┬────────────┬────────┬─────────┬──────────────┬─────────────────┐")
         output.append(f"│ {'Symbol':<6} │ {'Price':<10} │ {'Bias':<6} │ {'NVRP':<7} │ {'Signal':<12} │ {'Strategy':<15} │ {'Asset Class':<15} │")
         output.append("├────────┼────────────┼────────┼─────────┼──────────────┼─────────────────┼─────────────────┤")
 
@@ -416,12 +416,12 @@ class TUIRenderer:
                 sig_display = "📅 Event"
             elif sig_raw == "DISCOUNT":
                 sig_display = "❄️ Cheap"
-            elif sig_raw == "COILED":
-                sig_display = "🗜️ Coiled"
+            elif sig_raw == "BOUND":
+                sig_display = "↔️ Bound"
             elif sig_raw == "RICH":
-                sig_display = "🚀 Rich"
+                sig_display = "💸 Rich"
             else: # FAIR
-                sig_display = "😐 Fair"
+                sig_display = "🤝 Fair"
                 
             # Padding
             pad_len = 12 - visible_len(sig_display)
@@ -435,7 +435,7 @@ class TUIRenderer:
 
         # Legend
         output.append("")
-        output.append("   Legend: 🔥 Rich | 🗜️ Coiled | ❄️ Cheap | 📅 Event | 😐 Fair")
+        output.append("   Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🤝 Fair")
 
         return "\n".join(output)
 
