@@ -58,9 +58,12 @@ When the user asks for new trades, you act as the **Strategist**:
 *   **Interpret Environment:** The screener now returns an **Environment** (e.g., "High IV / Neutral (Defined)") rather than a specific strategy.
 *   **The Strategist Workflow:**
     1.  **Read Screener Data:** Identify symbols with high **NVRP** and a clear **Signal** (RICH, BOUND, etc.).
-    2.  **Consult Playbook:** Cross-reference the symbol's **Environment** and **Signal** with `docs/STRATEGY_PLAYBOOK.md` and `docs/tastylive_strategies.json`.
-    3.  **Map to Mechanics:** If Environment is "High IV / Neutral (Undefined)", the Playbook suggests a **Short Strangle**. If "High IV / Neutral (Defined)", it suggests an **Iron Condor**.
-    4.  **Recommend:** Provide the trade recommendation with the specific management rules (Profit Target, Stop Loss) found in the docs.
+    2.  **Consult Playbook:** Cross-reference the symbol's **Environment** and **Signal** with `docs/STRATEGY_PLAYBOOK.md` and the enriched data in `config/strategies.json`.
+    3.  **Map to Mechanics:**
+        *   If Environment is **High IV / Neutral (Undefined)**: Select a strategy like **Strangle** from the rules.
+        *   If Environment is **High IV / Neutral (Defined)**: Select **Iron Condor**.
+        *   If Environment is **Low IV / Vol Expansion**: Select **Calendar** or **Diagonal**.
+    4.  **Recommend:** Provide the trade recommendation with specific management rules (Profit Target, Stop Loss, Win Rate) found in `config/strategies.json`.
 *   **Risk Filters:**
     *   **HV Rank Traps:** Avoid symbols with high Vol Bias but extremely low realized volatility history.
     *   **Diversification:** Prioritize Commodities (/CL, /GC) or FX (/6C, /6E) if the portfolio is Equity-heavy.

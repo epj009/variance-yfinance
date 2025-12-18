@@ -7,7 +7,9 @@
       "legs_description": "Long 100 shares with short OTM/ATM call to reduce cost basis and cap upside.",
       "directional_assumption": "Bullish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Long 100 shares with short OTM/ATM call to reduce cost basis and cap upside.",
+      "probability_of_profit": "50% to 70%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -16,15 +18,18 @@
       "management_mechanics": {
         "profit_taking": "50% of collected credit or ~21 DTE roll/close.",
         "defense": "Call ITM: Roll up and out (higher strike, later date) for a Net Credit.",
-        "rolling": "Stock Drops: Roll the Call down to generate more credit, but avoid locking in loss."
+        "rolling": "Stock Drops: Roll the Call down to generate more credit, but avoid locking in loss.",
+        "roll_guidance": "Roll short call 21-28 DTE for credit; avoid rolling below breakeven."
       }
     },
     "metadata": {
       "win_rate": "50% to 70%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received + stock gains up to short call strike.",
+      "max_loss": "Stock purchase price - call credit (downside to zero).",
+      "breakeven": "Stock cost basis - call credit."
     }
   },
   {
@@ -35,7 +40,9 @@
       "legs_description": "Bullish defined-risk debit: buy ITM/ATM call, sell higher strike call.",
       "directional_assumption": "Bullish",
       "iv_environment": "Any",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Bullish defined-risk debit: buy ITM/ATM call, sell higher strike call.",
+      "probability_of_profit": "40% to 60%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -44,14 +51,18 @@
       "management_mechanics": {
         "profit_taking": "50% of max profit.",
         "defense": "Generally do nothing. Defined risk.",
-        "rolling": "Rarely roll. If IV crushes, maybe."
+        "rolling": "Rarely roll. If IV crushes, maybe.",
+        "roll_guidance": "Defined risk; usually close rather than roll."
       }
     },
     "metadata": {
       "win_rate": "40% to 60%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width of strikes - debit paid.",
+      "max_loss": "Debit paid.",
+      "breakeven": "Long call strike + net debit."
     }
   },
   {
@@ -62,7 +73,9 @@
       "legs_description": "Synthetic long stock: buy 2 ITM calls, sell 1 ATM/near ATM call to remove extrinsic.",
       "directional_assumption": "Bullish",
       "iv_environment": "Any",
-      "ideal_dte": "Any"
+      "ideal_dte": "Any",
+      "description": "Synthetic long stock: buy 2 ITM calls, sell 1 ATM/near ATM call to remove extrinsic.",
+      "probability_of_profit": "50%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -71,14 +84,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of debit or stock-like move toward short strike.",
         "defense": "Defined risk; do nothing.",
-        "rolling": "Close or roll structure if assumption holds."
+        "rolling": "Close or roll structure if assumption holds.",
+        "roll_guidance": "Close or roll entire structure if assumption holds."
       }
     },
     "metadata": {
       "win_rate": "50%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Unlimited above short strike.",
+      "max_loss": "Net debit paid.",
+      "breakeven": "Near long strike + any extrinsic debit."
     }
   },
   {
@@ -89,7 +106,9 @@
       "legs_description": "LEAP ITM call + short near-term OTM/ATM call to mimic covered call with lower capital.",
       "directional_assumption": "Bullish",
       "iv_environment": "Low",
-      "ideal_dte": "45 to 60"
+      "ideal_dte": "45 to 60",
+      "description": "LEAP ITM call + short near-term OTM/ATM call to mimic covered call with lower capital.",
+      "probability_of_profit": "50% to 60%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -98,14 +117,18 @@
       "management_mechanics": {
         "profit_taking": "50% of estimated max profit.",
         "defense": "Short ITM: Roll out to next cycle to reduce basis.",
-        "rolling": "Goal: Reduce debit to zero."
+        "rolling": "Goal: Reduce debit to zero.",
+        "roll_guidance": "Continuously roll short call for credit; keep long 9-12 months out."
       }
     },
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width between strikes minus net debit plus remaining long extrinsic.",
+      "max_loss": "Net debit paid.",
+      "breakeven": "Long strike + net debit - short call credit."
     }
   },
   {
@@ -116,7 +139,9 @@
       "legs_description": "Buy longer-dated call, sell near-term call same strike; neutral to mildly bullish vol play.",
       "directional_assumption": "Bullish",
       "iv_environment": "Low",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Buy longer-dated call, sell near-term call same strike; neutral to mildly bullish vol play.",
+      "probability_of_profit": "N/A"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -125,14 +150,18 @@
       "management_mechanics": {
         "profit_taking": "10-25% of debit on IV expansion/decay.",
         "defense": "Short ITM: Roll out to next cycle to reduce basis.",
-        "rolling": "Goal: Reduce debit to zero."
+        "rolling": "Goal: Reduce debit to zero.",
+        "roll_guidance": "Roll short call out if near expiry and long still holds value."
       }
     },
     "metadata": {
       "win_rate": "N/A",
       "gamma_trigger_dte": 14,
       "earnings_stance": "long_vol",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Variable (vega/time spread near strike).",
+      "max_loss": "Debit paid.",
+      "breakeven": "Near strike after front-month decay; roughly short strike +/- portion of debit."
     }
   },
   {
@@ -143,7 +172,9 @@
       "legs_description": "Defined-risk, low-probability bullish pin: long call spread plus short call spread sharing body.",
       "directional_assumption": "Bullish",
       "iv_environment": "Any",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Defined-risk, low-probability bullish pin: long call spread plus short call spread sharing body.",
+      "probability_of_profit": "20% to 40%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -152,13 +183,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit.",
         "defense": "Do not roll tested side. Roll untested wing closer.",
-        "rolling": "Hold through expiration or close at stop."
+        "rolling": "Hold through expiration or close at stop.",
+        "roll_guidance": "Close before expiration to avoid assignment; rarely roll."
       }
     },
     "metadata": {
       "win_rate": "20% to 40%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width of long spread - debit paid at body strike.",
+      "max_loss": "Debit paid.",
+      "breakeven": "Lower wing + debit; upper wing - debit."
     }
   },
   {
@@ -169,7 +204,9 @@
       "legs_description": "ATM short put + short call vertical same body; credit > call spread width to remove upside risk.",
       "directional_assumption": "Bullish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "ATM short put + short call vertical same body; credit > call spread width to remove upside risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -178,14 +215,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit.",
         "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
-        "rolling": "Roll put leg for credit."
+        "rolling": "Roll put leg for credit.",
+        "roll_guidance": "Roll put/convert to defined risk if needed; keep credit > call spread width."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Downside: short put strike minus credit (stock-like). Upside capped only if credit < call spread width.",
+      "breakeven": "Short put strike - credit received."
     }
   },
   {
@@ -196,7 +237,9 @@
       "legs_description": "Short 100 shares with short OTM/ATM put to reduce cost basis and cap downside gains.",
       "directional_assumption": "Bearish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Short 100 shares with short OTM/ATM put to reduce cost basis and cap downside gains.",
+      "probability_of_profit": "50% to 70%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -205,14 +248,18 @@
       "management_mechanics": {
         "profit_taking": "50% of collected credit or ~21 DTE roll/close.",
         "defense": "ITM: Roll down and out for credit. Stock Rises: Roll up.",
-        "rolling": "Always roll for credit."
+        "rolling": "Always roll for credit.",
+        "roll_guidance": "Roll short put 21-28 DTE for credit; avoid rolling above breakeven."
       }
     },
     "metadata": {
       "win_rate": "50% to 70%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received + stock drop to short put strike.",
+      "max_loss": "Unlimited upside on short stock offset by put credit.",
+      "breakeven": "Short stock entry - put credit."
     }
   },
   {
@@ -223,7 +270,9 @@
       "legs_description": "Bearish defined-risk debit: buy ITM/ATM put, sell lower strike put.",
       "directional_assumption": "Bearish",
       "iv_environment": "Any",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Bearish defined-risk debit: buy ITM/ATM put, sell lower strike put.",
+      "probability_of_profit": "50% to 60%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -232,14 +281,18 @@
       "management_mechanics": {
         "profit_taking": "50% of max profit.",
         "defense": "Generally do nothing. Defined risk.",
-        "rolling": "Rarely roll. If IV crushes, maybe."
+        "rolling": "Rarely roll. If IV crushes, maybe.",
+        "roll_guidance": "Defined risk; usually close rather than roll."
       }
     },
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width of strikes - debit paid.",
+      "max_loss": "Debit paid.",
+      "breakeven": "Long put strike - net debit."
     }
   },
   {
@@ -250,7 +303,9 @@
       "legs_description": "Synthetic short stock: buy 2 ITM puts, sell 1 ATM/near ATM put to strip extrinsic.",
       "directional_assumption": "Bearish",
       "iv_environment": "Any",
-      "ideal_dte": "Any"
+      "ideal_dte": "Any",
+      "description": "Synthetic short stock: buy 2 ITM puts, sell 1 ATM/near ATM put to strip extrinsic.",
+      "probability_of_profit": "50%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -259,14 +314,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of debit or stock-like move toward short strike.",
         "defense": "Defined risk; do nothing.",
-        "rolling": "Close or roll structure if assumption holds."
+        "rolling": "Close or roll structure if assumption holds.",
+        "roll_guidance": "Close or roll entire structure if assumption holds."
       }
     },
     "metadata": {
       "win_rate": "50%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Unlimited below short strike.",
+      "max_loss": "Net debit paid.",
+      "breakeven": "Near long strike - any extrinsic debit."
     }
   },
   {
@@ -277,7 +336,9 @@
       "legs_description": "LEAP ITM put + short near-term OTM/ATM put to mimic covered put with lower capital.",
       "directional_assumption": "Bearish",
       "iv_environment": "Low",
-      "ideal_dte": "45 to 60"
+      "ideal_dte": "45 to 60",
+      "description": "LEAP ITM put + short near-term OTM/ATM put to mimic covered put with lower capital.",
+      "probability_of_profit": "50% to 60%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -286,14 +347,18 @@
       "management_mechanics": {
         "profit_taking": "50% of estimated max profit.",
         "defense": "Short ITM: Roll out to next cycle to reduce basis.",
-        "rolling": "Goal: Reduce debit to zero."
+        "rolling": "Goal: Reduce debit to zero.",
+        "roll_guidance": "Continuously roll short put for credit; keep long 9-12 months out."
       }
     },
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width between strikes minus net debit plus remaining long extrinsic.",
+      "max_loss": "Net debit paid.",
+      "breakeven": "Long strike - net debit + short put credit."
     }
   },
   {
@@ -304,7 +369,9 @@
       "legs_description": "Buy longer-dated put, sell near-term put same strike; neutral to mildly bearish vol play.",
       "directional_assumption": "Bearish",
       "iv_environment": "Low",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Buy longer-dated put, sell near-term put same strike; neutral to mildly bearish vol play.",
+      "probability_of_profit": "N/A"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -313,14 +380,18 @@
       "management_mechanics": {
         "profit_taking": "10-25% of debit on IV expansion/decay.",
         "defense": "Short ITM: Roll out to next cycle to reduce basis.",
-        "rolling": "Goal: Reduce debit to zero."
+        "rolling": "Goal: Reduce debit to zero.",
+        "roll_guidance": "Roll short put out if near expiry and long still holds value."
       }
     },
     "metadata": {
       "win_rate": "N/A",
       "gamma_trigger_dte": 14,
       "earnings_stance": "long_vol",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Variable (vega/time spread near strike).",
+      "max_loss": "Debit paid.",
+      "breakeven": "Near strike after front-month decay; roughly short strike +/- portion of debit."
     }
   },
   {
@@ -331,7 +402,9 @@
       "legs_description": "Defined-risk, low-probability bearish pin: long put spread plus short put spread sharing body.",
       "directional_assumption": "Bearish",
       "iv_environment": "Any",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Defined-risk, low-probability bearish pin: long put spread plus short put spread sharing body.",
+      "probability_of_profit": "20% to 40%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -340,13 +413,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit.",
         "defense": "Do not roll tested side. Roll untested wing closer.",
-        "rolling": "Hold through expiration or close at stop."
+        "rolling": "Hold through expiration or close at stop.",
+        "roll_guidance": "Close before expiration to avoid assignment; rarely roll."
       }
     },
     "metadata": {
       "win_rate": "20% to 40%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Width of long spread - debit paid at body strike.",
+      "max_loss": "Debit paid.",
+      "breakeven": "Upper wing - debit; lower wing + debit."
     }
   },
   {
@@ -357,7 +434,9 @@
       "legs_description": "ATM short call + short put vertical same body; credit > put spread width to remove downside risk.",
       "directional_assumption": "Bearish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "ATM short call + short put vertical same body; credit > put spread width to remove downside risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -366,14 +445,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit.",
         "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
-        "rolling": "Roll put leg for credit."
+        "rolling": "Roll put leg for credit.",
+        "roll_guidance": "Roll call/convert to defined risk if needed; keep credit > put spread width."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Upside: short call strike + credit (stock-like). Downside capped if credit > put spread width.",
+      "breakeven": "Short call strike + credit received."
     }
   },
   {
@@ -384,7 +467,9 @@
       "legs_description": "Buy ATM/OTM put, sell two further OTM puts for a net credit/debit; bullish-to-neutral with downside tail risk.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Buy ATM/OTM put, sell two further OTM puts for a net credit/debit; bullish-to-neutral with downside tail risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -393,14 +478,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of embedded long spread value.",
         "defense": "Tested short: Roll naked unit out or close. Tested long: Hold.",
-        "rolling": "Roll naked unit for credit."
+        "rolling": "Roll naked unit for credit.",
+        "roll_guidance": "Roll out/convert to defined risk before deep ITM."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Long vertical value at short strike (width) minus any debit; grows toward short strike.",
+      "max_loss": "Naked short unit below lower short strike (the extra short put).",
+      "breakeven": "Lower short strike minus net credit/debit effect."
     }
   },
   {
@@ -411,7 +500,9 @@
       "legs_description": "Buy ATM/OTM call, sell two further OTM calls for a net credit/debit; bearish-to-neutral with upside tail risk.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Buy ATM/OTM call, sell two further OTM calls for a net credit/debit; bearish-to-neutral with upside tail risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -420,14 +511,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of embedded long spread value.",
         "defense": "Tested short: Roll naked unit out or close. Tested long: Hold.",
-        "rolling": "Roll naked unit for credit."
+        "rolling": "Roll naked unit for credit.",
+        "roll_guidance": "Roll out/convert to defined risk before deep ITM."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Long vertical value at short strike (width) minus any debit; grows toward short strike.",
+      "max_loss": "Naked short unit above upper short strike (the extra short call).",
+      "breakeven": "Upper short strike plus net credit/debit effect."
     }
   },
   {
@@ -438,7 +533,9 @@
       "legs_description": "Asymmetric put butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Asymmetric put butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -447,13 +544,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit/credit.",
         "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
-        "rolling": "Roll for credit if available."
+        "rolling": "Roll for credit if available.",
+        "roll_guidance": "If tested, roll toward symmetric fly for small debit; otherwise close."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit/debit-defined: maximum near body; if for credit, keep credit when all OTM.",
+      "max_loss": "Wider wing width minus credit (on the broken side).",
+      "breakeven": "Upper wing - credit; body +/- net debit/credit depending on structure."
     }
   },
   {
@@ -464,7 +565,9 @@
       "legs_description": "Asymmetric call butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "15 to 45"
+      "ideal_dte": "15 to 45",
+      "description": "Asymmetric call butterfly skewed to collect small credit or cheap debit; prefers pin near body.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -473,13 +576,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit/credit.",
         "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
-        "rolling": "Roll for credit if available."
+        "rolling": "Roll for credit if available.",
+        "roll_guidance": "If tested, roll toward symmetric fly for small debit; otherwise close."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit/debit-defined: maximum near body; if for credit, keep credit when all OTM.",
+      "max_loss": "Wider wing width minus credit (on the broken side).",
+      "breakeven": "Lower wing + credit; body +/- net debit/credit depending on structure."
     }
   },
   {
@@ -490,7 +597,9 @@
       "legs_description": "Disconnected call BWB (long call spread, wider short call spread) routed for credit to widen profit zone.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Disconnected call BWB (long call spread, wider short call spread) routed for credit to widen profit zone.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -499,13 +608,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit/credit.",
         "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
-        "rolling": "Roll for credit if available."
+        "rolling": "Roll for credit if available.",
+        "roll_guidance": "Close or reshape; assignment-sensitive."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Long call spread value + credit from short wider spread.",
+      "max_loss": "Net width difference minus credit (if routed for credit).",
+      "breakeven": "Near long spread wings; depends on widths/credit."
     }
   },
   {
@@ -516,7 +629,9 @@
       "legs_description": "Disconnected put BWB (long put spread, wider short put spread) routed for credit to widen profit zone.",
       "directional_assumption": "Omnidirectional",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Disconnected put BWB (long put spread, wider short put spread) routed for credit to widen profit zone.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -525,13 +640,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of max profit/credit.",
         "defense": "Defined risk; usually do nothing. If tested, roll short strike out.",
-        "rolling": "Roll for credit if available."
+        "rolling": "Roll for credit if available.",
+        "roll_guidance": "Close or reshape; assignment-sensitive."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 10,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Long put spread value + credit from short wider spread.",
+      "max_loss": "Net width difference minus credit (if routed for credit).",
+      "breakeven": "Near long spread wings; depends on widths/credit."
     }
   },
   {
@@ -542,7 +661,9 @@
       "legs_description": "Sell OTM call and OTM put; neutral, short vol premium play.",
       "directional_assumption": "Neutral",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Sell OTM call and OTM put; neutral, short vol premium play.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -551,14 +672,18 @@
       "management_mechanics": {
         "profit_taking": "50% of credit.",
         "defense": "Roll untested side closer (e.g. 30 Delta). If < 21 DTE, roll both legs out.",
-        "rolling": "Roll for credit. If inverted, look to scratch."
+        "rolling": "Roll for credit. If inverted, look to scratch.",
+        "roll_guidance": "Roll challenged side for credit; manage before/at 21 DTE."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Unlimited (both tails).",
+      "breakeven": "Put strike - credit; call strike + credit."
     }
   },
   {
@@ -569,7 +694,9 @@
       "legs_description": "Sell ATM call and ATM put; high-theta, high-gamma neutral premium sell.",
       "directional_assumption": "Neutral",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Sell ATM call and ATM put; high-theta, high-gamma neutral premium sell.",
+      "probability_of_profit": "50% to 60%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -578,14 +705,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit (faster exit due to gamma).",
         "defense": "Roll untested side. Manage gamma early.",
-        "rolling": "Roll for credit."
+        "rolling": "Roll for credit.",
+        "roll_guidance": "Roll challenged side/body for credit; manage before/at 21 DTE."
       }
     },
     "metadata": {
       "win_rate": "50% to 60%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Unlimited (both tails).",
+      "breakeven": "Strike +/- credit."
     }
   },
   {
@@ -596,7 +727,9 @@
       "legs_description": "Defined-risk short strangle using OTM put and call credit spreads.",
       "directional_assumption": "Neutral",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Defined-risk short strangle using OTM put and call credit spreads.",
+      "probability_of_profit": "60% to 80% The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides and the trade can be bought back for a profit over time."
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -605,15 +738,18 @@
       "management_mechanics": {
         "profit_taking": "50% of credit.",
         "defense": "Roll untested spread closer (turn into Iron Fly).",
-        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close."
+        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close.",
+        "roll_guidance": "Defined risk; usually close rather than roll unless for small credit."
       }
     },
     "metadata": {
       "win_rate": "60% to 80% The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides and the trade can be bought back for a profit over time.",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Max(width of one spread - credit).",
+      "breakeven": "Put spread short strike - credit; call spread short strike + credit."
     }
   },
   {
@@ -624,7 +760,9 @@
       "legs_description": "Iron condor with asymmetric wing widths sized to skew risk/credit.",
       "directional_assumption": "Neutral",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Iron condor with asymmetric wing widths sized to skew risk/credit.",
+      "probability_of_profit": "60% to 80% 1 Sell an OTM put spread 2 Sell an OTM call spread The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides, and the trade can be bought back for a profit over time."
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -633,14 +771,18 @@
       "management_mechanics": {
         "profit_taking": "50% of credit.",
         "defense": "Roll untested spread closer (turn into Iron Fly).",
-        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close."
+        "rolling": "Do not roll out in time unless credit > 10% of width. Usually close.",
+        "roll_guidance": "Defined risk; usually close rather than roll unless for small credit."
       }
     },
     "metadata": {
       "win_rate": "60% to 80% 1 Sell an OTM put spread 2 Sell an OTM call spread The stock stays between our strikes as time passes. This results in extrinsic value decay on both sides, and the trade can be bought back for a profit over time.",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Max(widest spread - credit).",
+      "breakeven": "Put short - credit; call short + credit (adjusted for widths)."
     }
   },
   {
@@ -651,7 +793,9 @@
       "legs_description": "ATM straddle wrapped with wings (defined-risk short straddle).",
       "directional_assumption": "Neutral",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "ATM straddle wrapped with wings (defined-risk short straddle).",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.25,
@@ -660,13 +804,17 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit.",
         "defense": "Do not roll tested side. Roll untested wing closer.",
-        "rolling": "Hold through expiration or close at stop."
+        "rolling": "Hold through expiration or close at stop.",
+        "roll_guidance": "Defined risk; close before expiry to avoid assignment."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 14,
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received at body.",
+      "max_loss": "Wing width - credit.",
+      "breakeven": "Body strike +/- (wing width - credit)."
     }
   },
   {
@@ -677,7 +825,9 @@
       "legs_description": "Sell OTM/ATM put; bullish premium sell with assignment risk.",
       "directional_assumption": "Neutral-Bullish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Sell OTM/ATM put; bullish premium sell with assignment risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -686,14 +836,18 @@
       "management_mechanics": {
         "profit_taking": "50% of credit.",
         "defense": "Tested & <21 DTE: Roll out for credit.",
-        "rolling": "Roll for credit or convert to defined risk."
+        "rolling": "Roll for credit or convert to defined risk.",
+        "roll_guidance": "Roll down/out for credit if tested; manage before/at 21 DTE."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Stock to zero minus credit.",
+      "breakeven": "Strike - credit."
     }
   },
   {
@@ -704,7 +858,9 @@
       "legs_description": "Bullish defined-risk put credit spread.",
       "directional_assumption": "Neutral-Bullish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Bullish defined-risk put credit spread.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -713,14 +869,18 @@
       "management_mechanics": {
         "profit_taking": "50% of max profit.",
         "defense": "Generally do nothing. Defined risk.",
-        "rolling": "Rarely roll. If IV crushes, maybe."
+        "rolling": "Rarely roll. If IV crushes, maybe.",
+        "roll_guidance": "Defined risk; close or roll as new spread if credit available."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Spread width - credit.",
+      "breakeven": "Short put strike - credit."
     }
   },
   {
@@ -731,7 +891,9 @@
       "legs_description": "Short OTM put + short OTM call spread, credit sized to remove upside risk.",
       "directional_assumption": "Neutral-Bullish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Short OTM put + short OTM call spread, credit sized to remove upside risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -740,14 +902,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit.",
         "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
-        "rolling": "Roll put leg for credit."
+        "rolling": "Roll put leg for credit.",
+        "roll_guidance": "Roll put/adjust call spread; keep credit > call spread width."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Downside: short put strike - credit. No upside risk if credit > call spread width.",
+      "breakeven": "Short put strike - credit received."
     }
   },
   {
@@ -758,7 +924,9 @@
       "legs_description": "Sell OTM/ATM call; bearish premium sell with unlimited upside risk.",
       "directional_assumption": "Neutral-Bearish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Sell OTM/ATM call; bearish premium sell with unlimited upside risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -767,14 +935,18 @@
       "management_mechanics": {
         "profit_taking": "50% of credit.",
         "defense": "Tested & <21 DTE: Roll out for credit.",
-        "rolling": "Roll for credit or convert to defined risk."
+        "rolling": "Roll for credit or convert to defined risk.",
+        "roll_guidance": "Roll up/out for credit if tested; manage before/at 21 DTE."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Unlimited above strike.",
+      "breakeven": "Strike + credit."
     }
   },
   {
@@ -785,7 +957,9 @@
       "legs_description": "Bearish defined-risk call credit spread.",
       "directional_assumption": "Neutral-Bearish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Bearish defined-risk call credit spread.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -794,14 +968,18 @@
       "management_mechanics": {
         "profit_taking": "50% of max profit.",
         "defense": "Generally do nothing. Defined risk.",
-        "rolling": "Rarely roll. If IV crushes, maybe."
+        "rolling": "Rarely roll. If IV crushes, maybe.",
+        "roll_guidance": "Defined risk; close or roll as new spread if credit available."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Spread width - credit.",
+      "breakeven": "Short call strike + credit."
     }
   },
   {
@@ -812,7 +990,9 @@
       "legs_description": "Short OTM call + short OTM put spread, credit sized to remove downside risk.",
       "directional_assumption": "Neutral-Bearish",
       "iv_environment": "High",
-      "ideal_dte": "45"
+      "ideal_dte": "45",
+      "description": "Short OTM call + short OTM put spread, credit sized to remove downside risk.",
+      "probability_of_profit": "60% to 80%"
     },
     "management": {
       "profit_target_pct": 0.5,
@@ -821,14 +1001,18 @@
       "management_mechanics": {
         "profit_taking": "25-50% of credit.",
         "defense": "Put ITM: Roll out or roll call spread down. Call ITM: Do nothing.",
-        "rolling": "Roll put leg for credit."
+        "rolling": "Roll put leg for credit.",
+        "roll_guidance": "Roll call/adjust put spread; keep credit > put spread width."
       }
     },
     "metadata": {
       "win_rate": "60% to 80%",
       "gamma_trigger_dte": 21,
       "earnings_stance": "avoid",
-      "source": "Variance Playbook"
+      "source": "Variance Playbook",
+      "max_profit": "Credit received.",
+      "max_loss": "Upside: short call strike + credit. No downside risk if credit > put spread width.",
+      "breakeven": "Short call strike + credit received."
     }
   }
 ]
