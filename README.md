@@ -2,146 +2,92 @@
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-MVC-forestgreen.svg)]() [![Output](https://img.shields.io/badge/output-JSON-lightgrey.svg)]()
 
-Variance is now a strict Model-View-Controller (MVC) system. The Python layer (`scripts/*.py`) is **Model-only**: it emits raw JSON (floats, bools, enums) with zero presentation logic. The LLM/Agent is the **View/Controller**, rendering the “Variance Visual Language” (badges, ASCII charts) from the raw codes (e.g., `action_code: "HARVEST"` → `💰 [HARVEST]`).
+Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It operates on a strict Model-View-Controller (MVC) architecture, where Python scripts act as the "Model" (emitting raw JSON), and an LLM-based CLI acts as the "View/Controller" (rendering the TUI and providing strategic guidance).
 
-## Architecture
-- **Model (Python scripts)**: Pure data emitters. No text, emojis, or formatting. Outputs JSON for downstream rendering.
-- **View/Controller (Agent prompt)**: Renders badges, ASCII charts, and human-readable guidance from raw fields and enums.
-- **Data Engine**: `scripts/get_market_data.py` uses a high-performance SQLite cache (WAL, thread-local connections) and strict data hygiene to protect against bad feeds.
+## 🚀 Key Features
 
-## Core Components
+*   **🛡️ Coiled Spring Detection (`🗜️`)**: Automatically flags "Traps" where high Implied Volatility is driven by price compression rather than fear. Prevents buying into breakouts.
+*   **📊 NVRP (Normalized Volatility Risk Premium)**: Calculates the exact "Insurer's Markup" you are collecting over recent realized volatility.
+*   **🔥 Vol Bias**: Identifies structural edges where `IV > HV` on an annualized basis.
+*   **🧘 Zero-Auth**: Uses `yfinance` for market data. No brokerage API keys required.
 
-### `scripts/get_market_data.py` (Engine)
-- **Performance**: WAL-mode SQLite with thread-local persistent connections (no connection thrashing).
-- **Resilience**: Rejects zero-liquidity chains, auto-corrects IV units (decimal vs percent), enforces strict 25–50 DTE windows, and uses proxy IV/HV where configured.
-- **Caching**: Never caches errors/None; lazy expiration with opportunistic pruning.
+## 🛠️ Architecture
 
-### `scripts/vol_screener.py` (Scanner)
-- **Output**: Raw JSON with flags (`is_rich`, `is_fair`, `is_illiquid`, `is_earnings_soon`, `is_bats_efficient`).
-- **Variance Score**: Ranks opportunities (0-100) using a weighted composite:
-  - **Structural Bias (50%)**: Is it historically expensive?
-  - **Tactical Bias (50%)**: Is there a short-term edge?
-  - **Penalty**: -50% for "Dead Zone" traps (High Bias + Low HV Rank).
-- **Asset Lineage**: Prevents correlation stacking using `FAMILY_MAP` (e.g., holding `SLV` automatically flags `/SI` and `SIVR` as held).
-- **Liquidity logic**: Defaults to ATM volume ≥ 50. Illiquid names are allowed if `Vol Bias > 1.2` (extreme edge).
-- **Concentration defense**: Supports `--exclude-symbols` and Family logic to avoid stacking risk.
+- **Model (Python)**: `scripts/*.py`. Pure data crunching. Outputs structured JSON.
+- **View (CLI)**: Renders the "Capital Console" TUI, visualizes risk with ASCII charts, and provides human-readable triage.
+- **Data Engine**: High-performance SQLite cache with WAL mode to respect API rate limits while maintaining speed.
 
-### `scripts/analyze_portfolio.py` (Triage)
-- **Output**: Raw JSON with `action_code` enums (`HARVEST`, `DEFENSE`, `GAMMA`, `ZOMBIE`, `EARNINGS_WARNING`, or `None`), `dte` ints, `pl_pct` ratios, `is_stale` flags.
-- **Strategy-Aware**: Applies strategy-specific profit targets and gamma thresholds from `config/strategies.json` (e.g., 50% for Strangles, 25% for Butterflies).
-- **Aggregation fix**: Ignores "Total" rows to prevent double-counting Beta Delta.
-- **Metrics**: Computes Friction Horizon (days of theta to clear spread costs) and Delta/Theta Ratio.
+## 🧠 Core Metrics & Logic
 
-## Prerequisites
-- **Python 3.10+**
-- **[Gemini CLI](https://www.npmjs.com/package/@google/generative-ai-cli)** - Install via npm:
-  ```bash
-  npm install -g @google/generative-ai-cli
-  ```
-- **Google Account** - Authenticate Gemini CLI (free tier available):
-  ```bash
-  gemini auth
-  ```
+### 1. The "Vol Bias" (Structural Edge)
+*   **Formula**: `IV30 / HV252`
+*   **Goal**: Find assets that are expensive relative to their long-term behavior.
+*   **Signal**: > 1.0 = **Rich** (`🔥`).
 
-## Installation
+### 2. The "Compression Ratio" (Safety Shim)
+*   **Formula**: `HV20 / HV252`
+*   **Goal**: Detect "Coiled Springs" — assets that have stopped moving and are priming for a breakout.
+*   **Signal**: < 0.75 = **Coiled** (`🗜️`).
+*   **Action**: If Coiled, enforce **Defined Risk** (Iron Condors). Avoid Strangles.
+
+### 3. NVRP (Tactical Edge)
+*   **Formula**: `(IV30 - HV20) / HV20`
+*   **Goal**: Measure the "Premium Markup" relative to *current* market conditions.
+*   **Signal**: Positive % = You are selling over-priced insurance.
+
+## 📦 Installation
+
 ```bash
 # 1. Clone the repository
-git clone https://github.com/epj009/options-alchemist.git variance
+git clone https://github.com/epj009/variance-yfinance.git variance
 cd variance
 
-# 2. Create virtual environment and install dependencies
+# 2. Create virtual environment
 python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+source venv/bin/activate
+pip install -r requirements.txt
 
-# 3. Set up Gemini CLI persona (for interactive ./variance sessions)
+# 3. (Optional) Set up Gemini CLI for the interactive Persona
+#    (Required only if you want the AI trading assistant features)
 mkdir -p .gemini
 cp variance-system-prompt.md .gemini/GEMINI.md
 ```
 
-**Note:** The `variance-system-prompt.md` file defines the Variance trading persona. Copying it to `.gemini/GEMINI.md` enables the persona when running `./variance` interactively, while keeping MCP Gemini calls (used by Claude Code agents) persona-free for pure architect/developer/qa work.
+## 🚦 Usage
 
-## Quick Start
+### 1. Portfolio Triage (Daily Routine)
+Analyze your current positions for harvest targets, gamma risk, and mechanical defense.
 
-**First time setup - Add a portfolio:**
+**Step 1:** Export your positions from your broker (e.g., Tastytrade) to a CSV file in `positions/`.
+
+**Step 2:** Run the engine.
 ```bash
-# Option A: Use the sample portfolio (for testing)
-mkdir -p positions
-cp util/sample_positions.csv positions/
-
-# Option B: Export your own portfolio from Tastytrade
-# Download CSV from Tastytrade → Positions → Export
-# Save to positions/ directory
-```
-
-**Run Variance:**
-```bash
-# Interactive mode - Gemini analyzes latest portfolio and provides trading guidance
 ./variance
-
-# Or run direct Python analysis (JSON output only)
-./venv/bin/python3 scripts/analyze_portfolio.py positions/<your-file>.csv
 ```
+*This wrapper script automatically finds the newest CSV in `positions/`, analyzes it, and launches the dashboard.*
 
-The `./variance` script launches an interactive Gemini session that:
-1. Automatically finds and analyzes your latest portfolio CSV
-2. Identifies actionable trades (harvest winners, defend losers, gamma risks)
-3. Screens for new volatility opportunities based on current IV/HV
-4. Allows follow-up questions about specific positions or strategies
+### 2. Volatility Scanning
+Scan your watchlist for new opportunities using the "Rich & Coiled" filter.
 
-## Usage (Model commands)
-- **Daily Triage**  
-  ```bash
-  ./venv/bin/python3 scripts/analyze_portfolio.py positions/<latest>.csv
-  ```
-- **Opportunity Scan**  
-  ```bash
-  ./venv/bin/python3 scripts/vol_screener.py
-  ```
-- **Concentration Defense**  
-  ```bash
-  ./venv/bin/python3 scripts/vol_screener.py --exclude-symbols "NVDA,TSLA"
-  ```
+```bash
+./venv/bin/python3 scripts/vol_screener.py
+```
+*Outputs JSON candidates with flags for Rich (`🔥`) and Coiled (`🗜️`).*
 
-### Key Metrics
+## ⚙️ Configuration
 
-### Two-Factor Entry Filter
-The vol screener implements a robust two-factor filter for optimal premium selling entries:
+Control the engine's physics in `config/trading_rules.json`:
 
-1. **Vol Bias > 1.0**: `IV30 / HV252` - Statistical edge (IV > HV)
-2. **HV Rank > 15%**: Market activity filter (avoid dead markets)
+*   `vol_bias_rich_threshold`: Level to trigger "Fire" (Default: 1.0)
+*   `compression_coiled_threshold`: Level to trigger "Clamp" (Default: 0.75)
+*   `net_liquidity`: Your account size (used for risk sizing).
 
-### Metric Definitions
+## 📂 Project Structure
 
-- **Structural Vol Bias**: `IV30 / HV252` - Primary signal for rich premiums (Climate)
-  - Measures long-term relative value: Is implied volatility higher than the last year's realized volatility?
-  - **Purpose**: Identifies expensive asset classes (Structural Edge).
-  - Threshold: 1.0
+*   `scripts/`: Python logic (Screener, Analyzer, Renderer).
+*   `config/`: JSON rules and strategy definitions.
+*   `positions/`: Place your portfolio CSV exports here.
+*   `variance`: Main launcher script.
 
-- **Tactical Vol Bias**: `IV30 / HV20` - Immediate entry signal (Weather)
-  - Measures short-term mean reversion: Is implied volatility higher than the last month's realized volatility?
-  - **Purpose**: Identifies "Fear Bubbles" where IV stays high despite price stabilizing (Tactical Edge).
-  - Use case: Catching the post-earnings "crush" or mean reversion after a panic.
-
-- **HV Rank**: Percentile of current 30-day HV vs 1-year rolling HVs (0-100%)
-  - **Purpose**: Regime detection - Is the market active or dead?
-  - **Short Vol Trap Detection**: Filters symbols with Vol Bias > 1.0 AND HV Rank < 15%
-  - **Prevents**: Selling premium in crushed volatility regimes (expansion risk)
-  - **Example**: /6A with Vol Bias 2.05 but HV Rank 5% = TRAP (market asleep)
-  - **Configurable**: `hv_rank_trap_threshold` in `trading_rules.json` (default: 15%)
-  - **Data Source**: Yahoo Finance (calculated locally, zero dependencies)
-
-- **Bat's Efficiency Zone**: Price $15–$75 AND Vol Bias > 1.0
-- **Friction Horizon**: `Total Liquidity Cost / Daily Portfolio Theta`
-
-## Configuration
-- `config/system_config.json`: Cache DB path, TTLs.
-- `config/market_config.json`: Symbol map, sector overrides, futures proxies, skip lists.
-- `config/trading_rules.json`: Vol Bias thresholds, DTE gates, profit targets, delta limits, three-factor filter thresholds:
-  - `vol_bias_rich_threshold`: 1.0 (IV > HV requirement)
-  - `hv_rank_trap_threshold`: 15.0 (minimum market activity)
-- `config/strategies.json`: Strategy-specific management rules (profit targets, gamma DTEs, defense mechanics) for 30+ option strategies.
-
-## Notes
-- Models emit raw JSON only; all rendering lives in the system prompt (View/Controller).
-- Data hygiene is strict: zero-liquidity chains are rejected, IV units auto-corrected, DTE window enforced.
-- Illiquid scanner overrides are explicit; use `--show-illiquid` plus `Vol Bias > 1.2` to surface edge cases.
+## ⚠️ Disclaimer
+Variance is a research tool for quantitative analysis. It does not provide financial advice. Trading options involves significant risk.
