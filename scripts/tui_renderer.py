@@ -367,8 +367,8 @@ class TUIRenderer:
 
         # Header row
         output.append("┌────────┬────────────┬────────┬─────────┬──────────────┬─────────────────┐")
-        output.append(f"│ {'Symbol':<6} │ {'Price':<10} │ {'Bias':<6} │ {'NVRP':<7} │ {'Signal':<12} │ {'Strategy':<15} │ {'Asset Class':<15} │")
-        output.append("├────────┼────────────┼────────┼─────────┼──────────────┼─────────────────┼─────────────────┤")
+        output.append(f"│ {'Symbol':<6} │ {'Price':<10} │ {'Bias':<6} │ {'NVRP':<7} │ {'Signal':<12} │ {'Asset Class':<15} │")
+        output.append("├────────┼────────────┼────────┼─────────┼──────────────┼─────────────────┤")
 
         for opp in top_opps:
             sym = opp.get('Symbol', '')[:6]
@@ -427,11 +427,11 @@ class TUIRenderer:
             pad_len = 12 - visible_len(sig_display)
             sig_padded = sig_display + (" " * max(0, pad_len))
             
-            strategy = opp.get('Strategy', 'Pass')
+            # strategy = opp.get('Strategy', 'Pass')
 
-            output.append(f"│ {sym:<6} │ {price_str:>10} │ {bias_str} │ {nvrp_str} │ {sig_padded} │ {strategy:<15} │ {asset_class:<15} │")
+            output.append(f"│ {sym:<6} │ {price_str:>10} │ {bias_str} │ {nvrp_str} │ {sig_padded} │ {asset_class:<15} │")
 
-        output.append("└────────┴────────────┴────────┼─────────┼──────────────┼─────────────────┼─────────────────┘")
+        output.append("└────────┴────────────┴────────┴─────────┴──────────────┴─────────────────┘")
 
         # Legend
         output.append("")

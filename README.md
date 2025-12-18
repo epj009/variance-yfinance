@@ -6,9 +6,10 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 
 ## 🚀 Key Features
 
-*   **📡 Signal Synthesis**: Automatically synthesizes Vol Bias, NVRP, and Compression into a single, actionable regime signal (`RICH`, `COILED`, `DISCOUNT`).
-*   **🧠 Strategy Menu**: Maps the mathematical state of the market to specific option mechanics (e.g., "Coiled" → "Iron Condor").
+*   **📡 Signal Synthesis**: Automatically synthesizes Vol Bias, NVRP, and Compression into a single, actionable regime signal (`RICH`, `BOUND`, `DISCOUNT`).
+*   **🧠 Strategist Workflow**: The Agent interprets mathematical states (e.g., "Bound") using the official Strategy Playbook and Mechanics documents.
 *   **🛡️ Coiled Spring Detection (`🗜️`)**: Prevents buying into breakout traps by detecting price compression.
+
 *   **📊 NVRP Ranking**: Sorts opportunities by the **"Insurer's Markup"**—the premium you collect relative to actual movement.
 *   **🧘 Zero-Auth**: Uses `yfinance` for market data. No brokerage API keys required.
 *   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface.
@@ -32,15 +33,15 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 *   **Signal**: Positive % = You are selling over-priced insurance.
 
 ### 3. The "Signal" Logic (Regime Detection)
-The system synthesizes multiple metrics into a single "Signal" for the TUI:
+The system synthesizes multiple metrics into a single "Signal" for the TUI. You (the Agent) interpret these signals into strategies:
 
-| Signal | Icon | Condition | Meaning | Strategy |
-| :--- | :--- | :--- | :--- | :--- |
-| **RICH** | `🚀` | `NVRP > 20%` & `Ratio > 1.0` | High Premium, Expanding Vol. | **Short Strangle** |
-| **COILED** | `🗜️` | `Ratio < 0.75` | Price is squeezed. Breakout imminent. | **Iron Condor** |
-| **DISCOUNT** | `❄️` | `NVRP < -10%` | Options are underpriced. | **Long Straddle** |
-| **EVENT** | `📅` | `Earnings < 5d` | Binary event risk. | **Avoid / Spec** |
-| **FAIR** | `😐` | None of above | Fairly priced risk. | **Pass** |
+| Signal | Meaning | Target Environment |
+| :--- | :--- | :--- |
+| **RICH** | High Premium, Expanding Vol. | Undefined Risk (Strangles) |
+| **BOUND** | Price is squeezed / Rangebound. | Defined Risk (Iron Condors) |
+| **DISCOUNT** | Options are underpriced. | Long Vol (Straddles/Calendars) |
+| **EVENT** | Binary event risk. | Earnings (Avoid) |
+| **FAIR** | Fairly priced risk. | Pass |
 
 ## 📦 Installation
 

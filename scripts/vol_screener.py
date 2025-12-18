@@ -96,7 +96,7 @@ def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules:
         return "DISCOUNT"
         
     if flags['is_coiled']: # Ratio < 0.75
-        return "COILED"
+        return "BOUND"
         
     # Rich Logic: Not coiled, but high markup
     # If NVRP > 20% (0.20)
@@ -104,6 +104,18 @@ def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules:
         return "RICH"
         
     return "FAIR"
+
+def _get_recommended_environment(signal_type: str) -> str:
+    """Maps Signal Type to a recommended market environment for strategy selection."""
+    if signal_type == "BOUND":
+        return "High IV / Neutral (Defined)"
+    elif signal_type == "RICH":
+        return "High IV / Neutral (Undefined)"
+    elif signal_type == "DISCOUNT":
+        return "Low IV / Vol Expansion"
+    elif signal_type == "EVENT":
+        return "Binary Risk"
+    return "Neutral / Fair Value"
 
 def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) -> float:
     """
@@ -318,6 +330,9 @@ def screen_volatility(
         # Determine Signal Type
         signal_type = _determine_signal_type(flags, nvrp, RULES)
         
+        # Determine Recommended Environment
+        env_idea = _get_recommended_environment(signal_type)
+        
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, RULES)
         
@@ -334,6 +349,7 @@ def screen_volatility(
             'NVRP': nvrp,
             'Score': variance_score, # The Golden Metric
             'Signal': signal_type,
+            'Environment': env_idea,
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
             'Sector': sector, # Include sector in candidate data for JSON output
@@ -346,17 +362,17 @@ def screen_volatility(
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
-    # 4. Sort by signal quality: Variance Score (Desc), then NVRP, then Proxy bias last
+    # 4. Sort by signal quality: NVRP (Desc), then Variance Score (Desc), then Proxy bias last
     def _signal_key(c):
         # Sorting Logic:
-        # 1. Primary Key: Variance Score (Descending). Higher is better.
-        # 2. Secondary Key: NVRP (Descending). Fattest premium markup over movement.
+        # 1. Primary Key: NVRP (Descending). Fattest premium markup over movement.
+        # 2. Secondary Key: Variance Score (Descending). Structural edge.
         # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
         score = c['Score']
         nvrp = c.get('NVRP') or -9.9 # Default to low if missing
         proxy = c.get('Proxy')
         quality = 1 if proxy else 0
-        return (score, nvrp, -quality) # Sort by Score DESC, then NVRP DESC, then Quality ASC (real first)
+        return (nvrp, score, -quality) # Sort by NVRP DESC, then Score DESC, then Quality ASC
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
