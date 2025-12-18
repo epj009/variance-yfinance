@@ -608,7 +608,7 @@ def get_position_aware_opportunities(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
         min_vol_bias=rules.get('vol_bias_threshold', 0.85),
-        limit=20,
+        limit=None,
         filter_illiquid=True
     )
 

@@ -40,7 +40,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Find latest portfolio CSV
+# Priority: tastytrade_positions_*.csv -> *.csv
 LATEST_CSV=$(ls -t positions/tastytrade_positions_*.csv 2>/dev/null | head -1)
+
+if [ -z "$LATEST_CSV" ]; then
+    # Fallback: Try any CSV
+    LATEST_CSV=$(ls -t positions/*.csv 2>/dev/null | head -1)
+fi
 
 if [ -z "$LATEST_CSV" ]; then
     echo "Error: No portfolio CSV found in positions/" >&2
@@ -48,6 +54,7 @@ if [ -z "$LATEST_CSV" ]; then
 fi
 
 # Define temp files
+# The analysis JSON is stored in /tmp as per user preference to avoid cluttering the project directory.
 JSON_FILE="/tmp/variance_analysis.json"
 TUI_FILE="/tmp/variance_tui_output.txt"
 

@@ -73,12 +73,14 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
                 return True
     return False
 
-def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], rules: Dict[str, Any]) -> Dict[str, bool]:
+def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
     return {
         'is_rich': bool(vol_bias is not None and vol_bias > rules.get('vol_bias_rich_threshold', 1.0)),
         'is_fair': bool(vol_bias is not None and rules['vol_bias_threshold'] < vol_bias <= rules.get('vol_bias_rich_threshold', 1.0)),
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
+        'is_coiled': bool(compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.5)),
+        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.0))
     }
 
 def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) -> float:
@@ -209,10 +211,20 @@ def screen_volatility(
 
         iv30 = metrics.get('iv')
         hv252 = metrics.get('hv252')
+        hv20 = metrics.get('hv20')
         vol_bias = metrics.get('vol_bias')
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
+
+        compression_ratio = None
+        if hv20 and hv252 and hv252 > 0:
+            compression_ratio = hv20 / hv252
+
+        # NVRP Calculation (Tactical Markup)
+        nvrp = None
+        if hv20 and hv20 > 0 and iv30:
+            nvrp = (iv30 - hv20) / hv20
 
         # Refactored liquidity check
         is_illiquid = _is_illiquid(sym, metrics, RULES)
@@ -279,7 +291,7 @@ def screen_volatility(
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vol_bias, days_to_earnings, RULES)
+        flags = _create_candidate_flags(vol_bias, days_to_earnings, compression_ratio, RULES)
         
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, RULES)
@@ -290,8 +302,11 @@ def screen_volatility(
             'Price': price,
             'IV30': iv30,
             'HV252': hv252,
+            'HV20': hv20,
+            'Compression Ratio': compression_ratio,
             'Vol Bias': vol_bias,
             'Vol Bias 20': metrics.get('vol_bias_20'), # Add Vol Bias 20 here
+            'NVRP': nvrp,
             'Score': variance_score, # The Golden Metric
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),

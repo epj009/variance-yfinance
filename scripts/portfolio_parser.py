@@ -184,6 +184,10 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
     if token.startswith('/') and len(token) >= 3:
         return token[:3]
 
+    # Handle crypto/forex/class shares: ETH/USD -> ETH-USD, BRK/B -> BRK-B
+    if '/' in token and not token.startswith('/'):
+        token = token.replace('/', '-')
+
     return token
 
 

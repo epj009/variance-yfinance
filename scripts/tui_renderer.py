@@ -1,7 +1,39 @@
 import argparse
 import json
 import sys
+import re # For stripping ANSI codes from string length calculation
 from typing import Dict, List, Any, Optional
+
+class Colors:
+    RESET = ""
+    BOLD = ""
+    DIM = ""
+    UNDERLINE = ""
+    
+    RED = ""
+    GREEN = ""
+    YELLOW = ""
+    BLUE = ""
+    MAGENTA = ""
+    CYAN = ""
+    WHITE = ""
+    
+    BG_RED = ""
+    BG_GREEN = ""
+
+# Helper to calculate visible length of string with ANSI codes
+def visible_len(s):
+    clean_s = re.sub(r'\x1b\[[0-9;]*m', '', s)
+    length = len(clean_s)
+    
+    # Heuristic for wide emojis that have len=1 in Python but width=2 in terminal
+    # These cause misalignment if not accounted for.
+    wide_len_1 = ["🔥", "🦇", "🌀", "📅", "✅", "💰", "💀", "🐳", "❓"]
+    
+    for char in wide_len_1:
+        length += clean_s.count(char)
+        
+    return length
 
 class TUIRenderer:
     def __init__(self, data: Dict[str, Any]):
@@ -44,61 +76,74 @@ class TUIRenderer:
 
         # P/L Status
         if total_net_pl > 0:
-            pl_status = "(🟢 Harvesting)"
+            pl_color = Colors.GREEN
+            pl_status = f"({Colors.GREEN}🟢 Harvesting{Colors.RESET})"
         else:
-            pl_status = "(🔴 Dragging)"
+            pl_color = Colors.RED
+            pl_status = f"({Colors.RED}🔴 Dragging{Colors.RESET})"
 
         # BP Status
         if bp_usage_pct < 0.50:
-            bp_status = "(Low - Deploy)"
+            bp_color = Colors.GREEN
+            bp_status = f"({Colors.GREEN}Low - Deploy{Colors.RESET})"
         elif bp_usage_pct <= 0.75:
-            bp_status = "(Optimal)"
+            bp_color = Colors.YELLOW
+            bp_status = f"({Colors.YELLOW}Optimal{Colors.RESET})"
         else:
-            bp_status = "(⚠️ High)"
+            bp_color = Colors.RED
+            bp_status = f"({Colors.RED}⚠️ High{Colors.RESET})"
 
         # 1. Capital Console (Top Panel)
         lines = []
-        lines.append("THE CAPITAL CONSOLE (Fuel Gauge)")
+        lines.append(f"{Colors.BOLD}{Colors.CYAN}THE CAPITAL CONSOLE (Fuel Gauge){Colors.RESET}")
 
         # Row 1: Net Liq & Open P/L
-        net_liq_str = f"• Net Liq:   {fmt_currency(net_liq)}"
-        pl_str = f"• Open P/L:  {fmt_currency(total_net_pl)} {pl_status}"
+        net_liq_val = fmt_currency(net_liq)
+        net_liq_display = f"• Net Liq:   {Colors.BOLD}{net_liq_val}{Colors.RESET}"
+        
+        # Define pl_str properly
+        pl_str_colored = f"{pl_color}{fmt_currency(total_net_pl)}{Colors.RESET} {pl_status}"
 
-        # Padding for side-by-side
-        # Approx spacing: Net Liq (30 chars) ... Open P/L (rest)
-        row1 = f"{net_liq_str:<35} {pl_str}"
+        # Calculate padding needed, accounting for ANSI codes
+        # 35 chars is target total width for net_liq_display + padding
+        padding_needed = 35 - visible_len(net_liq_display)
+        
+        row1 = f"{net_liq_display}{' ' * padding_needed}{pl_str_colored}"
         lines.append(row1)
 
         # Row 2: BP Usage
-        lines.append(f"• BP Usage:  {fmt_percent(bp_usage_pct)} {bp_status}")
+        lines.append(f"• BP Usage:  {bp_color}{fmt_percent(bp_usage_pct)}{Colors.RESET} {bp_status}")
 
         # Separator
-        lines.append("_" * self.width)
+        lines.append(f"{Colors.DIM}" + "_" * self.width + f"{Colors.RESET}")
 
         # 2. Gyroscope | Engine (Split Panel)
         # Prepare Data for Gyroscope (Left)
         beta_delta = self.portfolio_summary.get('total_beta_delta', 0.0)
         theta = self.portfolio_summary.get('total_portfolio_theta', 0.0)
+        portfolio_vega = self.data.get('stress_box', {}).get('total_portfolio_vega', 0.0)
         stability = self.portfolio_summary.get('delta_theta_ratio', 0.0)
 
         if beta_delta < -50:
-            tilt_str = f"Bearish ({beta_delta:.0f} Δ)"
+            tilt_str = f"{Colors.RED}Bearish{Colors.RESET} ({beta_delta:.0f} Δ)"
         elif beta_delta > 50:
-            tilt_str = f"Bullish ({beta_delta:.0f} Δ)"
+            tilt_str = f"{Colors.GREEN}Bullish{Colors.RESET} ({beta_delta:.0f} Δ)"
         else:
-            tilt_str = f"Neutral ({beta_delta:.0f} Δ)"
+            tilt_str = f"{Colors.YELLOW}Neutral{Colors.RESET} ({beta_delta:.0f} Δ)"
 
         if -0.5 <= stability <= 0.5:
-            stab_status = "(✅ Stable)"
+            stab_status = f"({Colors.GREEN}✅ Stable{Colors.RESET})"
+            stab_val_color = Colors.GREEN
         else:
-            stab_status = "(⚠️ Unstable)"
+            stab_status = f"({Colors.RED}⚠️ Unstable{Colors.RESET})"
+            stab_val_color = Colors.RED
 
         gyro_lines = [
-            "THE GYROSCOPE (Risk)",
+            f"{Colors.BOLD}{Colors.CYAN}THE GYROSCOPE (Risk){Colors.RESET}",
             f"• Tilt:      {tilt_str}",
-            f"• Theta:     {fmt_currency(theta)}/day",
-            f"• Vega:      {fmt_currency(self.data.get('stress_box', {}).get('total_portfolio_vega', 0.0))}/pt",
-            f"• Stability: {fmt_decimal(stability)} {stab_status}"
+            f"• Theta:     {Colors.GREEN}{fmt_currency(theta)}{Colors.RESET}/day",
+            f"• Vega:      {Colors.CYAN}{fmt_currency(portfolio_vega)}{Colors.RESET}/pt",
+            f"• Stability: {stab_val_color}{fmt_decimal(stability)}{Colors.RESET} {stab_status}"
         ]
 
         # Prepare Data for Engine (Right)
@@ -107,31 +152,44 @@ class TUIRenderer:
         mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
 
         if friction < 1.0:
-            fric_status = "🟢 Liquid"
+            fric_status = f"{Colors.GREEN}🟢 Liquid{Colors.RESET}"
+            fric_color = Colors.GREEN
         elif friction > 3.0:
-            fric_status = "🔴 Trap"
+            fric_status = f"{Colors.RED}🔴 Trap{Colors.RESET}"
+            fric_color = Colors.RED
         else:
-            fric_status = "🟠 Sticky"
+            fric_status = f"{Colors.YELLOW}🟠 Sticky{Colors.RESET}"
+            fric_color = Colors.YELLOW
 
         if mix_warning:
-            mix_str = "⚠️ Equity Heavy"
+            mix_str = f"{Colors.YELLOW}⚠️ Equity Heavy{Colors.RESET}"
         else:
-            mix_str = "🌍 Diversified"
+            mix_str = f"{Colors.GREEN}🌍 Diversified{Colors.RESET}"
+
+        # Usage Color
+        if 0.001 <= theta_pct <= 0.005:
+            usage_color = Colors.GREEN
+        elif theta_pct > 0.005:
+            usage_color = Colors.RED
+        else:
+            usage_color = Colors.YELLOW
 
         engine_lines = [
-            "THE ENGINE (Structure)",
-            f"• Friction:  {friction:.1f} days ({fric_status})",
-            f"• Usage:     {fmt_percent(theta_pct)} of Net Liq",
+            f"{Colors.BOLD}{Colors.CYAN}THE ENGINE (Structure){Colors.RESET}",
+            f"• Friction:  {fric_color}{friction:.1f} days{Colors.RESET} ({fric_status})",
+            f"• Usage:     {usage_color}{fmt_percent(theta_pct)}{Colors.RESET} of Net Liq",
             f"• Mix:       {mix_str}"
         ]
 
         # Merge Columns
-        # Left col width: 60 chars (including padding), Sep: "|", Right: Rest
-        col_width = 58
+        col_width = 58 # Visual width
         for i in range(5):
             left = gyro_lines[i] if i < len(gyro_lines) else ""
             right = engine_lines[i] if i < len(engine_lines) else ""
-            lines.append(f"{left:<{col_width}} | {right}")
+            
+            # Pad left string based on its visible length to align the pipe
+            pad = " " * (col_width - visible_len(left))
+            lines.append(f"{left}{pad} | {right}")
 
         return "\n".join(lines)
 
@@ -150,17 +208,16 @@ class TUIRenderer:
         # Check for crash warning
         for scen in scenarios:
             if scen.get('est_pl', 0) < (-0.10 * net_liq):
-                output.append("⚠️ WARNING: CRASH SCENARIO RISK - Portfolio may lose >10% in market downturn")
+                output.append(f"{Colors.BG_RED}{Colors.WHITE} ⚠️ WARNING: CRASH SCENARIO RISK - Portfolio may lose >10% in market downturn {Colors.RESET}")
                 break
 
-        output.append(f"⚠️  STRESS TEST (Beta: {beta_symbol} @ {fmt_currency(beta_price)})")
+        output.append(f"⚠️  {Colors.BOLD}STRESS TEST{Colors.RESET} (Beta: {beta_symbol} @ {fmt_currency(beta_price)})")
 
         # Table
-        # Widths: Scenario (13), SPY Move (12), Est P/L (14) = ~45 chars total
         # ┌─────────────┬────────────┬──────────────┐
-        output.append("┌─────────────┬────────────┬──────────────┐")
-        output.append("│ Scenario    │ SPY Move   │ Est P/L      │")
-        output.append("├─────────────┼────────────┼──────────────┤")
+        output.append(f"{Colors.DIM}┌─────────────┬────────────┬──────────────┐{Colors.RESET}")
+        output.append(f"{Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Scenario':<11}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'SPY Move':<10}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Est P/L':<12}{Colors.RESET} {Colors.DIM}│{Colors.RESET}")
+        output.append(f"{Colors.DIM}├─────────────┼────────────┼──────────────┤{Colors.RESET}")
 
         for scen in scenarios:
             label = scen.get('label', '')[:11]
@@ -172,35 +229,43 @@ class TUIRenderer:
 
             # Format PL
             pl_str = fmt_currency(pl)
+            if pl > 0:
+                pl_display = f"{Colors.GREEN}{pl_str:>12}{Colors.RESET}"
+            elif pl < 0:
+                pl_display = f"{Colors.RED}{pl_str:>12}{Colors.RESET}"
+            else:
+                pl_display = f"{Colors.DIM}{pl_str:>12}{Colors.RESET}"
 
-            output.append(f"│ {label:<11} │ {move_str:>10} │ {pl_str:>12} │")
+            output.append(f"{Colors.DIM}│{Colors.RESET} {label:<11} {Colors.DIM}│{Colors.RESET} {move_str:>10} {Colors.DIM}│{Colors.RESET} {pl_display} {Colors.DIM}│{Colors.RESET}")
 
-        output.append("└─────────────┴────────────┴──────────────┘")
+        output.append(f"{Colors.DIM}└─────────────┴────────────┴──────────────┘{Colors.RESET}")
         return "\n".join(output)
 
     def render_triage(self) -> str:
         triage_actions = self.data.get('triage_actions', [])
         portfolio_overview = self.data.get('portfolio_overview', [])
 
-        output = ["📊 PORTFOLIO TRIAGE", ""]
+        output = [f"{Colors.BOLD}{Colors.MAGENTA}📊 PORTFOLIO TRIAGE{Colors.RESET}", ""]
 
         action_icons = {
             "HARVEST": "💰",
             "DEFENSE": "🛡️",
             "GAMMA": "☢️",
             "ZOMBIE": "💀",
+            "SIZE_THREAT": "🐳",
             "HEDGE_CHECK": "🛡️",
             "EARNINGS_WARNING": "📅",
             None: "⏳"
         }
 
         action_badges = {
-            "HARVEST": "[HARVEST]",
-            "DEFENSE": "[DEFENSE]",
-            "GAMMA": "[GAMMA]",
-            "ZOMBIE": "[ZOMBIE]",
-            "HEDGE_CHECK": "[HEDGE]",
-            "EARNINGS_WARNING": "[EARNINGS]",
+            "HARVEST": f"{Colors.GREEN}[HARVEST]{Colors.RESET}",
+            "DEFENSE": f"{Colors.YELLOW}[DEFENSE]{Colors.RESET}",
+            "GAMMA": f"{Colors.RED}[GAMMA]{Colors.RESET}",
+            "ZOMBIE": f"{Colors.DIM}{Colors.WHITE}[ZOMBIE]{Colors.RESET}",
+            "SIZE_THREAT": f"{Colors.RED}[SIZE RISK]{Colors.RESET}",
+            "HEDGE_CHECK": f"{Colors.BLUE}[HEDGE]{Colors.RESET}",
+            "EARNINGS_WARNING": f"{Colors.YELLOW}[EARNINGS]{Colors.RESET}",
             None: "[HOLD]"
         }
 
@@ -214,42 +279,51 @@ class TUIRenderer:
             logic = action.get('logic', '')
 
             icon = action_icons.get(code, "❓")
-            badge = action_badges.get(code, "[UNKNOWN]")
+            badge = action_badges.get(code, f"{Colors.MAGENTA}[UNKNOWN]{Colors.RESET}")
 
             # Line 1 construction
-            # TSLA (Strangle) .............................. 💰 [HARVEST] +$350.00 ✅
-            prefix = f"{root} ({strategy}) "
+            prefix = f"{Colors.BOLD}{root}{Colors.RESET} ({strategy}) "
 
             # Right side content
-            # " 💰 [HARVEST] +$350.00 ✅"
-            # Note: The checkmark isn't in JSON, adding based on context (Harvest=Success)
-            # Logic: If Harvest -> ✅, If Defense -> ⚠️, Else empty
             status_mark = ""
             if code == "HARVEST": status_mark = "✅"
-            elif code in ["DEFENSE", "GAMMA"]: status_mark = "⚠️"
+            elif code in ["DEFENSE", "GAMMA", "SIZE_THREAT", "EARNINGS_WARNING"]: status_mark = "⚠️"
+            elif code == "HEDGE_CHECK": status_mark = "ℹ️"
 
-            right_content = f" {icon} {badge} {fmt_currency(net_pl)} {status_mark}"
+            # Colorize P/L
+            if net_pl > 0:
+                pl_display = f"{Colors.GREEN}{fmt_currency(net_pl)}{Colors.RESET}"
+            elif net_pl < 0:
+                pl_display = f"{Colors.RED}{fmt_currency(net_pl)}{Colors.RESET}"
+            else:
+                pl_display = f"{Colors.DIM}{fmt_currency(net_pl)}{Colors.RESET}"
 
-            # Calculate padding
-            dot_count = max(5, 120 - len(prefix) - len(right_content))
-            dots = "." * dot_count
+            # Calculate padding based on visible length
+            raw_prefix_len = visible_len(prefix)
+            
+            # Estimate visible length of right_content
+            # This is a bit tricky with emojis and dynamic content
+            # Let's make a reasonable estimate for now, might need fine-tuning
+            est_right_len = 1 + visible_len(icon) + 1 + visible_len(badge) + 1 + visible_len(pl_display) + 1 + visible_len(status_mark)
 
-            line1 = f"{prefix}{dots}{right_content}"
+            # dot_count = max(5, self.width - raw_prefix_len - est_right_len)
+            
+            # More accurate visible length for the entire right part including icon and badge
+            right_part_str = f" {icon} {badge} {pl_display} {status_mark}"
+            dot_count = max(5, self.width - visible_len(prefix) - visible_len(right_part_str))
+
+
+            dots = f"{Colors.DIM}" + "." * dot_count + f"{Colors.RESET}"
+
+            line1 = f"{prefix}{dots}{right_part_str}"
             output.append(line1)
 
             # Line 2 (Tree branch)
-            # └── 45 DTE: Profit target (>50%) hit. Close to free capital.
-            # Handle multiline logic if needed, but assuming simple string
-            prefix2 = f"└── {dte} DTE: "
-            # Wrap logic text if too long?
-            # Assuming logic is concise as per spec
-            output.append(f"{prefix2}{logic}")
+            prefix2 = f"{Colors.DIM}└──{Colors.RESET} {dte} DTE: "
+            output.append(f"{prefix2}{Colors.DIM}{logic}{Colors.RESET}")
             output.append("") # Spacer
 
         # 2. Render Holds Summary
-        # Count holds (items in overview not in triage actions or explicit null action)
-        # Note: triage_actions usually subset of overview.
-        # Strategy: Count items in portfolio_overview where action_code is None
         hold_count = 0
         for pos in portfolio_overview:
             if not pos.get('action_code'):
@@ -257,7 +331,7 @@ class TUIRenderer:
 
         if hold_count > 0:
             plural = "position" if hold_count == 1 else "positions"
-            output.append(f"⏳ HOLD: {hold_count} {plural} (no action required)")
+            output.append(f"{Colors.DIM}⏳ HOLD: {hold_count} {plural} (no action required){Colors.RESET}")
         elif not triage_actions:
             output.append("No positions found.")
 
@@ -269,8 +343,8 @@ class TUIRenderer:
             return ""
 
         output = [
-            "📊 DELTA SPECTROGRAPH (Portfolio Drag)",
-            "   Visualizing position contribution to Beta-Weighted Delta",
+            f"{Colors.BOLD}{Colors.MAGENTA}📊 DELTA SPECTROGRAPH (Portfolio Drag){Colors.RESET}",
+            f"   {Colors.DIM}Visualizing position contribution to Beta-Weighted Delta{Colors.RESET}",
             ""
         ]
 
@@ -298,13 +372,18 @@ class TUIRenderer:
             # Use | for positive, - for negative
             if delta >= 0:
                 bar_char = "|"
+                bar_color = Colors.GREEN
             else:
                 bar_char = "-"
+                bar_color = Colors.RED
 
             bar_str = bar_char * bar_len
+            
+            # Construct Bar: [|||||     ]
+            bar_display = f"{Colors.DIM}[{Colors.RESET}{bar_color}{bar_str:<20}{Colors.RESET}{Colors.DIM}]{Colors.RESET}"
 
             # Format: {rank:5} {symbol:6} [{bar:20}] {delta:+.2f}
-            line = f"{rank:5} {sym:<6} [{bar_str:<20}] {delta:+.2f}"
+            line = f"{rank:5} {Colors.BOLD}{sym:<6}{Colors.RESET} {bar_display} {bar_color}{delta:+.2f}{Colors.RESET}"
             output.append(line)
 
         return "\n".join(output)
@@ -319,8 +398,8 @@ class TUIRenderer:
             return ""
 
         output = [
-            "🔍 VOL SCREENER OPPORTUNITIES (Top 10)",
-            "   High Vol Bias candidates for portfolio diversification",
+            f"{Colors.BOLD}{Colors.MAGENTA}🔍 VOL SCREENER OPPORTUNITIES (Top 10){Colors.RESET}",
+            f"   {Colors.DIM}High Vol Bias candidates for portfolio diversification{Colors.RESET}",
             ""
         ]
 
@@ -331,17 +410,16 @@ class TUIRenderer:
             excluded_str = ", ".join(excluded[:3])
             if len(excluded) > 3:
                 excluded_str += f" (+{len(excluded) - 3} more)"
-            output.append(f"   ⚠️  {excluded_count} concentrated position(s) excluded: {excluded_str}")
+            output.append(f"   {Colors.YELLOW}⚠️  {excluded_count} concentrated position(s) excluded: {excluded_str}{Colors.RESET}")
             output.append("")
 
         # Take top 10
         top_opps = candidates[:10]
 
         # Header row
-        # Symbol (8) | Price (12) | Vol Bias (10) | Asset Class (15) | Flags
-        output.append("┌────────┬────────────┬──────────┬─────────────────┬─────────────┐")
-        output.append("│ Symbol │ Price      │ Vol Bias │ Asset Class     │ Flags       │")
-        output.append("├────────┼────────────┼──────────┼─────────────────┼─────────────┤")
+        output.append(f"{Colors.DIM}┌────────┬────────────┬────────┬─────────┬─────────────────┬─────────────┐{Colors.RESET}")
+        output.append(f"{Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Symbol':<6}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Price':<10}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Bias':<6}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'NVRP':<7}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Asset Class':<15}{Colors.RESET} {Colors.DIM}│{Colors.RESET} {Colors.BOLD}{'Flags':<11}{Colors.RESET} {Colors.DIM}│{Colors.RESET}")
+        output.append(f"{Colors.DIM}├────────┼────────────┼────────┼─────────┼─────────────────┼─────────────┤{Colors.RESET}")
 
         for opp in top_opps:
             sym = opp.get('Symbol', '')[:6]
@@ -359,37 +437,58 @@ class TUIRenderer:
                 price_str = "N/A"
 
             # Format vol bias
+            bias_str = ""
             if vol_bias is not None:
                 bias_str = f"{vol_bias:.2f}"
+                if vol_bias > 1.2: # Very rich
+                    bias_str = f"{Colors.RED}{bias_str:>6}{Colors.RESET}"
+                elif vol_bias > 1.0: # Rich
+                    bias_str = f"{Colors.YELLOW}{bias_str:>6}{Colors.RESET}"
+                else:
+                    bias_str = f"{bias_str:>6}" # Fair/Low
             else:
-                bias_str = "N/A"
+                bias_str = f"{'N/A':>6}"
 
-            # Build flags
-            flags = []
+            # Format NVRP
+            nvrp = opp.get('NVRP')
+            nvrp_str = "N/A"
+            if nvrp is not None:
+                val = nvrp * 100
+                nvrp_str = f"{val:+.0f}%"
+                if val > 50: # > 50% Markup
+                    nvrp_str = f"{Colors.GREEN}{nvrp_str:>7}{Colors.RESET}"
+                elif val < 0: # Discount
+                    nvrp_str = f"{Colors.RED}{nvrp_str:>7}{Colors.RESET}"
+                else:
+                    nvrp_str = f"{nvrp_str:>7}"
+            else:
+                nvrp_str = f"{'N/A':>7}"
+
+            # Build flags with colors
+            flags_list = []
             if opp.get('is_rich'):
-                flags.append("🔥")
+                flags_list.append(f"{Colors.RED}🔥{Colors.RESET}")
+            if opp.get('is_coiled'):
+                flags_list.append(f"{Colors.CYAN}🗜️{Colors.RESET}")
             if opp.get('is_earnings_soon'):
-                flags.append("📅")
+                flags_list.append(f"{Colors.YELLOW}📅{Colors.RESET}")
             if opp.get('is_held'):
-                flags.append("🛡️")
+                flags_list.append(f"{Colors.BLUE}🛡️{Colors.RESET}")
             if opp.get('is_bats_efficient'):
-                flags.append("🦇")
+                flags_list.append(f"{Colors.MAGENTA}🦇{Colors.RESET}")
+            
+            flags_str_colored = " ".join(flags_list)
+            # Pad based on visible length of the colored string
+            flags_padded = flags_str_colored + (" " * max(0, 11 - visible_len(flags_str_colored)))
 
-            flags_str = " ".join(flags) if flags else ""
 
-            # Calculate display width (emojis are 2 chars wide)
-            # Each emoji counts as 2, spaces count as 1
-            display_width = sum(2 if ord(c) > 127 else 1 for c in flags_str)
-            flags_padding = max(0, 11 - display_width)
-            flags_padded = flags_str + (" " * flags_padding)
+            output.append(f"{Colors.DIM}│{Colors.RESET} {sym:<6} {Colors.DIM}│{Colors.RESET} {price_str:>10} {Colors.DIM}│{Colors.RESET} {bias_str} {Colors.DIM}│{Colors.RESET} {nvrp_str} {Colors.DIM}│{Colors.RESET} {asset_class:<15} {Colors.DIM}│{Colors.RESET} {flags_padded} {Colors.DIM}│{Colors.RESET}")
 
-            output.append(f"│ {sym:<6} │ {price_str:>10} │ {bias_str:>8} │ {asset_class:<15} │ {flags_padded} │")
-
-        output.append("└────────┴────────────┴──────────┴─────────────────┴─────────────┘")
+        output.append(f"{Colors.DIM}└────────┴────────────┴────────┼─────────┼─────────────────┼─────────────┘{Colors.RESET}")
 
         # Legend
         output.append("")
-        output.append("   Legend: 🔥 Rich (high IV/HV) | 📅 Earnings Soon | 🛡️ Already Held | 🦇 BATS Efficient")
+        output.append(f"   {Colors.DIM}Legend: {Colors.RED}🔥 Rich{Colors.RESET} | {Colors.CYAN}🗜️ Coiled{Colors.RESET} | {Colors.YELLOW}📅 Earnings{Colors.RESET} | {Colors.BLUE}🛡️ Held{Colors.RESET} | {Colors.MAGENTA}🦇 BATS{Colors.RESET}{Colors.RESET}")
 
         return "\n".join(output)
 

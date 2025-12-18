@@ -1,6 +1,8 @@
 {
     "vol_bias_threshold": 0.85,
     "vol_bias_rich_threshold": 1.0,
+    "compression_coiled_threshold": 0.75,
+    "compression_expanding_threshold": 1.0,
     "hv_rank_trap_threshold": 15.0,
     "iv_rank_threshold": 30.0,
     "dead_money_vol_bias_threshold": 0.80,
