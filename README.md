@@ -75,23 +75,23 @@ graph TD
 - **View (CLI)**: Renders the "Capital Console" TUI, visualizes risk with ASCII charts, and provides human-readable triage.
 - **Data Engine**: High-performance SQLite cache with WAL mode to respect API rate limits while maintaining speed.
 
-## 🧠 Core Metrics & Logic
+## 📊 Dashboard & Metrics Explained
 
-### 1. VRP Structural (Strategic Regime)
-*   **Formula**: `IV30 / HV252`
-*   **Goal**: Answers: *"Is volatility expensive relative to its yearly average?"*
-*   **Signal**: > 1.0 = **Rich Regime**.
+### 1. VRP Markup (The "Bonus" Yield)
+*   **Concept**: Not all Theta is created equal. Some theta is "cheap" (underpriced risk), and some is "rich" (overpriced risk).
+*   **Formula**: `Alpha-Theta = Raw Theta * (IV / HV)`
+*   **In Dashboard**: Displayed as `Theta: $42 → $52 (+24% VRP)`.
+*   **Meaning**: A **+24%** markup means you are collecting 24% more premium than the realized movement of the stock justifies. You are statistically "winning" before the trade even moves.
 
-### 2. VRP Tactical (Trade Edge)
-*   **Formula**: `IV30 / HV20` (Ratio) or `(IV30 - HV20) / HV20` (Net %)
-*   **Goal**: Answers: *"Is volatility expensive relative to the last month of movement?"*
-*   **Signal**: Positive % = You are selling over-priced insurance.
+### 2. Dynamic Tail Risk (The "Crash" Test)
+*   **Concept**: The maximum dollar amount you would lose if the single worst-case scenario in your config occurred *today*.
+*   **Behavior**: The engine runs every scenario in your Stress Box (e.g., "-5% Crash", "Vol Spike", "+10% Moon") and finds the floor.
+*   **Status**:
+    *   **Safe**: < 5% of Net Liq.
+    *   **Loaded**: 5-15% of Net Liq (Capital is efficiently deployed).
+    *   **Extreme**: > 15% of Net Liq (Danger zone).
 
-### 3. Alpha Theta (Expected Yield)
-*   **Formula**: `Raw Theta * VRP_Tactical`
-*   **Goal**: Measure the "Real P/L" of decay. If VRP is 1.5, every $1.00 of theta is "worth" $1.50 in expected value.
-
-### 4. The "Signal" Logic (Regime Detection)
+### 3. The "Signal" Logic (Regime Detection)
 The system synthesizes multiple metrics into a single "Signal" for the TUI:
 
 | Signal | Meaning | Target Environment |
@@ -103,7 +103,29 @@ The system synthesizes multiple metrics into a single "Signal" for the TUI:
 | **FAIR** | Fairly priced risk | Pass |
 | **TOXIC** | Theta Leakage (Alpha < Theta) | Exit / Recycle BPR |
 
-## 📦 Installation
+## ⚙️ Configuration & Customization
+
+### The Stress Box (`config/trading_rules.json`)
+You can define your own "nightmare scenarios" for the Tail Risk engine. The system supports both Percentage Moves (`move_pct`) and Standard Deviations (`sigma`).
+
+```json
+"stress_scenarios": [
+    {"label": "Crash (-5%)", "move_pct": -0.05, "vol_point_move": 15.0},
+    {"label": "Dip (-3%)", "move_pct": -0.03, "vol_point_move": 5.0},
+    {"label": "Vol Crush", "move_pct": 0.0, "vol_point_move": -10.0}
+]
+```
+
+### Trading Rules
+Control the engine's physics:
+*   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
+*   `net_liquidity`: Your account size (used for risk sizing).
+*   `profit_harvest_pct`: Target profit to trigger "HARVEST" (Default: 0.50).
+
+## 🛡️ System Resilience
+
+*   **Partial Data Mode**: If the market data provider fails to return Option Chains (IV) but returns Price/HV, the system gracefully downgrades. It will calculate P/L and Delta but flag the Volatility metrics as `0.0` (missing) to prevent false positives in the screener.
+*   **Nightly Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET is automatically cached until 10:00 AM the next morning. This allows you to run analysis late at night or pre-market without hitting API errors or seeing blank dashboards.
 
 ```bash
 # 1. Clone the repository
