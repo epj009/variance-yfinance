@@ -299,12 +299,16 @@ class TUIRenderer:
         for opp in candidates:
             vrp_t = opp.get('NVRP', 0.0)
             
+            signal_display = opp.get('Signal', 'FAIR')
+            if opp.get('is_bats_efficient'):
+                signal_display = f"{signal_display} 🦇"
+
             table.add_row(
                 opp.get('Symbol', ''),
                 fmt_currency(opp.get('Price', 0.0)),
                 f"{opp.get('VRP Structural', 0.0):.2f}",
                 f"{vrp_t:+.0%}",
-                opp.get('Signal', 'FAIR'),
+                signal_display,
                 opp.get('Asset Class', 'Equity')
             )
 

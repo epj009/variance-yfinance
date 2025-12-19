@@ -97,6 +97,10 @@ The screener synthesizes raw metrics into actionable "Signals" and a composite "
 | **NVRP** | > +20% | `RICH` | Strangles / Naked Puts |
 | **Default** | - | `FAIR` | Pass |
 
+*   **BATS Efficiency (🦇):** A special flag for "Retail Optimal" candidates.
+    *   **Criteria:** Price $15-$75 AND `VRP_Structural` > 1.0.
+    *   **Goal:** Efficient use of Buying Power for small accounts.
+
 ### 4.2. Variance Score (0-100)
 A weighted composite score to rank opportunities:
 *   **Structural Edge (50%):** `VRP_Structural` scaled.
