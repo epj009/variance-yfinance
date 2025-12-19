@@ -22,6 +22,55 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 
 ## 🛠️ Architecture
 
+```mermaid
+graph TD
+    subgraph "The World (Data)"
+        YAHOO[yfinance API] -->|Market Data: IV, HV, Price| FETCH[scripts/get_market_data.py]
+        BROKER[Broker CSV] -->|Positions| PARSER[scripts/portfolio_parser.py]
+    end
+
+    subgraph "The Engine (Analysis)"
+        FETCH -->|Standardized Metrics| ENGINE[scripts/analyze_portfolio.py]
+        PARSER -->|Normalized Rows| DETECTOR[scripts/strategy_detector.py]
+        
+        DETECTOR -->|Grouped Clusters| ENGINE
+        
+        subgraph "Triage Layer (scripts/triage_engine.py)"
+            ENGINE -->|Cluster Context| TRIAGE
+            TRIAGE -->|VRP & Alpha-Theta| VRP_LOGIC[Action Logic Gates]
+            TRIAGE -->|EM Simulator| STRESS_LOGIC[Probabilistic Scenarios]
+            
+            VRP_LOGIC -->|Result| BADGES[💰 🛡️ ☢️ 💀 🌳 ➕]
+            STRESS_LOGIC -->|Result| WHALE[🐳 SIZE RISK]
+        end
+        
+        subgraph "Screener Layer (scripts/vol_screener.py)"
+            FETCH -->|Watchlist Data| SCREENER
+            SCREENER -->|VRP Divergence| RANKING[Ranking: nVRP Tactical]
+            SCREENER -->|Sector Lookup| TAGGING[Asset Class Tagging]
+        end
+    end
+
+    subgraph "The View (scripts/tui_renderer.py)"
+        ENGINE -->|JSON Report| RENDERER
+        RENDERER -->|Rich.Table & Panel| RICH_LIB[Rich Library]
+        
+        RICH_LIB -->|HUD| CAP[Capital Console]
+        RICH_LIB -->|HUD| GYRO[Gyroscope & Engine]
+        RICH_LIB -->|Visual| SPECTRO[Delta Spectrograph]
+        RICH_LIB -->|Visual| PROB_BOX[Probabilistic Stress Box]
+        RICH_LIB -->|List| TRI_TREE[Portfolio Triage Tree]
+        RICH_LIB -->|List| VOL_TABLE[Flat Screener Table]
+    end
+
+    subgraph "The Strategist (AI Layer)"
+        RICH_LIB -->|Rich Text| AGENT[Gemini CLI Agent]
+        AGENT -->|Interpretation| PLAYBOOK[docs/STRATEGY_PLAYBOOK.md]
+        AGENT -->|Rules| CONFIG[config/trading_rules.json]
+        AGENT -->|Final Advice| USER[User]
+    end
+```
+
 - **Model (Python)**: `scripts/*.py`. Pure data crunching. Outputs structured JSON.
 - **View (CLI)**: Renders the "Capital Console" TUI, visualizes risk with ASCII charts, and provides human-readable triage.
 - **Data Engine**: High-performance SQLite cache with WAL mode to respect API rate limits while maintaining speed.
