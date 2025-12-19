@@ -2,17 +2,16 @@
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-MVC-forestgreen.svg)]() [![Output](https://img.shields.io/badge/output-JSON-lightgrey.svg)]()
 
-Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It operates on a strict Model-View-Controller (MVC) architecture, where Python scripts act as the "Model" (emitting raw JSON), and an LLM-based CLI acts as the "View/Controller" (rendering the TUI and providing strategic guidance).
+Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It operates on a strict Model-View-Controller (MVC) architecture, providing industry-standard quantitative resolution for retail traders.
 
 ## 🚀 Key Features
 
-*   **📡 Signal Synthesis**: Automatically synthesizes Vol Bias, NVRP, and Compression into a single, actionable regime signal (`RICH`, `BOUND`, `DISCOUNT`).
+*   **📡 Dual-VRP Synthesis**: Monitors both **Structural (252d)** and **Tactical (20d)** Volatility Risk Premia to find high-conviction trades.
+*   **💎 Alpha-Theta Metrics**: Visualizes the "Quality of Income" by adjusting raw Theta for the current VRP markup (`Raw → Expected`).
 *   **🧠 Strategist Workflow**: The Agent interprets mathematical states (e.g., "Bound") using the official Strategy Playbook and Mechanics documents.
-*   **🛡️ Coiled Spring Detection (`🗜️`)**: Prevents buying into breakout traps by detecting price compression.
-
-*   **📊 NVRP Ranking**: Sorts opportunities by the **"Insurer's Markup"**—the premium you collect relative to actual movement.
-*   **🧘 Zero-Auth**: Uses `yfinance` for market data. No brokerage API keys required.
-*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface.
+*   **🛡️ Portfolio Triage**: Automatically flags positions for `HARVEST`, `DEFENSE`, `GAMMA`, or `ZOMBIE` based on mechanical rules.
+*   **🧪 Research Lab**: Includes institutional-grade utilities for Sector Z-Score analysis and Tactical/Structural divergence.
+*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface optimized for rapid information processing.
 
 ## 🛠️ Architecture
 
@@ -22,26 +21,30 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 
 ## 🧠 Core Metrics & Logic
 
-### 1. The "Vol Bias" (Structural Edge)
+### 1. VRP Structural (Strategic Regime)
 *   **Formula**: `IV30 / HV252`
-*   **Goal**: Find assets that are expensive relative to their long-term behavior.
-*   **Signal**: > 1.0 = **Rich**.
+*   **Goal**: Answers: *"Is volatility expensive relative to its yearly average?"*
+*   **Signal**: > 1.0 = **Rich Regime**.
 
-### 2. NVRP (Tactical Edge)
-*   **Formula**: `(IV30 - HV20) / HV20`
-*   **Goal**: Measure the "Premium Markup" relative to *current* market conditions.
+### 2. VRP Tactical (Trade Edge)
+*   **Formula**: `IV30 / HV20` (Ratio) or `(IV30 - HV20) / HV20` (Net %)
+*   **Goal**: Answers: *"Is volatility expensive relative to the last month of movement?"*
 *   **Signal**: Positive % = You are selling over-priced insurance.
 
-### 3. The "Signal" Logic (Regime Detection)
-The system synthesizes multiple metrics into a single "Signal" for the TUI. You (the Agent) interpret these signals into strategies:
+### 3. Alpha Theta (Expected Yield)
+*   **Formula**: `Raw Theta * VRP_Tactical`
+*   **Goal**: Measure the "Real P/L" of decay. If VRP is 1.5, every $1.00 of theta is "worth" $1.50 in expected value.
+
+### 4. The "Signal" Logic (Regime Detection)
+The system synthesizes multiple metrics into a single "Signal" for the TUI:
 
 | Signal | Meaning | Target Environment |
 | :--- | :--- | :--- |
-| **RICH** | High Premium, Expanding Vol. | Undefined Risk (Strangles) |
-| **BOUND** | Price is squeezed / Rangebound. | Defined Risk (Iron Condors) |
-| **DISCOUNT** | Options are underpriced. | Long Vol (Straddles/Calendars) |
-| **EVENT** | Binary event risk. | Earnings (Avoid) |
-| **FAIR** | Fairly priced risk. | Pass |
+| **RICH** | High Tactical VRP (>+20%) | Undefined Risk (Strangles) |
+| **BOUND** | Squeezed / Rangebound | Defined Risk (Iron Condors) |
+| **DISCOUNT** | Underpriced Vol (<-10%) | Long Vol (Calendars/Diagonals) |
+| **EVENT** | Binary event risk | Earnings (Avoid) |
+| **FAIR** | Fairly priced risk | Pass |
 
 ## 📦 Installation
 
@@ -64,39 +67,30 @@ cp variance-system-prompt.md .gemini/GEMINI.md
 ## 🚦 Usage
 
 ### 1. Portfolio Triage (Daily Routine)
-Analyze your current positions for harvest targets, gamma risk, and mechanical defense.
-
-**Step 1:** Export your positions from your broker (e.g., Tastytrade) to a CSV file in `positions/`.
-
-**Step 2:** Run the engine.
 ```bash
 ./variance
 ```
-*This wrapper script automatically finds the newest CSV in `positions/`, analyzes it, and launches the dashboard.*
+*Wrapper script that finds the newest CSV in `positions/`, analyzes it, and launches the dashboard.*
 
 ### 2. Volatility Scanning
-Scan your watchlist for new opportunities using the "Rich & Coiled" filter.
-
 ```bash
 ./venv/bin/python3 scripts/vol_screener.py
 ```
-*Outputs a ranked list of opportunities sorted by NVRP (Markup), with specific strategy recommendations.*
+*Outputs a ranked list of opportunities with side-by-side VRP(S) and VRP(T) metrics.*
+
+### 3. Quant Research Lab
+```bash
+python3 util/research_lab.py
+```
+*Deep-dive utility for Sector Z-Scores and Portfolio Alpha-Theta quality audit.*
 
 ## ⚙️ Configuration
 
 Control the engine's physics in `config/trading_rules.json`:
 
-*   `vol_bias_rich_threshold`: Level to trigger "Fire" (Default: 1.0)
-*   `compression_coiled_threshold`: Level to trigger "Clamp" (Default: 0.75)
-*   `nvrp_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
-*   `net_liquidity`: Your account size (used for risk sizing).
-
-## 📂 Project Structure
-
-*   `scripts/`: Python logic (Screener, Analyzer, Renderer).
-*   `config/`: JSON rules and strategy definitions.
-*   `positions/`: Place your portfolio CSV exports here.
-*   `variance`: Main launcher script.
+*   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
+*   `vrp_tactical_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
+*   `net_liquidity`: Your account size (used for risk sizing and Alpha calculations).
 
 ## ⚠️ Disclaimer
 Variance is a research tool for quantitative analysis. It does not provide financial advice. Trading options involves significant risk.

@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+import math
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Any
@@ -270,28 +271,60 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             
     if beta_price > 0:
         total_portfolio_vega = metrics.get('total_portfolio_vega', 0.0)
-        scenarios = RULES.get('stress_scenarios', DEFAULT_TRADING_RULES['stress_scenarios'])
+        total_portfolio_gamma = metrics.get('total_portfolio_gamma', 0.0)
+        
+        # Get Beta (SPY) IV for Expected Move calculation
+        beta_iv = market_data.get(beta_sym, {}).get('iv', 15.0) # Default to 15% if missing
+        
+        # 1-Day Expected Move (1SD) = Price * (IV / sqrt(252))
+        em_1sd = beta_price * (beta_iv / 100.0 / math.sqrt(252))
+        
+        # Define Probabilistic Scenarios (Stage C: Probabilistic Stress Box)
+        # We calculate P/L using: (Delta * Move) + (0.5 * Gamma * Move^2) + (Vega * Vol_Move)
+        prob_scenarios = [
+            {"label": "Tail Risk (2SD-)", "sigma": -2.0, "vol_move": 10.0},
+            {"label": "1SD Move (-)", "sigma": -1.0, "vol_move": 5.0},
+            {"label": "Flat", "sigma": 0.0, "vol_move": 0.0},
+            {"label": "1SD Move (+)", "sigma": 1.0, "vol_move": -5.0},
+            {"label": "Tail Risk (2SD+)", "sigma": 2.0, "vol_move": -10.0}
+        ]
+        
         stress_box_scenarios = []
-        for s in scenarios:
+        for s in prob_scenarios:
             label = s['label']
-            pct = s['move_pct']
-            vol_move = s.get('vol_point_move', 0.0) # Absolute IV point change
+            sigma = s['sigma']
+            vol_move = s['vol_move']
             
-            spy_points = beta_price * pct
-            delta_pl = total_beta_delta * spy_points
+            move_points = em_1sd * sigma
+            
+            # Non-Linear P/L calculation
+            delta_pl = total_beta_delta * move_points
+            gamma_pl = 0.5 * total_portfolio_gamma * (move_points ** 2)
             vega_pl = total_portfolio_vega * vol_move
             
-            est_pl = delta_pl + vega_pl
+            est_pl = delta_pl + gamma_pl + vega_pl
+            
+            # Delta Drift calculation: How much does delta change?
+            # Drift = Gamma * Move
+            drift = total_portfolio_gamma * move_points
+            new_delta = total_beta_delta + drift
             
             stress_box_scenarios.append({
                 "label": label,
-                "beta_move": spy_points,
-                "est_pl": est_pl
+                "beta_move": move_points,
+                "est_pl": est_pl,
+                "sigma": sigma,
+                "drift": drift,
+                "new_delta": new_delta
             })
+            
         report['stress_box'] = {
             "beta_symbol": beta_sym,
             "beta_price": beta_price,
-            "total_portfolio_vega": total_portfolio_vega, # Expose for UI if needed
+            "beta_iv": beta_iv,
+            "em_1sd": em_1sd,
+            "total_portfolio_vega": total_portfolio_vega,
+            "total_portfolio_gamma": total_portfolio_gamma,
             "scenarios": stress_box_scenarios
         }
 

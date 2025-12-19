@@ -32,6 +32,7 @@ class TriageResult(TypedDict, total=False):
     logic: str
     sector: str
     delta: float
+    gamma: float # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
 
 
@@ -52,7 +53,8 @@ class TriageMetrics(TypedDict, total=False):
     total_beta_delta: float
     total_portfolio_theta: float
     total_portfolio_theta_vrp_adj: float  # VRP-adjusted theta (quality-weighted)
-    total_portfolio_vega: float # NEW
+    total_portfolio_vega: float
+    total_portfolio_gamma: float # NEW
     total_liquidity_cost: float
     total_abs_theta: float
     total_option_legs: int
@@ -215,9 +217,14 @@ def triage_cluster(
         earnings_stance = strategy_config['metadata'].get('earnings_stance', 'avoid')
 
     strategy_delta = 0.0
+    strategy_gamma = 0.0
     for l in legs:
         b_delta = parse_currency(l['beta_delta'])
         strategy_delta += b_delta
+        
+        # Aggregate Gamma (Beta-weighted Gamma if available, else raw)
+        b_gamma = parse_currency(l.get('Gamma', '0'))
+        strategy_gamma += b_gamma
 
     pl_pct = None
     # Treat negatives as credits received, positives as debits paid
@@ -391,6 +398,7 @@ def triage_cluster(
         'logic': logic,
         'sector': sector,
         'delta': strategy_delta,
+        'gamma': strategy_gamma,
         'is_hedge': is_hedge
     }
 
@@ -418,6 +426,7 @@ def triage_portfolio(
     total_portfolio_theta = 0.0
     total_portfolio_theta_vrp_adj = 0.0  # VRP-adjusted theta accumulator
     total_portfolio_vega = 0.0
+    total_portfolio_gamma = 0.0
     total_liquidity_cost = 0.0
     total_abs_theta = 0.0
     total_option_legs = 0
@@ -451,9 +460,12 @@ def triage_portfolio(
             cluster_theta_raw += leg_theta
             total_abs_theta += abs(leg_theta)
 
-            # Vega Aggregation
+            # Vega/Gamma Aggregation
             leg_vega = parse_currency(l.get('Vega', '0'))
             total_portfolio_vega += leg_vega
+            
+            leg_gamma = parse_currency(l.get('Gamma', '0'))
+            total_portfolio_gamma += leg_gamma
 
             # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
             bid = parse_currency(l['Bid'])
@@ -516,6 +528,7 @@ def triage_portfolio(
         'total_portfolio_theta': total_portfolio_theta,
         'total_portfolio_theta_vrp_adj': total_portfolio_theta_vrp_adj,
         'total_portfolio_vega': total_portfolio_vega,
+        'total_portfolio_gamma': total_portfolio_gamma,
         'total_liquidity_cost': total_liquidity_cost,
         'total_abs_theta': total_abs_theta,
         'total_option_legs': total_option_legs,

@@ -10,7 +10,7 @@ def visible_len(s):
     
     # Heuristic for wide emojis that have len=1 in Python but width=2 in terminal
     # These cause misalignment if not accounted for.
-    wide_len_1 = ["💸", "🤝", "🦇", "📅", "✅", "💰", "💀", "🐳", "❓", "⏳", "ℹ️", "☂️"]
+    wide_len_1 = ["💸", "🤝", "🦇", "📅", "✅", "💰", "💀", "🐳", "❓", "⏳", "ℹ️", "☂️", "σ"]
     
     for char in wide_len_1:
         length += s.count(char)
@@ -167,6 +167,8 @@ class TUIRenderer:
 
         beta_symbol = stress_data.get('beta_symbol', 'SPY')
         beta_price = stress_data.get('beta_price', 0.0)
+        beta_iv = stress_data.get('beta_iv', 0.0)
+        em_1sd = stress_data.get('em_1sd', 0.0)
         net_liq = self.portfolio_summary.get('net_liquidity', 1.0)
 
         output = []
@@ -174,32 +176,35 @@ class TUIRenderer:
         # Check for crash warning
         for scen in scenarios:
             if scen.get('est_pl', 0) < (-0.10 * net_liq):
-                output.append("⚠️ WARNING: CRASH SCENARIO RISK - Portfolio may lose >10% in market downturn")
+                output.append("⚠️ WARNING: CRASH SCENARIO RISK - Portfolio may lose >10% in a tail event")
                 break
 
-        output.append(f"⚠️  STRESS TEST (Beta: {beta_symbol} @ {fmt_currency(beta_price)})")
+        output.append(f"📊 PROBABILISTIC STRESS TEST (1-Day Horizon)")
+        output.append(f"   Beta: {beta_symbol} @ {fmt_currency(beta_price)} | IV: {beta_iv:.1f}% | 1SD Expected Move: +/- {fmt_currency(em_1sd)}")
+        output.append("")
 
         # Table
-        # ┌─────────────┬────────────┬──────────────┐
-        output.append("┌─────────────┬────────────┬──────────────┐")
-        output.append("│ Scenario    │ SPY Move   │ Est P/L      │")
-        output.append("├─────────────┼────────────┼──────────────┤")
+        # ┌──────────────────┬──────────┬────────────┬──────────────┬──────────────┐
+        output.append("┌──────────────────┬──────────┬────────────┬──────────────┬──────────────┐")
+        output.append("│ Confidence       │ Sigma    │ Move pts   │ Est P/L      │ Delta Drift  │")
+        output.append("├──────────────────┼──────────┼────────────┼──────────────┼──────────────┤")
 
         for scen in scenarios:
-            label = scen.get('label', '')[:11]
+            label = scen.get('label', '')[:16]
+            sigma = scen.get('sigma', 0.0)
             move = scen.get('beta_move', 0.0)
             pl = scen.get('est_pl', 0.0)
+            new_delta = scen.get('new_delta', 0.0)
 
-            # Format move (e.g., "-22.5 pts")
-            move_str = f"{move:+.1f} pts"
-
-            # Format PL
+            sigma_str = f"{sigma:+.1f}σ"
+            move_str = f"{move:+.2f}"
             pl_str = fmt_currency(pl)
-            pl_display = f"{pl_str:>12}"
+            delta_str = f"{new_delta:>+6.1f} Δ"
 
-            output.append(f"│ {label:<11} │ {move_str:>10} │ {pl_display} │")
+            output.append(f"│ {label:<16} │ {sigma_str:>8} │ {move_str:>10} │ {pl_str:>12} │ {delta_str:>12} │")
 
-        output.append("└─────────────┴────────────┴──────────────┘")
+        output.append("└──────────────────┴──────────┴────────────┴──────────────┴──────────────┘")
+        output.append("   Note: P/L includes non-linear Gamma adjustment and IV expansion.")
         return "\n".join(output)
 
     def render_triage(self) -> str:
@@ -388,7 +393,7 @@ class TUIRenderer:
             else:
                 bias_str = f"{'N/A':>8}"
 
-            # Format VRP (Tactical) - formerly NVRP
+            # Format VRP (Tactical)
             nvrp = opp.get('NVRP')
             nvrp_str = "N/A"
             if nvrp is not None:
@@ -416,8 +421,6 @@ class TUIRenderer:
             # Padding
             pad_len = 12 - visible_len(sig_display)
             sig_padded = sig_display + (" " * max(0, pad_len))
-            
-            # strategy = opp.get('Strategy', 'Pass')
 
             output.append(f"│ {sym:<6} │ {price_str:>10} │ {bias_str} │ {nvrp_str} │ {sig_padded} │ {asset_class:<15} │")
 

@@ -50,6 +50,7 @@ class PortfolioParser:
         'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
         'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
         'Vega': ['Vega', '/ Vega'],
+        'Gamma': ['Gamma', 'β Gamma', 'Beta Gamma'],
         'Value': ['Value', 'Mkt Value', 'Net Liq'],
         'Bid': ['Bid', 'Bid Price'],
         'Ask': ['Ask', 'Ask Price'],
