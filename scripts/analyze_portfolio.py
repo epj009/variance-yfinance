@@ -91,6 +91,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     total_net_pl = metrics['total_net_pl']
     total_beta_delta = metrics['total_beta_delta']
     total_portfolio_theta = metrics['total_portfolio_theta']
+    total_portfolio_theta_vrp_adj = metrics['total_portfolio_theta_vrp_adj']
     friction_horizon_days = metrics['friction_horizon_days']
     total_option_legs = metrics['total_option_legs']
     total_capital_at_risk = metrics['total_capital_at_risk']
@@ -106,8 +107,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "total_net_pl": total_net_pl,
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
+            "total_portfolio_theta_vrp_adj": total_portfolio_theta_vrp_adj,
+            "portfolio_vrp_markup": (total_portfolio_theta_vrp_adj / total_portfolio_theta - 1) if total_portfolio_theta != 0 else 0.0,
             "friction_horizon_days": friction_horizon_days,
             "theta_net_liquidity_pct": 0.0,
+            "theta_vrp_net_liquidity_pct": 0.0,
             "delta_theta_ratio": 0.0,
             "bp_usage_pct": 0.0
         },
@@ -131,7 +135,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "strategy": r['strategy_name'],
             "price": r['price'],
             "is_stale": r['is_stale'],
-            "vol_bias": r['vol_bias'],
+            "vrp_structural": r['vrp_structural'],
             "proxy_note": r['proxy_note'],
             "net_pl": r['net_pl'],
             "pl_pct": r['pl_pct'],
@@ -152,15 +156,17 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     report['portfolio_summary']['net_liquidity'] = net_liq
     if net_liq > 0:
         theta_as_pct_of_nl = total_portfolio_theta / net_liq
+        theta_vrp_as_pct_of_nl = total_portfolio_theta_vrp_adj / net_liq
         report['portfolio_summary']['theta_net_liquidity_pct'] = theta_as_pct_of_nl
+        report['portfolio_summary']['theta_vrp_net_liquidity_pct'] = theta_vrp_as_pct_of_nl
 
         # Calculate BP Usage % (store as decimal ratio, not percentage)
         bp_usage_pct = total_capital_at_risk / net_liq
         report['portfolio_summary']['bp_usage_pct'] = bp_usage_pct
 
-    # Delta/Theta Ratio
-    if total_portfolio_theta != 0:
-        report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta
+    # Delta/Theta Ratio (use VRP-adjusted theta for more accurate stability measure)
+    if total_portfolio_theta_vrp_adj != 0:
+        report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta_vrp_adj
     else:
         report['portfolio_summary']['delta_theta_ratio'] = 0.0
 

@@ -10,7 +10,7 @@ def visible_len(s):
     
     # Heuristic for wide emojis that have len=1 in Python but width=2 in terminal
     # These cause misalignment if not accounted for.
-    wide_len_1 = ["💸", "🤝", "🦇", "📅", "✅", "💰", "💀", "🐳", "❓"]
+    wide_len_1 = ["💸", "🤝", "🦇", "📅", "✅", "💰", "💀", "🐳", "❓", "⏳", "ℹ️", "☂️"]
     
     for char in wide_len_1:
         length += s.count(char)
@@ -94,8 +94,10 @@ class TUIRenderer:
 
         # 2. Gyroscope | Engine (Split Panel)
         beta_delta = self.portfolio_summary.get('total_beta_delta', 0.0)
-        theta = self.portfolio_summary.get('total_portfolio_theta', 0.0)
-        portfolio_vega = self.data.get('stress_box', {}).get('total_portfolio_vega', 0.0)
+        theta_raw = self.portfolio_summary.get('total_portfolio_theta', 0.0)
+        theta_vrp = self.portfolio_summary.get('total_portfolio_theta_vrp_adj', theta_raw)  # Fallback to raw if missing
+        stress_box = self.data.get('stress_box') or {}  # Handle null stress_box
+        portfolio_vega = stress_box.get('total_portfolio_vega', 0.0)
         stability = self.portfolio_summary.get('delta_theta_ratio', 0.0)
 
         if beta_delta < -50:
@@ -110,10 +112,13 @@ class TUIRenderer:
         else:
             stab_status = "(⚠️ Unstable)"
 
+        markup = self.portfolio_summary.get('portfolio_vrp_markup', 0.0)
+        markup_sign = "+" if markup >= 0 else ""
+        
         gyro_lines = [
             "THE GYROSCOPE (Risk)",
             f"• Tilt:      {tilt_str}",
-            f"• Theta:     {fmt_currency(theta)}/day",
+            f"• Theta:     {fmt_currency(theta_raw)} → {fmt_currency(theta_vrp)} ({markup_sign}{markup:.0%})",
             f"• Vega:      {fmt_currency(portfolio_vega)}/pt",
             f"• Stability: {fmt_decimal(stability)} {stab_status}"
         ]
@@ -155,7 +160,7 @@ class TUIRenderer:
         return "\n".join(lines)
 
     def render_stress_box(self) -> str:
-        stress_data = self.data.get('stress_box', {})
+        stress_data = self.data.get('stress_box') or {}
         scenarios = stress_data.get('scenarios', [])
         if not scenarios:
             return ""
@@ -209,7 +214,7 @@ class TUIRenderer:
             "GAMMA": "☢️",
             "ZOMBIE": "💀",
             "SIZE_THREAT": "🐳",
-            "HEDGE_CHECK": "🛡️",
+            "HEDGE_CHECK": "☂️",
             "EARNINGS_WARNING": "📅",
             None: "⏳"
         }
@@ -249,16 +254,6 @@ class TUIRenderer:
             # PL
             pl_display = fmt_currency(net_pl)
 
-            # Calculate padding based on visible length
-            raw_prefix_len = visible_len(prefix)
-            
-            # Estimate visible length of right_content
-            # This is a bit tricky with emojis and dynamic content
-            # Let's make a reasonable estimate for now, might need fine-tuning
-            est_right_len = 1 + visible_len(icon) + 1 + visible_len(badge) + 1 + visible_len(pl_display) + 1 + visible_len(status_mark)
-
-            # dot_count = max(5, self.width - raw_prefix_len - est_right_len)
-            
             # More accurate visible length for the entire right part including icon and badge
             right_part_str = f" {icon} {badge} {pl_display} {status_mark}"
             dot_count = max(5, self.width - visible_len(prefix) - visible_len(right_part_str))
@@ -366,14 +361,14 @@ class TUIRenderer:
         top_opps = candidates
 
         # Header row
-        output.append("┌────────┬────────────┬────────┬─────────┬──────────────┬─────────────────┐")
-        output.append(f"│ {'Symbol':<6} │ {'Price':<10} │ {'Bias':<6} │ {'NVRP':<7} │ {'Signal':<12} │ {'Asset Class':<15} │")
-        output.append("├────────┼────────────┼────────┼─────────┼──────────────┼─────────────────┤")
+        output.append("┌────────┬────────────┬──────────┬──────────┬──────────────┬─────────────────┐")
+        output.append(f"│ {'Symbol':<6} │ {'Price':<10} │ {'VRP (S)':<8} │ {'VRP (T)':<8} │ {'Signal':<12} │ {'Asset Class':<15} │")
+        output.append("├────────┼────────────┼──────────┼──────────┼──────────────┼─────────────────┤")
 
         for opp in top_opps:
             sym = opp.get('Symbol', '')[:6]
             price = opp.get('Price')
-            vol_bias = opp.get('Vol Bias')
+            vrp_structural = opp.get('VRP Structural')
             asset_class = opp.get('Asset Class', '')[:15]
 
             # Format price
@@ -385,28 +380,23 @@ class TUIRenderer:
             else:
                 price_str = "N/A"
 
-            # Format vol bias
+            # Format VRP (Structural)
             bias_str = ""
-            if vol_bias is not None:
-                bias_str = f"{vol_bias:.2f}"
-                if vol_bias > 1.2: 
-                    bias_str = f"{bias_str:>6}"
-                elif vol_bias > 1.0: 
-                    bias_str = f"{bias_str:>6}"
-                else:
-                    bias_str = f"{bias_str:>6}" 
+            if vrp_structural is not None:
+                bias_str = f"{vrp_structural:.2f}"
+                bias_str = f"{bias_str:>8}"
             else:
-                bias_str = f"{'N/A':>6}"
+                bias_str = f"{'N/A':>8}"
 
-            # Format NVRP
+            # Format VRP (Tactical) - formerly NVRP
             nvrp = opp.get('NVRP')
             nvrp_str = "N/A"
             if nvrp is not None:
                 val = nvrp * 100
                 nvrp_str = f"{val:+.0f}%"
-                nvrp_str = f"{nvrp_str:>7}"
+                nvrp_str = f"{nvrp_str:>8}"
             else:
-                nvrp_str = f"{'N/A':>7}"
+                nvrp_str = f"{'N/A':>8}"
 
             # Signal Formatting
             sig_raw = opp.get('Signal', 'FAIR')
@@ -431,7 +421,7 @@ class TUIRenderer:
 
             output.append(f"│ {sym:<6} │ {price_str:>10} │ {bias_str} │ {nvrp_str} │ {sig_padded} │ {asset_class:<15} │")
 
-        output.append("└────────┴────────────┴────────┴─────────┴──────────────┴─────────────────┘")
+        output.append("└────────┴────────────┴──────────┴──────────┴──────────────┴─────────────────┘")
 
         # Legend
         output.append("")

@@ -555,30 +555,29 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         # Sometimes yfinance fails silently on the main symbol but proxy might work.
         return raw_symbol, {"error": "insufficient_iv_hv", "details": f"IV: {iv_val}, HV: {hv252_val}, Proxy: {proxy_note}"}
 
-    vol_bias = iv_val / hv252_val if hv252_val else None
+        vol_bias_structural = iv_val / hv252_val if hv252_val else None
+        
+        # Calculate Short-Term Bias (Tactical Edge)
+        vol_bias_tactical = iv_val / hv20_val if (hv20_val and hv20_val > 0) else None
     
-    # Calculate Short-Term Bias (Tactical Edge)
-    vol_bias_20 = iv_val / hv20_val if (hv20_val and hv20_val > 0) else None
-
-    if vol_bias is None or vol_bias <= 0:
-        return raw_symbol, {"error": "invalid_vol_bias"}
-
-    earnings_date = None if skip_fundamentals else get_earnings_date(ticker, raw_symbol, yf_symbol)
-
-    sector = safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals)
-
-    data = {
-        "price": current_price,
-        "is_stale": is_stale,
-        "iv": iv_val,
-        "hv252": hv252_val,
-        "hv20": hv20_val,
-        "hv_rank": hv_rank_val,
-        "iv_rank": iv_rank_val,
-        "vol_bias": vol_bias,
-        "vol_bias_20": vol_bias_20,
-        "atm_volume": atm_vol,
-        "atm_bid": atm_bid,
+        if vol_bias_structural is None or vol_bias_structural <= 0:
+            return raw_symbol, {"error": "invalid_vrp_structural"}
+    
+        earnings_date = None if skip_fundamentals else get_earnings_date(ticker, raw_symbol, yf_symbol)
+    
+        sector = safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals)
+    
+        data = {
+            "price": current_price,
+            "is_stale": is_stale,
+            "iv": iv_val,
+            "hv252": hv252_val,
+            "hv20": hv20_val,
+            "hv_rank": hv_rank_val,
+            "iv_rank": iv_rank_val,
+            "vrp_structural": vol_bias_structural,
+            "vrp_tactical": vol_bias_tactical,
+            "atm_volume": atm_vol,        "atm_bid": atm_bid,
         "atm_ask": atm_ask,
         "earnings_date": earnings_date,
         "sector": sector,

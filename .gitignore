@@ -29,3 +29,5 @@ positions/
 # Editor
 .vscode/
 .idea/
+.tmp/
+reports/

@@ -59,11 +59,11 @@ When the user asks for new trades, you act as the **Strategist**:
 *   **The Strategist Workflow:**
     1.  **Read Screener Data:** Identify symbols with high **NVRP** and a clear **Signal** (RICH, BOUND, etc.).
     2.  **Consult Playbook:** Cross-reference the symbol's **Environment** and **Signal** with `docs/STRATEGY_PLAYBOOK.md` and the enriched data in `config/strategies.json`.
-    3.  **Map to Mechanics:**
-        *   If Environment is **High IV / Neutral (Undefined)**: Select a strategy like **Strangle** from the rules.
-        *   If Environment is **High IV / Neutral (Defined)**: Select **Iron Condor**.
-        *   If Environment is **Low IV / Vol Expansion**: Select **Calendar** or **Diagonal**.
-    4.  **Recommend:** Provide the trade recommendation with specific management rules (Profit Target, Stop Loss, Win Rate) found in `config/strategies.json`.
+    3.  **Map to Mechanics:** Do NOT rely on default mappings (like "High IV = Strangle"). Instead, analyze the symbol's specific context:
+        *   **Price Efficiency:** Is the stock $20? Avoid spreads; look for **Naked Puts** or **Jade Lizards**. Is it $500? Use **Defined Risk** (Verticals/Condors) to preserve Buying Power.
+        *   **Directional Skew:** Does the chart or the user's portfolio delta require a tilt? Select from **Bullish**, **Bearish**, or **Omnidirectional** strategies in the JSON.
+        *   **Capital Constraints:** Evaluate the `max_loss` and `type` (defined vs undefined) against the user's Net Liquidity to ensure the position isn't over-sized.
+    4.  **Recommend:** Select the **single most efficient mechanic** from `config/strategies.json` that exploits the identified Environment. Provide the specific management rules (Profit Target, Defense) for that chosen strategy.
 *   **Risk Filters:**
     *   **HV Rank Traps:** Avoid symbols with high Vol Bias but extremely low realized volatility history.
     *   **Diversification:** Prioritize Commodities (/CL, /GC) or FX (/6C, /6E) if the portfolio is Equity-heavy.

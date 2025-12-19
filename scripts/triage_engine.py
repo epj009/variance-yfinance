@@ -23,7 +23,7 @@ class TriageResult(TypedDict, total=False):
     strategy_name: str
     price: float
     is_stale: bool
-    vol_bias: Optional[float]
+    vrp_structural: Optional[float]
     proxy_note: Optional[str]
     net_pl: float
     pl_pct: Optional[float]
@@ -51,6 +51,7 @@ class TriageMetrics(TypedDict, total=False):
     total_net_pl: float
     total_beta_delta: float
     total_portfolio_theta: float
+    total_portfolio_theta_vrp_adj: float  # VRP-adjusted theta (quality-weighted)
     total_portfolio_vega: float # NEW
     total_liquidity_cost: float
     total_abs_theta: float
@@ -237,8 +238,8 @@ def triage_cluster(
 
     # Retrieve live data
     m_data = market_data.get(root, {})
-    vol_bias = m_data.get('vol_bias', 0)
-    if vol_bias is None: vol_bias = 0
+    vrp_structural = m_data.get('vrp_structural', 0)
+    if vrp_structural is None: vrp_structural = 0
 
     live_price = m_data.get('price', 0)
     is_stale = m_data.get('is_stale', False)
@@ -321,17 +322,17 @@ def triage_cluster(
     # 4.5. Hedge Check
     if is_hedge and not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte:
         if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-            if vol_bias is not None and vol_bias < rules['dead_money_vol_bias_threshold']:
+            if vrp_structural is not None and vrp_structural < rules['dead_money_vrp_structural_threshold']:
                 action_code = "HEDGE_CHECK"
                 logic = f"Protective hedge on {root}. Review utility."
 
     # --- 5. Dead Money ---
     if not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
         if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-            if vol_bias > 0 and vol_bias < rules['dead_money_vol_bias_threshold']:
+            if vrp_structural > 0 and vrp_structural < rules['dead_money_vrp_structural_threshold']:
                 action_code = "ZOMBIE"
-                logic = f"Bias {vol_bias:.2f} & Flat P/L"
-            elif vol_bias == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
+                logic = f"VRP(S) {vrp_structural:.2f} & Flat P/L"
+            elif vrp_structural == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
                  action_code = "ZOMBIE"
                  logic = "Low IVR (Stale) & Flat P/L"
 
@@ -381,7 +382,7 @@ def triage_cluster(
         'strategy_name': strategy_name,
         'price': price_value,
         'is_stale': bool(is_stale),
-        'vol_bias': vol_bias if vol_bias is not None else None,
+        'vrp_structural': vrp_structural if vrp_structural is not None else None,
         'proxy_note': proxy_note,
         'net_pl': net_pl,
         'pl_pct': pl_pct,
@@ -415,6 +416,7 @@ def triage_portfolio(
     total_net_pl = 0.0
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0
+    total_portfolio_theta_vrp_adj = 0.0  # VRP-adjusted theta accumulator
     total_portfolio_vega = 0.0
     total_liquidity_cost = 0.0
     total_abs_theta = 0.0
@@ -442,13 +444,15 @@ def triage_portfolio(
         total_capital_at_risk += abs(net_cost)
 
         # Calculate theta, vega and friction metrics
+        cluster_theta_raw = 0.0  # Track raw theta for this cluster
         for l in legs:
             leg_theta = parse_currency(l['Theta'])
             total_portfolio_theta += leg_theta
+            cluster_theta_raw += leg_theta
             total_abs_theta += abs(leg_theta)
-            
+
             # Vega Aggregation
-            leg_vega = parse_currency(l['Vega'])
+            leg_vega = parse_currency(l.get('Vega', '0'))
             total_portfolio_vega += leg_vega
 
             # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
@@ -479,6 +483,26 @@ def triage_portfolio(
                 liquidity_cost = spread * qty * multiplier
                 total_liquidity_cost += liquidity_cost
 
+        # Apply VRP adjustment to cluster theta
+        # Get VRP Tactical from market_data for this cluster's root symbol
+        root = get_root_symbol(legs[0]['Symbol'])
+        m_data = context['market_data'].get(root, {})
+        
+        # VRP Tactical is the ratio (IV / HV20)
+        vrp_t = m_data.get('vrp_tactical')
+
+        if vrp_t is not None:
+            # Alpha Theta = Raw Theta * Tactical Ratio
+            # Example: $10 Theta * 1.5 Ratio = $15 expected value (Capturing Richness)
+            # Example: $10 Theta * 0.8 Ratio = $8 expected value (Toxic Theta / Cheap)
+            cluster_theta_vrp_adj = cluster_theta_raw * vrp_t
+        else:
+            # Fallback: If VRP Tactical unavailable, use VRP Structural
+            vrp_s = m_data.get('vrp_structural', 1.0)
+            cluster_theta_vrp_adj = cluster_theta_raw * vrp_s
+
+        total_portfolio_theta_vrp_adj += cluster_theta_vrp_adj
+
     # Calculate Friction Horizon (Φ)
     friction_horizon_days = 0.0
     if total_abs_theta > 1.0:
@@ -490,6 +514,7 @@ def triage_portfolio(
         'total_net_pl': total_net_pl,
         'total_beta_delta': total_beta_delta,
         'total_portfolio_theta': total_portfolio_theta,
+        'total_portfolio_theta_vrp_adj': total_portfolio_theta_vrp_adj,
         'total_portfolio_vega': total_portfolio_vega,
         'total_liquidity_cost': total_liquidity_cost,
         'total_abs_theta': total_abs_theta,
@@ -607,7 +632,7 @@ def get_position_aware_opportunities(
     screener_results = get_screener_results(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
-        min_vol_bias=rules.get('vol_bias_threshold', 0.85),
+        min_vol_bias=rules.get('vrp_structural_threshold', 0.85),
         limit=None,
         filter_illiquid=True
     )

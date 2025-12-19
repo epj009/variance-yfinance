@@ -73,15 +73,15 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
                 return True
     return False
 
-def _create_candidate_flags(vol_bias: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
+def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
     return {
-        'is_rich': bool(vol_bias is not None and vol_bias > rules.get('vol_bias_rich_threshold', 1.0)),
-        'is_fair': bool(vol_bias is not None and rules['vol_bias_threshold'] < vol_bias <= rules.get('vol_bias_rich_threshold', 1.0)),
+        'is_rich': bool(vrp_structural is not None and vrp_structural > rules.get('vrp_structural_rich_threshold', 1.0)),
+        'is_fair': bool(vrp_structural is not None and rules['vrp_structural_threshold'] < vrp_structural <= rules.get('vrp_structural_rich_threshold', 1.0)),
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
         'is_coiled': bool(compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.5)),
         'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.0)),
-        'is_cheap': bool(nvrp is not None and nvrp < rules.get('nvrp_cheap_threshold', -0.10))
+        'is_cheap': bool(nvrp is not None and nvrp < rules.get('vrp_tactical_cheap_threshold', -0.10))
     }
 
 def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules: Dict[str, Any]) -> str:
@@ -92,14 +92,14 @@ def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules:
     if flags['is_earnings_soon']:
         return "EVENT"
     
-    if flags.get('is_cheap'): # NVRP < -10%
+    if flags.get('is_cheap'): # VRP Tactical < -10%
         return "DISCOUNT"
         
     if flags['is_coiled']: # Ratio < 0.75
         return "BOUND"
         
     # Rich Logic: Not coiled, but high markup
-    # If NVRP > 20% (0.20)
+    # If VRP Tactical > 20% (0.20)
     if nvrp is not None and nvrp > 0.20:
         return "RICH"
         
@@ -123,8 +123,8 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     
     Weights:
     - IV Rank (Richness): 40%
-    - Vol Bias (Structural Edge): 30%
-    - Vol Bias 20 (Tactical Edge): 30%
+    - VRP Structural (Structural Edge): 30%
+    - VRP Tactical (Tactical Edge): 30%
     
     Penalties:
     - HV Rank Trap: -50% score if Short Vol Trap detected.
@@ -134,28 +134,28 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     # 1. IV Rank Component - REMOVED
     # ivr = metrics.get('iv_rank')
     
-    # 2. Vol Bias Component (Scaled) - Weight 50%
+    # 2. VRP Structural Component (Scaled) - Weight 50%
     # Target: Bias 1.5 = 100/100, Bias 1.0 = 50/100, Bias 0.5 = 0
-    bias = metrics.get('vol_bias')
+    bias = metrics.get('vrp_structural')
     if bias:
         # Scale: (Bias - 0.5) * 100. Cap at 100, Floor at 0.
         # Example: 1.2 -> (0.7) * 100 = 70
         bias_score = max(0, min(100, (bias - 0.5) * 100))
         score += bias_score * 0.50
         
-    # 3. Vol Bias 20 Component (Scaled) - Weight 50%
-    bias20 = metrics.get('vol_bias_20')
+    # 3. VRP Tactical Component (Scaled) - Weight 50%
+    bias20 = metrics.get('vrp_tactical')
     if bias20:
         bias20_score = max(0, min(100, (bias20 - 0.5) * 100))
         score += bias20_score * 0.50
-    elif bias: # Fallback to standard bias if short-term missing
+    elif bias: # Fallback to structural bias if short-term missing
         score += bias_score * 0.50
 
     # 4. Penalties
-    # HV Rank Trap: High Bias but extremely low realized vol (Dead stock with wide spreads?)
+    # HV Rank Trap: High VRP Structural but extremely low realized vol (Dead stock with wide spreads?)
     hv_rank = metrics.get('hv_rank')
     trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
-    rich_threshold = rules.get('vol_bias_rich_threshold', 1.0)
+    rich_threshold = rules.get('vrp_structural_rich_threshold', 1.0)
     
     if bias and bias > rich_threshold and hv_rank is not None and hv_rank < trap_threshold:
         score *= 0.50 # Slash score by half for traps
@@ -246,7 +246,7 @@ def screen_volatility(
         iv30 = metrics.get('iv')
         hv252 = metrics.get('hv252')
         hv20 = metrics.get('hv20')
-        vol_bias = metrics.get('vol_bias')
+        vrp_structural = metrics.get('vrp_structural')
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
@@ -255,7 +255,7 @@ def screen_volatility(
         if hv20 and hv252 and hv252 > 0:
             compression_ratio = hv20 / hv252
 
-        # NVRP Calculation (Tactical Markup)
+        # VRP Tactical Calculation (Tactical Markup)
         nvrp = None
         if hv20 and hv20 > 0 and iv30:
             nvrp = (iv30 - hv20) / hv20
@@ -279,22 +279,22 @@ def screen_volatility(
 
         days_to_earnings = get_days_to_date(earnings_date)
         
-        if vol_bias is None:
+        if vrp_structural is None:
             missing_bias += 1
             if not show_all:
                 continue
-        elif vol_bias <= RULES['vol_bias_threshold'] and not show_all:
+        elif vrp_structural <= RULES['vrp_structural_threshold'] and not show_all:
             low_bias_skipped += 1
             continue
 
-        # HV Rank Trap Detection: Filter short vol traps (high Vol Bias in dead volatility regimes)
+        # HV Rank Trap Detection: Filter short vol traps (high VRP Structural in dead volatility regimes)
         hv_rank = metrics.get('hv_rank')
-        rich_threshold = RULES.get('vol_bias_rich_threshold', 1.0)
+        rich_threshold = RULES.get('vrp_structural_rich_threshold', 1.0)
         trap_threshold = RULES.get('hv_rank_trap_threshold', 15.0)
 
         is_hv_rank_trap = (
-            vol_bias is not None and
-            vol_bias > rich_threshold and
+            vrp_structural is not None and
+            vrp_structural > rich_threshold and
             hv_rank is not None and
             hv_rank < trap_threshold
         )
@@ -317,15 +317,15 @@ def screen_volatility(
 
         is_bats_efficient = bool(
             price
-            and vol_bias is not None
+            and vrp_structural is not None
             and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price']
-            and vol_bias > RULES['bats_efficiency_vol_bias']
+            and vrp_structural > RULES['bats_efficiency_vrp_structural']
         )
         if is_bats_efficient:
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vol_bias, days_to_earnings, compression_ratio, nvrp, RULES)
+        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, nvrp, RULES)
         
         # Determine Signal Type
         signal_type = _determine_signal_type(flags, nvrp, RULES)
@@ -344,8 +344,8 @@ def screen_volatility(
             'HV252': hv252,
             'HV20': hv20,
             'Compression Ratio': compression_ratio,
-            'Vol Bias': vol_bias,
-            'Vol Bias 20': metrics.get('vol_bias_20'), # Add Vol Bias 20 here
+            'VRP Structural': vrp_structural,
+            'VRP Tactical': metrics.get('vrp_tactical'), # Add VRP Tactical here
             'NVRP': nvrp,
             'Score': variance_score, # The Golden Metric
             'Signal': signal_type,
@@ -376,7 +376,7 @@ def screen_volatility(
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
-    bias_note = "All symbols (no bias filter)" if show_all else f"Vol Bias (IV / HV) > {RULES['vol_bias_threshold']}"
+    bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {RULES['vrp_structural_threshold']}"
     liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
 
     summary = {

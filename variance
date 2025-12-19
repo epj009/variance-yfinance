@@ -53,10 +53,10 @@ if [ -z "$LATEST_CSV" ]; then
     exit 1
 fi
 
-# Define temp files
-# The analysis JSON is stored in /tmp as per user preference to avoid cluttering the project directory.
-JSON_FILE="/tmp/variance_analysis.json"
-TUI_FILE="/tmp/variance_tui_output.txt"
+# Define report files
+# The analysis JSON is stored in reports/ to be accessible to the Gemini CLI.
+JSON_FILE="reports/variance_analysis.json"
+TUI_FILE="reports/variance_tui_output.txt"
 
 # Execution Logic
 case "$MODE" in

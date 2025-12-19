@@ -1,0 +1,4 @@
+# Allow Gemini to read analysis and TUI files
+!reports/
+!reports/*.json
+!reports/*.txt
