@@ -348,8 +348,11 @@ class TestCalculateHV:
         result = get_market_data.calculate_hv(ticker, "AAPL")
 
         assert result is not None
-        assert isinstance(result, float)
-        assert result > 0
+        assert isinstance(result, dict)
+        assert 'hv252' in result
+        assert 'hv20' in result
+        assert isinstance(result['hv252'], float)
+        assert result['hv252'] > 0
 
     def test_hv_insufficient_history(self, temp_cache_db, mock_ticker_factory):
         """HV calculation fails with insufficient history."""
@@ -377,7 +380,7 @@ class TestCalculateHV:
     def test_hv_uses_cache(self, temp_cache_db):
         """Cached HV is returned without calculation."""
         cache = get_market_data.MarketCache(str(temp_cache_db))
-        cache.set("hv_AAPL", 25.5, 3600)
+        cache.set("hv_AAPL", {'hv252': 25.5, 'hv20': 20.0}, 3600)
 
         with patch.object(get_market_data, 'cache', cache):
             ticker = Mock()
@@ -385,8 +388,7 @@ class TestCalculateHV:
 
             result = get_market_data.calculate_hv(ticker, "AAPL")
 
-        assert result == 25.5
-
+        assert result == {'hv252': 25.5, 'hv20': 20.0}
 
 # ============================================================================
 # TEST CLASS 5: Utility Functions

@@ -110,3 +110,94 @@
    * EVENT (Overrides everything if earnings are near).
 
   Does this address the "Gotchas" sufficiently?
+
+---
+
+## 🚨 ISSUE: NVRP Data Quality & Clamping (Dec 19, 2025)
+
+### Problem Discovered
+VRP-adjusted theta implementation revealed extreme NVRP values from yfinance data quality issues.
+
+**Real-World Example (BE - Bloom Energy):**
+```
+yfinance Reported:
+  Stock Price: $89.39
+  IV30: 1.1%          ← Absurdly low
+  HV20: 131.3%        ← Stock is volatile
+  NVRP: -99.2%        ← 100x underpricing
+
+TastyTrade Reality:
+  BE 85P (29 DTE): IV = 100.69%  ← Actual market IV
+
+Impact on Theta:
+  Raw Theta: $16.78/day
+  VRP-Adjusted: $16.78 × (1 - 0.992) = $0.14/day  ← Destroyed!
+```
+
+### Root Cause
+yfinance's `get_current_iv()` is selecting wrong strikes or parsing bad data:
+- May target far OTM options instead of ATM
+- Date mismatch with DTE window
+- Yahoo Finance API is unreliable for individual stocks
+
+### Portfolio Impact
+Without clamping:
+- 1-2 positions with bad data can skew entire portfolio theta quality
+- Decision-making becomes based on garbage
+- Negative NVRP positions get over-penalized
+- Positive NVRP positions could get inflated
+
+### Proposed Solution: NVRP Clamping
+
+**Add to `config/trading_rules.json`:**
+```json
+{
+  "nvrp_floor": -0.50,     // Worst case: theta quality = 50%
+  "nvrp_ceiling": 1.00,    // Best case: theta quality = 200%
+  "nvrp_warning_floor": -0.30,  // Flag extreme cheap vol
+  "nvrp_warning_ceiling": 0.50   // Flag extreme rich vol
+}
+```
+
+**Implementation Points:**
+1. Apply clamps in `triage_engine.py` VRP adjustment logic (line ~492)
+2. Clamp for portfolio metrics (prevent skew)
+3. Display unclamped NVRP in position triage (transparency)
+4. Add data quality warnings in TUI when NVRP exceeds warning thresholds
+
+**Example with Clamping:**
+```python
+BE Position (NVRP = -99.2%):
+  Unclamped: $16.78 × 0.008 = $0.14/day
+  Clamped:   $16.78 × 0.50  = $8.39/day  (still penalized, but rational)
+
+Portfolio Metrics: Use clamped values
+Position Display:  Show "NVRP: -99% ⚠️ Data Quality Issue"
+```
+
+### Trade-offs
+
+**Pro Clamping:**
+- Prevents data errors from corrupting portfolio metrics
+- Portfolio-level theta quality stays meaningful
+- Conservative (errs on side of caution)
+
+**Con Clamping:**
+- Masks genuine market inefficiencies (if 1% IV is real, it IS garbage theta)
+- Could hide warning signs of selling underpriced vol
+- Removes outlier signal detection
+
+### Recommendation
+**Hybrid Approach:**
+- ✅ Clamp for portfolio aggregation (robustness)
+- ✅ Display unclamped values in position triage (transparency)
+- ✅ Add data quality warnings when |NVRP| > 50%
+- ✅ Flag positions for manual verification on broker platform
+
+### Status
+🔴 **TODO** - Needs implementation via architect → developer → qa workflow
+
+### References
+- VRP-adjusted theta implementation: Dec 19, 2025
+- Data validation: Compared yfinance vs TastyTrade for BE position
+- Related: Signal Synthesis logic also uses NVRP for opportunity classification

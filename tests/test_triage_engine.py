@@ -7,7 +7,7 @@ Network: NO (all mocked)
 
 Priority:
 1. Hedge detection - CRITICAL (must not misidentify hedges)
-2. Action codes (HARVEST, ZOMBIE, DEFENSE, GAMMA) - CRITICAL
+2. Action codes (HARVEST, TOXIC, DEFENSE, GAMMA) - CRITICAL
 3. Portfolio metrics aggregation - HIGH
 """
 
@@ -136,7 +136,7 @@ class TestTriageClusterHarvest:
         """Position at 50% profit triggers HARVEST."""
         leg = make_option_leg(cost=-100.0, pl_open=50.0)
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -148,7 +148,7 @@ class TestTriageClusterHarvest:
         """Position at 75% profit exceeds target, still HARVEST."""
         leg = make_option_leg(cost=-100.0, pl_open=75.0)
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -160,7 +160,7 @@ class TestTriageClusterHarvest:
         """Debit trade (cost > 0) at 50% profit triggers HARVEST."""
         leg = make_option_leg(cost=100.0, pl_open=-50.0)  # Debit: profit = -pl_open
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -174,7 +174,7 @@ class TestTriageClusterHarvest:
         """Position at 40% profit does not trigger HARVEST."""
         leg = make_option_leg(cost=-100.0, pl_open=40.0)
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -200,7 +200,7 @@ class TestTriageClusterDefense:
             pl_open=20.0  # 20% profit - below HARVEST threshold
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -218,7 +218,7 @@ class TestTriageClusterDefense:
             pl_open=30.0  # 30% profit - below HARVEST threshold
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -236,7 +236,7 @@ class TestTriageClusterDefense:
             pl_open=20.0  # 20% profit - below HARVEST threshold
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -252,7 +252,7 @@ class TestTriageClusterDefense:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -275,7 +275,7 @@ class TestTriageClusterGamma:
             pl_open=20.0  # 20% profit - below HARVEST threshold
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -290,7 +290,7 @@ class TestTriageClusterGamma:
             pl_open=30.0  # 30% profit - below HARVEST threshold
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -301,7 +301,7 @@ class TestTriageClusterGamma:
         """DTE=21 (at threshold) does not trigger GAMMA."""
         leg = make_option_leg(dte=21)
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -312,7 +312,7 @@ class TestTriageClusterGamma:
         """Zero DTE does not trigger GAMMA (likely other action)."""
         leg = make_option_leg(dte=0)
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0}}
+            market_data={"AAPL": {"vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -326,7 +326,7 @@ class TestTriageClusterGamma:
 # TEST CLASS 5: triage_cluster() - ZOMBIE Action
 # ============================================================================
 
-class TestTriageClusterZombie:
+class TestTriageClusterToxic:
     """Unit tests for ZOMBIE (dead money) action code."""
 
     def test_zombie_flat_pl_low_vol_bias(self, make_option_leg, make_triage_context):
@@ -337,12 +337,12 @@ class TestTriageClusterZombie:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.50}}
+            market_data={"AAPL": {"vrp_structural": 0.50}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result['action_code'] == "ZOMBIE"
+        assert result['action_code'] == "TOXIC"
 
     def test_zombie_boundary_low(self, make_option_leg, make_triage_context):
         """P/L at -10% (low boundary) triggers ZOMBIE."""
@@ -352,12 +352,12 @@ class TestTriageClusterZombie:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.70}}
+            market_data={"AAPL": {"vrp_structural": 0.70}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result['action_code'] == "ZOMBIE"
+        assert result['action_code'] == "TOXIC"
 
     def test_zombie_boundary_high(self, make_option_leg, make_triage_context):
         """P/L at +10% (high boundary) triggers ZOMBIE."""
@@ -367,12 +367,12 @@ class TestTriageClusterZombie:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.70}}
+            market_data={"AAPL": {"vrp_structural": 0.70}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result['action_code'] == "ZOMBIE"
+        assert result['action_code'] == "TOXIC"
 
     def test_no_zombie_pl_too_negative(self, make_option_leg, make_triage_context):
         """P/L at -15% does not trigger ZOMBIE (outside range)."""
@@ -382,12 +382,12 @@ class TestTriageClusterZombie:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.70}}
+            market_data={"AAPL": {"vrp_structural": 0.70}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result['action_code'] != "ZOMBIE"
+        assert result['action_code'] != "TOXIC"
 
     def test_no_zombie_vol_bias_too_high(self, make_option_leg, make_triage_context):
         """Flat P/L but high vol bias (0.85) does not trigger ZOMBIE."""
@@ -397,12 +397,12 @@ class TestTriageClusterZombie:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.85}}
+            market_data={"AAPL": {"vrp_structural": 0.85}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result['action_code'] != "ZOMBIE"
+        assert result['action_code'] != "TOXIC"
 
 
 # ============================================================================
@@ -424,7 +424,7 @@ class TestTriageClusterHedgeCheck:
         # Need to manually set strategy_name and is_hedge in result
         # This requires mocking identify_strategy
         context = make_triage_context(
-            market_data={"SPY": {"vol_bias": 0.70}},
+            market_data={"SPY": {"vrp_structural": 0.70}},
             portfolio_beta_delta=100.0
         )
 
@@ -444,7 +444,7 @@ class TestTriageClusterHedgeCheck:
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 0.70}}
+            market_data={"AAPL": {"vrp_structural": 0.70}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -466,7 +466,7 @@ class TestTriageClusterEarnings:
 
         leg = make_option_leg(dte=30)
         context = make_triage_context(
-            market_data={"AAPL": {"earnings_date": earnings_date, "vol_bias": 1.0}}
+            market_data={"AAPL": {"earnings_date": earnings_date, "vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -481,7 +481,7 @@ class TestTriageClusterEarnings:
 
         leg = make_option_leg(cost=-100.0, pl_open=50.0)
         context = make_triage_context(
-            market_data={"AAPL": {"earnings_date": earnings_date, "vol_bias": 1.0}}
+            market_data={"AAPL": {"earnings_date": earnings_date, "vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -496,7 +496,7 @@ class TestTriageClusterEarnings:
 
         leg = make_option_leg(dte=30)
         context = make_triage_context(
-            market_data={"AAPL": {"earnings_date": earnings_date, "vol_bias": 1.0}}
+            market_data={"AAPL": {"earnings_date": earnings_date, "vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -508,7 +508,7 @@ class TestTriageClusterEarnings:
         """'Unavailable' earnings date does not trigger warning."""
         leg = make_option_leg(dte=30)
         context = make_triage_context(
-            market_data={"AAPL": {"earnings_date": "Unavailable", "vol_bias": 1.0}}
+            market_data={"AAPL": {"earnings_date": "Unavailable", "vrp_structural": 1.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -544,7 +544,7 @@ class TestTriagePortfolio:
             theta=-2.0
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0, "sector": "Technology"}}
+            market_data={"AAPL": {"vrp_structural": 1.0, "sector": "Technology"}}
         )
 
         clusters = [[leg]]
@@ -578,8 +578,8 @@ class TestTriagePortfolio:
         )
         context = make_triage_context(
             market_data={
-                "AAPL": {"vol_bias": 1.0, "sector": "Technology"},
-                "TSLA": {"vol_bias": 0.9, "sector": "Automotive"}
+                "AAPL": {"vrp_structural": 1.0, "sector": "Technology"},
+                "TSLA": {"vrp_structural": 0.9, "sector": "Automotive"}
             }
         )
 
@@ -597,7 +597,7 @@ class TestTriagePortfolio:
         leg2 = make_option_leg(symbol="AAPL", call_put="Call", cost=-100.0, pl_open=20.0)
 
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0, "sector": "Technology"}}
+            market_data={"AAPL": {"vrp_structural": 1.0, "sector": "Technology"}}
         )
 
         clusters = [[leg1, leg2]]  # 2 legs in 1 cluster
@@ -615,7 +615,7 @@ class TestTriagePortfolio:
             ask=2.2  # 0.2 spread = liquidity cost
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vol_bias": 1.0, "sector": "Technology"}}
+            market_data={"AAPL": {"vrp_structural": 1.0, "sector": "Technology"}}
         )
 
         clusters = [[leg]]

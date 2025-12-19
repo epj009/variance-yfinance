@@ -15,6 +15,14 @@ import numpy as np
 # pandas is often not needed here but kept for compatibility if downstream relies on it
 import pandas as pd
 
+# Import Variance Logger
+try:
+    from variance_logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger("variance_fallback")
+    logger.addHandler(logging.NullHandler())
+
 try:
     import yfinance as yf
 except ModuleNotFoundError:
@@ -137,6 +145,35 @@ cache = MarketCache()
 _EARNINGS_IO_LOCK = threading.Lock()
 
 # --- HELPER FUNCTIONS ---
+def get_dynamic_ttl(category: str, default_seconds: int) -> int:
+    """
+    Calculates a dynamic TTL based on time of day.
+    
+    Strategy:
+    - Market Hours (09:30 - 16:00): Use default short TTL (e.g. 15m) for freshness.
+    - After Hours (16:00 - 09:30): Extend TTL to 10:00 AM next day to bridge the gap.
+    """
+    now = datetime.now()
+    
+    # Define "After Hours" loosely as before 9:00 AM or after 4:00 PM
+    # This assumes system time is somewhat aligned with market time or user preference
+    is_after_hours = (now.hour >= 16) or (now.hour < 9)
+    
+    if is_after_hours:
+        # Calculate seconds until tomorrow at 10:00 AM
+        tomorrow = now + timedelta(days=1)
+        target = tomorrow.replace(hour=10, minute=0, second=0, microsecond=0)
+        
+        # If currently morning (e.g. 1 AM), target is today 10:00 AM
+        if now.hour < 10:
+             target = now.replace(hour=10, minute=0, second=0, microsecond=0)
+             
+        seconds_remaining = (target - now).total_seconds()
+        # Ensure we don't return negative or super short duration
+        return max(default_seconds, int(seconds_remaining))
+        
+    return default_seconds
+
 def normalize_iv(raw_iv: float, hv_context: Optional[float] = None) -> Tuple[float, Optional[str]]:
     """
     Normalize IV based on HV context to detect scale (decimal vs percentage).
@@ -280,7 +317,7 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[Dict[str, float]]
 
     try:
         val = retry_fetch(_fetch)
-        if val is not None: cache.set(cache_key, val, TTL.get('hv', 86400))
+        if val is not None: cache.set(cache_key, val, get_dynamic_ttl('hv', TTL.get('hv', 86400)))
         return val
     except Exception:
         return None
@@ -328,7 +365,7 @@ def calculate_hv_rank(ticker_obj: Any, symbol_key: str) -> Optional[float]:
     try:
         val = retry_fetch(_fetch)
         if val is not None:
-            cache.set(cache_key, val, TTL.get('hv', 86400))  # Same TTL as HV
+            cache.set(cache_key, val, get_dynamic_ttl('hv', TTL.get('hv', 86400)))  # Same TTL as HV
         return val
     except Exception:
         return None
@@ -415,7 +452,7 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
     try:
         val = retry_fetch(_fetch)
         if val is not None and val.get('iv', 0) > 0:
-            cache.set(cache_key, val, TTL.get('iv', 900))
+            cache.set(cache_key, val, get_dynamic_ttl('iv', TTL.get('iv', 900)))
         return val
     except Exception:
         return None
@@ -440,7 +477,7 @@ def get_price(ticker_obj: Any, symbol_key: str) -> Optional[Tuple[float, bool]]:
 
     try:
         val = retry_fetch(_fetch, retries=2)
-        if val is not None: cache.set(cache_key, val, TTL.get('price', 600))
+        if val is not None: cache.set(cache_key, val, get_dynamic_ttl('price', TTL.get('price', 600)))
         return val
     except Exception:
         return None
@@ -553,6 +590,34 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     if iv_val is None or hv252_val is None or hv252_val == 0:
         # Final check: Do we have a valid proxy fallback that was missed?
         # Sometimes yfinance fails silently on the main symbol but proxy might work.
+        
+        # RESILIENCE: "Partial Data Mode"
+        # If we have price but missing IV/HV, return partial data instead of error.
+        # This prevents the portfolio from disappearing during after-hours/outages.
+        if current_price and current_price > 0:
+            logger.warning(f"PARTIAL DATA for {raw_symbol}: Price={current_price}, IV={iv_val}, HV={hv252_val}. Proceeding with limited functionality.")
+            
+            data = {
+                "price": current_price,
+                "is_stale": True, # Force stale flag for partial data
+                "iv": iv_val,
+                "hv252": hv252_val,
+                "hv20": hv20_val,
+                "hv_rank": hv_rank_val,
+                "iv_rank": iv_rank_val,
+                "vrp_structural": 0.0, # Default to 0 to fail downstream filters (Screener)
+                "vrp_tactical": 0.0,
+                "atm_volume": 0,
+                "atm_bid": 0,
+                "atm_ask": 0,
+                "earnings_date": None,
+                "sector": safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals),
+                "proxy": proxy_note,
+                "warning": "partial_data_missing_vol"
+            }
+            cache.set(f"md_{yf_symbol}", data, get_dynamic_ttl('price', TTL.get('price', 600)))
+            return raw_symbol, data
+
         return raw_symbol, {"error": "insufficient_iv_hv", "details": f"IV: {iv_val}, HV: {hv252_val}, Proxy: {proxy_note}"}
 
     vol_bias_structural = iv_val / hv252_val if hv252_val else None
@@ -585,7 +650,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "proxy": proxy_note
     }
     if iv_warning: data['warning'] = iv_warning
-    cache.set(f"md_{yf_symbol}", data, TTL.get('price', 600))
+    cache.set(f"md_{yf_symbol}", data, get_dynamic_ttl('price', TTL.get('price', 600)))
     return raw_symbol, data
 
 def get_market_data(symbols: List[str]) -> Dict[str, Dict[str, Any]]:

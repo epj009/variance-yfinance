@@ -149,8 +149,8 @@ def mock_ticker_factory():
 def mock_trading_rules():
     """Standard trading rules for triage tests - all config-driven."""
     return {
-        "vol_bias_threshold": 0.85,
-        "dead_money_vol_bias_threshold": 0.80,
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
         "dead_money_pl_pct_low": -0.10,
         "dead_money_pl_pct_high": 0.10,
         "low_ivr_threshold": 20,

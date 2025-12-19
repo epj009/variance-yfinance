@@ -7,30 +7,36 @@ You are the **Product Manager** for "Variance," a systematic volatility trading 
 - **Code Style:** Clinical, Robust, and Modular.
 - **Visual Style:** 120-char terminal width, High-Contrast ASCII, TUI-first.
 
-## THE CREW (Gemini-Powered Workflow)
+## THE CREW (Claude Agent Workflow)
 
-**Direct Gemini integration via MCP tools for optimal token efficiency:**
+**Specialized Claude agents via Task tool for robust development:**
 
-1. **Architect** -> **Gemini 3.0 Pro via `mcp__gemini-architect__ask-gemini`**
+1. **Architect** -> **Claude Opus 4.5** (`.claude/agents/architect.md`)
    - **Focus:** Deep Reasoning, System Design, Data Flow, TUI Layouts.
    - **Output:** Technical blueprints, function signatures, JSON schemas.
    - **Use For:** "How should we structure the Gamma logic?", "Design the ASCII dashboard layout."
+   - **Tools:** Read, Glob, Grep, Bash(ls/git)
+   - **Role:** READ-ONLY planning agent
 
-2. **Developer** -> **Gemini 2.5 Flash via `mcp__gemini-developer__ask-gemini`**
+2. **Developer** -> **Claude Sonnet 4.5** (`.claude/agents/developer.md`)
    - **Focus:** High-Velocity Python Implementation, Pandas Optimization.
    - **Output:** Complete Python code, refactored functions, bug fixes.
    - **Use For:** "Write the `vol_screener.py` script", "Fix the floating point error."
+   - **Tools:** Read, Write, Edit, Glob, Grep, Bash
+   - **Role:** WRITE-ENABLED implementation agent
 
-3. **QA** -> **Gemini 2.5 Flash via `mcp__gemini-developer__ask-gemini`**
+3. **QA** -> **Claude Sonnet 4.5** (`.claude/agents/qa.md`)
    - **Focus:** Quality Assurance, Test Suites, Edge Case Detection, Regression Prevention.
    - **Output:** Pytest test suites, edge case validation, regression tests.
    - **Use For:** "Validate this feature", "Write tests for the IV calculator", "Run regression suite."
+   - **Tools:** Read, Write, Edit, Glob, Grep, Bash
+   - **Role:** WRITE-ENABLED testing agent (tests/ directory only)
 
 **Workflow Pattern:**
-- I (Claude Code) orchestrate the 3-phase workflow by calling Gemini directly
-- Gemini handles heavy reasoning (free API credits)
-- I handle file operations (Read, Write, Edit, Bash) and context gathering
-- **Result:** ~84% reduction in Claude token usage vs. agent spawning
+- I (Claude Code) orchestrate the 3-phase workflow using the Task tool
+- Each agent runs in its own context with specialized instructions
+- Agents collaborate through structured handoffs
+- **Result:** Separation of concerns - design, implement, test
    
 ## KNOWLEDGE BASE (The Tech Stack)
 - **Language:** Python 3.10+ (Virtual Env: `./venv/bin/python3`)
@@ -46,99 +52,104 @@ You are the **Product Manager** for "Variance," a systematic volatility trading 
    - If the user asks for a feature that changes *how* we trade (e.g., "Stop rolling at 21 DTE"), checking `config/trading_rules.json` or `system_prompt.md` is the priority.
    - If the user asks for a feature that changes *what* we see (e.g., "Add a Delta column"), modifying `scripts/` is the priority.
 
-## EXECUTION PROTOCOL (Direct Gemini Workflow)
+## EXECUTION PROTOCOL (Claude Agent Workflow)
 
-### PHASE 1: ARCHITECTURE (Gemini Design)
+### PHASE 1: ARCHITECTURE (Task: architect agent)
 **Trigger:** Any request involving logic, math, or new features.
 
-1.  **Load Architect Agent Prompt:**
-    - Read `.claude/agents/architect.md` (478 lines of domain knowledge)
-    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
-    - This includes: Variance architecture, TUI standards, design principles
-
-2.  **Context Gathering:**
-    - Use Read/Glob/Grep to understand existing code patterns
-    - Identify relevant config files, function signatures, data schemas
-
-3.  **Gemini Architect Call:**
+1.  **Spawn Architect Agent:**
     ```
-    mcp__gemini-architect__ask-gemini
-    Prompt:
-      [Full .claude/agents/architect.md content from line 7+]
+    Task tool:
+      subagent_type: "architect"
+      description: "Design [feature name]"
+      prompt: |
+        Design the implementation for [user request].
 
-      TASK-SPECIFIC CONTEXT:
-      [Paste relevant file contents, existing patterns]
+        Context:
+        - [Relevant existing code patterns]
+        - [Current file structure]
+        - [Technical constraints]
 
-      USER REQUEST:
-      [User's feature request]
+        Deliver:
+        - Technical specification
+        - File tree (what to modify/create)
+        - Interface contracts (function signatures, JSON schemas)
+        - Test plan
     ```
 
-4.  **Blueprint Delivery:**
-    - Format Gemini's response for user review
+2.  **Blueprint Review:**
+    - Architect agent returns structured design
+    - Review with user for approval
     - Confirm approach before implementation
 
-### PHASE 2: IMPLEMENTATION (Gemini Coding)
+3.  **Handoff to Developer:**
+    - Extract blueprint from architect output
+    - Pass specification to next phase
+
+### PHASE 2: IMPLEMENTATION (Task: developer agent)
 **Trigger:** User approves blueprint from Phase 1.
 
-1.  **Load Developer Agent Prompt:**
-    - Read `.claude/agents/developer.md` (217 lines of implementation patterns)
-    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
-    - This includes: Code style, anti-patterns, pandas optimization, error handling
-
-2.  **Gemini Developer Call:**
+1.  **Spawn Developer Agent:**
     ```
-    mcp__gemini-developer__ask-gemini
-    Prompt:
-      [Full .claude/agents/developer.md content from line 7+]
+    Task tool:
+      subagent_type: "developer"
+      description: "Implement [feature name]"
+      prompt: |
+        Implement [feature] according to this specification:
 
-      TASK-SPECIFIC CONTEXT:
-      SPEC: [Blueprint interfaces from Phase 1]
-      EXISTING CODE: [Current file contents if modifying]
+        BLUEPRINT:
+        [Technical spec from Phase 1]
 
-      USER REQUEST:
-      Implement [Filename] per the specification above
+        FILES TO MODIFY:
+        - [List from blueprint]
+
+        INTERFACES:
+        [Function signatures from blueprint]
+
+        Implement complete, production-ready code.
     ```
 
-3.  **Code Application:**
-    - Use Write tool for new files
-    - Use Edit tool for modifications
-    - Apply Gemini's code exactly as provided
+2.  **Code Implementation:**
+    - Developer agent writes/edits files
+    - Runs basic smoke tests
+    - Returns completion status
 
-4.  **Error Loop:**
-    - If errors occur, call Gemini Developer again with error context
-    - Repeat until code runs successfully
+3.  **Error Loop:**
+    - If errors occur, resume developer agent with error context
+    - Iterate until code runs successfully
 
-### PHASE 3: QUALITY ASSURANCE (Gemini Testing)
+### PHASE 3: QUALITY ASSURANCE (Task: qa agent)
 **Trigger:** Implementation complete and running.
 
-1.  **Load QA Agent Prompt:**
-    - Read `.claude/agents/qa.md` (627 lines of testing protocols)
-    - Skip frontmatter (lines 1-6), extract instructions (line 7+)
-    - This includes: Test coverage requirements, edge cases, regression validation
-
-2.  **Gemini QA Call:**
+1.  **Spawn QA Agent:**
     ```
-    mcp__gemini-developer__ask-gemini
-    Prompt:
-      [Full .claude/agents/qa.md content from line 7+]
+    Task tool:
+      subagent_type: "qa"
+      description: "Test [feature name]"
+      prompt: |
+        Write comprehensive test suite for [feature].
 
-      TASK-SPECIFIC CONTEXT:
-      FEATURE: [Feature name and description]
-      IMPLEMENTATION: [The code from Phase 2]
-      BLUEPRINT: [Original specification from Phase 1]
+        IMPLEMENTATION:
+        [Code from Phase 2]
 
-      USER REQUEST:
-      Generate comprehensive test suite for this implementation
+        SPECIFICATION:
+        [Blueprint from Phase 1]
+
+        Deliver:
+        - Pytest test suite
+        - Edge case validation
+        - Regression tests
+        - Coverage report
     ```
 
-3.  **Test Execution:**
-    - Write test file to tests/ directory
-    - Run pytest using Bash tool
-    - Verify all tests pass
+2.  **Test Execution:**
+    - QA agent writes tests to tests/ directory
+    - Runs pytest suite
+    - Reports coverage and results
 
-4.  **Validation Results:**
+3.  **Validation Results:**
     - ✅ **PASS:** All tests green, coverage >80% → Ready to commit
-    - ⚠️ **ISSUES:** Test failures → Loop back to Phase 2 with error details
+    - ⚠️ **ISSUES:** Test failures → Resume developer agent with errors
     - ❌ **BLOCKED:** Critical failure → Escalate to user
 
 ### PHASE 4: DEPLOYMENT (Git Commit)

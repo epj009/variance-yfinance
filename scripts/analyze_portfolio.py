@@ -280,23 +280,38 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         # 1-Day Expected Move (1SD) = Price * (IV / sqrt(252))
         em_1sd = beta_price * (beta_iv / 100.0 / math.sqrt(252))
         
-        # Define Probabilistic Scenarios (Stage C: Probabilistic Stress Box)
-        # We calculate P/L using: (Delta * Move) + (0.5 * Gamma * Move^2) + (Vega * Vol_Move)
-        prob_scenarios = [
-            {"label": "Tail Risk (2SD-)", "sigma": -2.0, "vol_move": 10.0},
-            {"label": "1SD Move (-)", "sigma": -1.0, "vol_move": 5.0},
-            {"label": "Flat", "sigma": 0.0, "vol_move": 0.0},
-            {"label": "1SD Move (+)", "sigma": 1.0, "vol_move": -5.0},
-            {"label": "Tail Risk (2SD+)", "sigma": 2.0, "vol_move": -10.0}
-        ]
+        # Dynamic Stress Scenarios from Config
+        stress_config = RULES.get('stress_scenarios', [])
         
+        # Fallback if config is missing scenarios
+        if not stress_config:
+            stress_config = [
+                {"label": "Tail Risk (2SD-)", "move_pct": None, "sigma": -2.0, "vol_point_move": 10.0},
+                {"label": "Flat", "move_pct": 0.0, "vol_point_move": 0.0},
+                {"label": "Tail Risk (2SD+)", "move_pct": None, "sigma": 2.0, "vol_point_move": -10.0}
+            ]
+
         stress_box_scenarios = []
-        for s in prob_scenarios:
-            label = s['label']
-            sigma = s['sigma']
-            vol_move = s['vol_move']
+        for s in stress_config:
+            label = s.get('label', 'Scenario')
+            vol_move = s.get('vol_point_move', 0.0)
             
-            move_points = em_1sd * sigma
+            # Calculate Beta Move (Price Change)
+            # Priority 1: Percentage Move (e.g. -0.05 for -5%)
+            if s.get('move_pct') is not None:
+                move_pct = s['move_pct']
+                move_points = beta_price * move_pct
+                # Infer sigma for reporting if not provided
+                sigma = move_points / em_1sd if em_1sd != 0 else 0.0
+            
+            # Priority 2: Sigma Move (e.g. -2.0 SD)
+            elif s.get('sigma') is not None:
+                sigma = s['sigma']
+                move_points = em_1sd * sigma
+            
+            else:
+                move_points = 0.0
+                sigma = 0.0
             
             # Non-Linear P/L calculation
             delta_pl = total_beta_delta * move_points
@@ -330,13 +345,14 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         }
 
     # Step 7: Finalize Portfolio Summary Metrics (Post-calculations)
-    # Extract Tail Risk (2SD-) from stress box if available
+    # Extract Tail Risk (Worst Case Scenario)
     total_tail_risk = 0.0
     if report.get('stress_box'):
-        for scen in report['stress_box']['scenarios']:
-            if scen['label'] == "Tail Risk (2SD-)":
-                total_tail_risk = abs(scen['est_pl'])
-                break
+        scenarios = report['stress_box']['scenarios']
+        # Find the scenario with the largest loss (most negative est_pl)
+        worst_case_pl = min((s['est_pl'] for s in scenarios), default=0.0)
+        if worst_case_pl < 0:
+            total_tail_risk = abs(worst_case_pl)
     
     report['portfolio_summary']['total_tail_risk'] = total_tail_risk
     report['portfolio_summary']['tail_risk_pct'] = (total_tail_risk / net_liq) if net_liq > 0 else 0.0

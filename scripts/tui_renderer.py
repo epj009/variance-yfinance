@@ -100,7 +100,7 @@ class TUIRenderer:
         gyro_text.append(f"({beta_delta:.0f} Δ)\n", style=tilt_style)
         gyro_text.append(f"• Theta:     ", style="dim")
         gyro_text.append(f"{fmt_currency(theta_raw)} → {fmt_currency(theta_vrp)} ", style="profit")
-        gyro_text.append(f"({markup:+.0%})\n", style="dim")
+        gyro_text.append(f"({markup:+.0%} VRP)\n", style="dim")
         gyro_text.append(f"• Vega:      ", style="dim")
         gyro_text.append(f"{fmt_currency(portfolio_vega)}/pt\n", style="neutral")
         gyro_text.append(f"• Stability: ", style="dim")
