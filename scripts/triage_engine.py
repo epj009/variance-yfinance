@@ -247,6 +247,7 @@ def triage_cluster(
     m_data = market_data.get(root, {})
     vrp_structural = m_data.get('vrp_structural', 0)
     if vrp_structural is None: vrp_structural = 0
+    vrp_tactical = m_data.get('vrp_tactical', 1.0) # For expansion checks
 
     live_price = m_data.get('price', 0)
     is_stale = m_data.get('is_stale', False)
@@ -254,18 +255,33 @@ def triage_cluster(
     sector = m_data.get('sector', 'Unknown')
     proxy_note = m_data.get('proxy')
 
-    # --- 0. Size Threat Check (New) ---
-    # Check if margin usage exceeds threshold (e.g., 5% of Net Liq)
-    # Use absolute net cost as a proxy for margin/capital usage
-    capital_usage = abs(net_cost)
-    size_threat_pct = rules.get('size_threat_pct', 0.05)
+    # --- 0. Probabilistic Size Threat Check (VaR Contribution) ---
+    # Check if a 2SD move (-95% confidence) causes a loss > 5% of Net Liq
+    is_size_threat = False
+    size_logic = ""
     
-    if net_liquidity > 0 and (capital_usage / net_liquidity) > size_threat_pct:
-        # Only flag if not already a winner (winning big positions are good problems)
-        # But even winners should be trimmed. Let's make it a warning.
-        is_size_threat = True
-    else:
-        is_size_threat = False
+    # Need Beta IV for Expected Move calculation
+    beta_rules = rules.get('beta_rules', {})
+    beta_sym = rules.get('beta_weighted_symbol', 'SPY')
+    beta_data = market_data.get(beta_sym, {})
+    beta_iv = beta_data.get('iv', 15.0)
+    beta_price = beta_data.get('price', 0.0)
+    
+    if beta_price > 0:
+        em_1sd = beta_price * (beta_iv / 100.0 / 15.87) # 15.87 approx sqrt(252)
+        move_2sd = em_1sd * -2.0 # Downward 2-sigma move
+        
+        # Calculate cluster specific 2SD loss
+        # Loss = (Delta * Move) + (0.5 * Gamma * Move^2)
+        # We use strategy_delta and strategy_gamma calculated earlier
+        loss_at_2sd = (strategy_delta * move_2sd) + (0.5 * strategy_gamma * (move_2sd ** 2))
+        
+        # Flag if loss > 5% of Net Liq
+        size_threshold = net_liquidity * rules.get('size_threat_pct', 0.05)
+        if abs(loss_at_2sd) > size_threshold and loss_at_2sd < 0:
+            is_size_threat = True
+            usage_pct = abs(loss_at_2sd) / net_liquidity
+            size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
 
 
     # --- 1. Harvest Logic (Enhanced with Velocity) ---
@@ -284,9 +300,8 @@ def triage_cluster(
 
     # Size Threat Action (If not already harvesting)
     if not is_winner and is_size_threat:
-        usage_pct = (capital_usage / net_liquidity)
         action_code = "SIZE_THREAT"
-        logic = f"Size {usage_pct:.1%} > Limit {size_threat_pct:.0%}"
+        logic = size_logic if size_logic else "Excessive Position Size"
 
 
     # --- 2. Defense ---
@@ -333,14 +348,21 @@ def triage_cluster(
                 action_code = "HEDGE_CHECK"
                 logic = f"Protective hedge on {root}. Review utility."
 
-    # --- 5. Dead Money ---
+    # --- 5. Toxic Theta (ZOMBIE) ---
+    # Triggered if Exp. Alpha < Raw Theta (The market is underpricing the risk of movement)
+    # Only flag if not already a winner/defense/gamma and P/L is relatively stagnant
     if not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-            if vrp_structural > 0 and vrp_structural < rules['dead_money_vrp_structural_threshold']:
-                action_code = "ZOMBIE"
-                logic = f"VRP(S) {vrp_structural:.2f} & Flat P/L"
+        # Calculate Alpha for this cluster specifically
+        cluster_alpha = 0.0
+        if vrp_structural > 0:
+            cluster_alpha = strategy_delta * vrp_structural # Simplified proxy for the check
+            # Real check: is VRP below the 'dead money' threshold?
+            if vrp_structural < rules.get('dead_money_vrp_structural_threshold', 0.80):
+                if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
+                    action_code = "TOXIC"
+                    logic = f"Toxic Theta: Expected Yield ({vrp_structural:.2f}x) < Statistical Cost"
             elif vrp_structural == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
-                 action_code = "ZOMBIE"
+                 action_code = "TOXIC"
                  logic = "Low IVR (Stale) & Flat P/L"
 
     # --- 6. Earnings Check (Enhanced with Stance) ---
@@ -378,6 +400,17 @@ def triage_cluster(
 
         except (ValueError, TypeError):
             pass
+
+    # --- 7. VRP Momentum (SCALABLE) ---
+    # Triggered if Tactical VRP is surging above Structural (Fresh Opportunity)
+    # AND we aren't already oversized or in trouble.
+    if not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
+        if vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > 1.5:
+            # Safety check: Only suggest scaling if current Tail Risk is low (< 2% of Net Liq)
+            # This prevents over-sizing already significant positions.
+            if abs(loss_at_2sd) < (0.02 * net_liquidity) and (pl_pct or 0) < 0.25:
+                action_code = "SCALABLE"
+                logic = f"VRP Surge: Tactical markup ({vrp_tactical:.2f}) is significantly above trend. High Alpha Opportunity."
 
     price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
     if (price_used != "live" or is_stale) and not is_winner and dte < gamma_trigger_dte:

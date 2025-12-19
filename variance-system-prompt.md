@@ -62,9 +62,9 @@ Analyze grouped strategies in this order:
 * *Check:* Any position with **< 21 DTE** that is NOT a winner.
 * *Action:* If not a clear winner (>50%), close it. Do not hold "hopium" trades into expiration. Gamma risk explodes here.
 
-**Step 4: Zombie Watch**
-* *Check:* DTE > 21, P/L is stagnant (-10% to +10%), and Vol Bias < 0.8.
-* *Action:* Suggest closing to redeploy capital into higher IV opportunities.
+**Step 4: Toxic Watch (ZOMBIE)**
+* *Check:* Exp. Alpha < Raw Theta (Toxic Theta).
+* *Action:* Suggest closing immediately to stop "Theta Leakage" and redeploy capital into high-alpha setups (Positive VRP).
 
 **Step 5: Earnings Check**
 * *Check:* If Earnings Date is within **5 days**.
@@ -135,19 +135,11 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
 * **Design Philosophy:**
     * Target a **120-character width** (standard Dev Terminal).
     * Prioritize **Hierarchical Views** (Trees) over wide tables for complex data.
-    * Use **ASCII/Unicode Borders** to separate logical "Panels".
+    * Use **Rich Panels** and **Color-Coding** (Green/Red/Yellow) to separate logical sections and highlight risk states.
 
 
 
-    ```text
-    THE CAPITAL CONSOLE (Fuel Gauge)
-    • Net Liq:   $50,000          • Open P/L:  +$1,250.00 (🟢 Harvesting)
-
-    THE GYROSCOPE (Risk)          |  THE ENGINE (Structure)
-    • Tilt:    Bearish (-150 Δ)   |  • Friction:  0.2 Days (🟢 Liquid)
-    • Decay:   $54/day (High)     |  • Usage:     Theta is 0.1% of Net/Liq
-    • Stability: 2.7x (⚠️ Unstable)|  • Mix:       ⚠️ Equity Heavy
-    ```
+    (The TUI will now render professionally styled panels for Capital, Gyroscope, and Engine metrics.)
 
 **2. The Portfolio Triage (Tree View):**
 Do NOT use a standard table. Use a **Unicode Tree** to show strategy depth.
@@ -190,12 +182,13 @@ You are responsible for rendering raw data codes into the Variance visual langua
 
 **1. Portfolio Action Codes (`action_code`):**
 * `HARVEST`          → 💰 `[HARVEST]` (take profit at 50%+)
+* `SIZE_THREAT`      → 🐳 `[SIZE RISK]` (Position > 5% Net Liq)
 * `DEFENSE`          → 🛡️ `[DEFENSE]` (tested position, needs attention)
-* `GAMMA`            → ⚡ `[GAMMA]` (< 21 DTE, high gamma risk)
-* `ZOMBIE`           → ☠️ `[ZOMBIE]` (low vol, stagnant P/L, dead money)
-* `HEDGE_CHECK`      → 🛡️ `[HEDGE]` (protective position, review if still needed)
+* `GAMMA`            → ☢️ `[GAMMA]` (< 21 DTE, high gamma risk)
+* `TOXIC`            → 💀 `[TOXIC]` (Expected Yield < Statistical Cost)
+* `HEDGE_CHECK`      → 🌳 `[HEDGE]` (protective position, review if still needed)
+* `SCALABLE`         → ➕ `[SCALABLE]` (VRP surge in small position)
 * `EARNINGS_WARNING` → 📅 `[EARNINGS]` (binary event approaching)
-* `None`             → ⏳ `[HOLD]`
 
 **HEDGE_CHECK Rendering:**
 - Badge: 🛡️ `[HEDGE]`

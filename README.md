@@ -9,9 +9,16 @@ Variance is a **Systematic Volatility Analysis Engine** designed to identify sta
 *   **📡 Dual-VRP Synthesis**: Monitors both **Structural (252d)** and **Tactical (20d)** Volatility Risk Premia to find high-conviction trades.
 *   **💎 Alpha-Theta Metrics**: Visualizes the "Quality of Income" by adjusting raw Theta for the current VRP markup (`Raw → Expected`).
 *   **🧠 Strategist Workflow**: The Agent interprets mathematical states (e.g., "Bound") using the official Strategy Playbook and Mechanics documents.
-*   **🛡️ Portfolio Triage**: Automatically flags positions for `HARVEST`, `DEFENSE`, `GAMMA`, or `ZOMBIE` based on mechanical rules.
+*   **🛡️ Portfolio Triage**: Automatically flags positions based on unified probabilistic rules:
+    *   `HARVEST`: Profit > 50%.
+    *   `DEFENSE`: Tested strikes needing active management.
+    *   `GAMMA`: Risk acceleration (< 21 DTE).
+    *   `SIZE RISK`: Position contributes > 5% of Net Liq to Tail Risk (2SD-).
+    *   `SCALABLE`: Fresh VRP surge detected in a small existing position.
+    *   `TOXIC`: Negative expectancy (Expected Yield < Statistical Cost).
 *   **🧪 Research Lab**: Includes institutional-grade utilities for Sector Z-Score analysis and Tactical/Structural divergence.
-*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface optimized for rapid information processing.
+*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface.
+*   **✨ Rich TUI**: Professional, color-coded panels and tables powered by the `rich` library.
 
 ## 🛠️ Architecture
 
@@ -45,6 +52,7 @@ The system synthesizes multiple metrics into a single "Signal" for the TUI:
 | **DISCOUNT** | Underpriced Vol (<-10%) | Long Vol (Calendars/Diagonals) |
 | **EVENT** | Binary event risk | Earnings (Avoid) |
 | **FAIR** | Fairly priced risk | Pass |
+| **TOXIC** | Theta Leakage (Alpha < Theta) | Exit / Recycle BPR |
 
 ## 📦 Installation
 

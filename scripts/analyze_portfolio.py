@@ -152,9 +152,10 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             entry["action_code"] = None
             report['portfolio_overview'].append(entry)
 
-    # Populate Portfolio Summary
+    # Step 7: Finalize Portfolio Summary and Report
     net_liq = RULES['net_liquidity']
     report['portfolio_summary']['net_liquidity'] = net_liq
+    
     if net_liq > 0:
         theta_as_pct_of_nl = total_portfolio_theta / net_liq
         theta_vrp_as_pct_of_nl = total_portfolio_theta_vrp_adj / net_liq
@@ -328,7 +329,19 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "scenarios": stress_box_scenarios
         }
 
-    # Step 6: Get Position-Aware Opportunities (vol screener with context)
+    # Step 7: Finalize Portfolio Summary Metrics (Post-calculations)
+    # Extract Tail Risk (2SD-) from stress box if available
+    total_tail_risk = 0.0
+    if report.get('stress_box'):
+        for scen in report['stress_box']['scenarios']:
+            if scen['label'] == "Tail Risk (2SD-)":
+                total_tail_risk = abs(scen['est_pl'])
+                break
+    
+    report['portfolio_summary']['total_tail_risk'] = total_tail_risk
+    report['portfolio_summary']['tail_risk_pct'] = (total_tail_risk / net_liq) if net_liq > 0 else 0.0
+
+    # Step 8: Get Position-Aware Opportunities (vol screener with context)
     try:
         opportunities_data = get_position_aware_opportunities(
             positions=positions,
