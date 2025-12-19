@@ -25,6 +25,9 @@
     "theta_efficiency_high": 0.5,
     "min_atm_volume": 500,
     "max_slippage_pct": 0.05,
+    "nvrp_aggregation_floor": -0.50,
+    "nvrp_aggregation_ceiling": 1.00,
+    "nvrp_quality_warning_threshold": 0.50,
     "bats_efficiency_min_price": 15,
     "bats_efficiency_max_price": 75,
     "bats_efficiency_vrp_structural": 1.0,
@@ -37,7 +40,7 @@
         {"label": "Dip (-3%)", "move_pct": -0.03, "vol_point_move": 5.0},
         {"label": "Flat", "move_pct": 0.0, "vol_point_move": 0.0},
         {"label": "Rally (+3%)", "move_pct": 0.03, "vol_point_move": -5.0},
-        {"label": "Moon (+5%)", "move_pct": 0.05, "vol_point_move": -10.0},
+        {"label": "Rally (+5%)", "move_pct": 0.05, "vol_point_move": -10.0},
         {"label": "Vol Spike", "move_pct": 0.0, "vol_point_move": 10.0},
         {"label": "Vol Crush", "move_pct": 0.0, "vol_point_move": -10.0}
     ],

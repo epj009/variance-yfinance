@@ -201,3 +201,36 @@ Position Display:  Show "NVRP: -99% ⚠️ Data Quality Issue"
 - VRP-adjusted theta implementation: Dec 19, 2025
 - Data validation: Compared yfinance vs TastyTrade for BE position
 - Related: Signal Synthesis logic also uses NVRP for opportunity classification
+
+---
+
+## 🛠️ Quantitative Audit & Proposal for Engine Refinement (Dec 19, 2025)
+
+The following architectural adjustments are proposed to improve the engine's precision and eliminate statistical noise.
+
+### 1. Screener Gate Logic (`get_screener_results`)
+*   **Problem:** The `min_vol_bias` parameter is functionally inert, as the internal filter is hardcoded to `RULES['vrp_structural_threshold']`.
+*   **Proposed Fix:** Modify `screen_volatility` to accept a `min_vrp_override: Optional[float]` argument. Prioritize the override if provided, falling back to `RULES` otherwise.
+
+### 2. Tactical Markup Explosion (`NVRP` Math)
+*   **Problem:** Near-zero `HV20` (flat tape) causes `NVRP` to explode, creating arbitrarily high markups that dominate the sort.
+*   **Proposed Fix:** Implement a **HV Floor & NVRP Cap**.
+    *   **Floor:** If $HV20 < 5.0$, treat markup as "Unreliable" (fallback to $VRP\_Structural$ or use a floor of 5.0).
+    *   **Cap:** Hard-cap `NVRP` at $3.0$ (300%) for ranking purposes.
+
+### 3. Scoring Bias (Long-Vol / `DISCOUNT`)
+*   **Problem:** The `Variance Score` floors at 0 for VRP < 0.5, "burying" Long-Vol (DISCOUNT) opportunities despite their mean-reversion potential.
+*   **Proposed Fix:** Implement **Absolute Dislocation Scoring**.
+    *   Measure the absolute distance from 1.0 (Fair Value). A $VRP$ of 0.5 (Cheap) should score as high as a $VRP$ of 1.5 (Rich).
+
+### 4. Futures Liquidity Blindspot
+*   **Problem:** Blanket exemption for `/` symbols allows thin/illiquid futures to pass.
+*   **Proposed Fix:** Implement **Proxy-Aware Liquidity Gating**.
+    *   Remove the shortcut. Use `FUTURES_PROXY` (e.g., UNG for /NG) to check liquidity if the main future data is thin. Apply a Bid/Ask spread % check.
+
+### 5. Compression Data Gaps
+*   **Problem:** Missing $HV20$ prevents `is_coiled` or `is_expanding` from firing, defaulting to `FAIR`.
+*   **Proposed Fix:** **Compression Neutrality Fallback**.
+    *   Default `compression_ratio` to 1.0 (Neutral) if $HV20$ is missing. Tag as `is_data_lean` to inform the TUI.
+
+---

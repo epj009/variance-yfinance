@@ -122,37 +122,37 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
     
     Weights:
-    - IV Rank (Richness): 40%
-    - VRP Structural (Structural Edge): 30%
-    - VRP Tactical (Tactical Edge): 30%
+    - VRP Structural Dislocation (Structural Edge): 50%
+    - VRP Tactical Dislocation (Tactical Edge): 50%
+    
+    The score measures the ABSOLUTE distance from Fair Value (1.0).
+    Significant dislocation in either direction (Rich or Cheap) results in a high score.
     
     Penalties:
     - HV Rank Trap: -50% score if Short Vol Trap detected.
     """
     score = 0.0
     
-    # 1. IV Rank Component - REMOVED
-    # ivr = metrics.get('iv_rank')
-    
-    # 2. VRP Structural Component (Scaled) - Weight 50%
-    # Target: Bias 1.5 = 100/100, Bias 1.0 = 50/100, Bias 0.5 = 0
+    # 1. VRP Structural Component (Absolute Dislocation)
+    # Target: |Bias - 1.0| * 200. Max 100.
+    # Example: 1.5 -> 0.5 * 200 = 100. 0.5 -> 0.5 * 200 = 100.
     bias = metrics.get('vrp_structural')
     if bias:
-        # Scale: (Bias - 0.5) * 100. Cap at 100, Floor at 0.
-        # Example: 1.2 -> (0.7) * 100 = 70
-        bias_score = max(0, min(100, (bias - 0.5) * 100))
+        bias_dislocation = abs(bias - 1.0) * 200
+        bias_score = max(0, min(100, bias_dislocation))
         score += bias_score * 0.50
         
-    # 3. VRP Tactical Component (Scaled) - Weight 50%
+    # 2. VRP Tactical Component (Absolute Dislocation)
     bias20 = metrics.get('vrp_tactical')
     if bias20:
-        bias20_score = max(0, min(100, (bias20 - 0.5) * 100))
+        bias20_dislocation = abs(bias20 - 1.0) * 200
+        bias20_score = max(0, min(100, bias20_dislocation))
         score += bias20_score * 0.50
-    elif bias: # Fallback to structural bias if short-term missing
+    elif bias: # Fallback
         score += bias_score * 0.50
 
-    # 4. Penalties
-    # HV Rank Trap: High VRP Structural but extremely low realized vol (Dead stock with wide spreads?)
+    # 3. Penalties
+    # HV Rank Trap: High VRP Structural but extremely low realized vol
     hv_rank = metrics.get('hv_rank')
     trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
     rich_threshold = rules.get('vrp_structural_rich_threshold', 1.0)
@@ -170,7 +170,8 @@ def screen_volatility(
     include_asset_classes: Optional[List[str]] = None,
     exclude_asset_classes: Optional[List[str]] = None,
     exclude_symbols: Optional[List[str]] = None,
-    held_symbols: Optional[List[str]] = None
+    held_symbols: Optional[List[str]] = None,
+    min_vrp_override: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
@@ -186,6 +187,7 @@ def screen_volatility(
         exclude_sectors: List of sector names to hide from results.
         include_asset_classes: Only show these asset classes (e.g., ["Commodity", "FX"]).
         exclude_asset_classes: Hide these asset classes (e.g., ["Equity"]).
+        min_vrp_override: Dynamically override the structural threshold from config.
 
     Returns:
         A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
@@ -235,6 +237,9 @@ def screen_volatility(
             # Add all siblings to the "held" set (e.g., if SLV is held, add /SI, SIVR to held set)
             held_symbols_set.update(siblings_upper)
 
+    # Threshold Logic
+    structural_threshold = min_vrp_override if min_vrp_override is not None else RULES['vrp_structural_threshold']
+
     for sym, metrics in data.items():
         if 'error' in metrics:
             continue
@@ -251,14 +256,22 @@ def screen_volatility(
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
 
-        compression_ratio = None
+        # 3.1. Compression Logic (Fallback)
+        is_data_lean = False
+        compression_ratio = 1.0 # Default to Neutral
         if hv20 and hv252 and hv252 > 0:
             compression_ratio = hv20 / hv252
+        elif hv252:
+            is_data_lean = True
 
-        # VRP Tactical Calculation (Tactical Markup)
+        # 3.2. VRP Tactical Calculation (Stability Clamps)
         nvrp = None
-        if hv20 and hv20 > 0 and iv30:
-            nvrp = (iv30 - hv20) / hv20
+        if hv20 and iv30:
+            # Use HV Floor of 5.0 to prevent division by zero/explosion on flat tape
+            hv_floor = max(hv20, 5.0)
+            raw_nvrp = (iv30 - hv_floor) / hv_floor
+            # Hard-cap NVRP at 3.0 (300%) for ranking
+            nvrp = max(-0.99, min(3.0, raw_nvrp))
 
         # Refactored liquidity check
         is_illiquid = _is_illiquid(sym, metrics, RULES)
@@ -283,7 +296,7 @@ def screen_volatility(
             missing_bias += 1
             if not show_all:
                 continue
-        elif vrp_structural <= RULES['vrp_structural_threshold'] and not show_all:
+        elif vrp_structural <= structural_threshold and not show_all:
             low_bias_skipped += 1
             continue
 
@@ -303,18 +316,11 @@ def screen_volatility(
             hv_rank_trap_skipped += 1
             continue
 
-        # IV Rank Filter - REMOVED
-        # iv_rank = metrics.get('iv_rank')
-        # iv_rank_threshold = RULES.get('iv_rank_threshold', 30.0)
-
-        # if iv_rank is not None and iv_rank < iv_rank_threshold and not show_all:
-        #    low_iv_rank_skipped += 1
-        #    continue
-
         if is_illiquid and not show_illiquid:
             illiquid_skipped += 1
             continue
 
+        # BATS Efficiency Check (Retail Focus)
         is_bats_efficient = bool(
             price
             and vrp_structural is not None
@@ -357,7 +363,8 @@ def screen_volatility(
             'is_illiquid': is_illiquid,
             'is_earnings_soon': flags['is_earnings_soon'],
             'is_bats_efficient': is_bats_efficient,
-            'is_held': bool(sym.upper() in held_symbols_set)
+            'is_held': bool(sym.upper() in held_symbols_set),
+            'is_data_lean': is_data_lean
         }
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
@@ -376,7 +383,7 @@ def screen_volatility(
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
-    bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {RULES['vrp_structural_threshold']}"
+    bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
     liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
 
     summary = {
@@ -430,7 +437,8 @@ def get_screener_results(
         held_symbols=held_symbols,
         exclude_sectors=exclude_sectors,
         include_asset_classes=include_asset_classes,
-        exclude_asset_classes=exclude_asset_classes
+        exclude_asset_classes=exclude_asset_classes,
+        min_vrp_override=min_vol_bias if min_vol_bias > 0 else None
     )
 
 if __name__ == "__main__":

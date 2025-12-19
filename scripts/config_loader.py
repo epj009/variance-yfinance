@@ -33,7 +33,7 @@ DEFAULT_TRADING_RULES: Dict[str, Any] = {
         {"label": "Dip (-3%)", "move_pct": -0.03},
         {"label": "Flat", "move_pct": 0.0},
         {"label": "Rally (+3%)", "move_pct": 0.03},
-        {"label": "Moon (+5%)", "move_pct": 0.05}
+        {"label": "Rally (+5%)", "move_pct": 0.05}
     ],
     # Screener Defaults
     "min_atm_volume": 500,

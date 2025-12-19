@@ -91,10 +91,20 @@ class TestVarianceScore:
         }
 
     def test_score_calculation_balanced(self, mock_rules):
-        """Score should average structural and tactical components."""
+        """Score should average structural and tactical components (absolute distance)."""
         metrics = {
-            'vrp_structural': 1.5,  # (1.5 - 0.5)*100 = 100 -> * 0.5 = 50
-            'vrp_tactical': 1.5,    # (1.5 - 0.5)*100 = 100 -> * 0.5 = 50
+            'vrp_structural': 1.5,  # |1.5 - 1.0|*200 = 100 -> * 0.5 = 50
+            'vrp_tactical': 1.5,    # |1.5 - 1.0|*200 = 100 -> * 0.5 = 50
+            'hv_rank': 50
+        }
+        score = vol_screener._calculate_variance_score(metrics, mock_rules)
+        assert score == 100.0
+
+    def test_score_cheap_vol_is_high(self, mock_rules):
+        """Cheap vol (0.5 VRP) should now score high (100) instead of 0."""
+        metrics = {
+            'vrp_structural': 0.5,  # |0.5 - 1.0|*200 = 100
+            'vrp_tactical': 0.5,    # |0.5 - 1.0|*200 = 100
             'hv_rank': 50
         }
         score = vol_screener._calculate_variance_score(metrics, mock_rules)

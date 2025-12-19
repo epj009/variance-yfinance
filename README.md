@@ -85,7 +85,7 @@ graph TD
 
 ### 2. Dynamic Tail Risk (The "Crash" Test)
 *   **Concept**: The maximum dollar amount you would lose if the single worst-case scenario in your config occurred *today*.
-*   **Behavior**: The engine runs every scenario in your Stress Box (e.g., "-5% Crash", "Vol Spike", "+10% Moon") and finds the floor.
+*   **Behavior**: The engine runs every scenario in your Stress Box (e.g., "-5% Crash", "Vol Spike", "+10% Rally") and finds the floor.
 *   **Status**:
     *   **Safe**: < 5% of Net Liq.
     *   **Loaded**: 5-15% of Net Liq (Capital is efficiently deployed).
@@ -102,6 +102,8 @@ The system synthesizes multiple metrics into a single "Signal" for the TUI:
 | **EVENT** | Binary event risk | Earnings (Avoid) |
 | **FAIR** | Fairly priced risk | Pass |
 | **TOXIC** | Theta Leakage (Alpha < Theta) | Exit / Recycle BPR |
+
+*   **Absolute Scoring**: The system rewards **dislocation**, not just richness. A deep discount (cheap vol) surfaces at the top of the screener alongside rich vol, as both represent high-probability mean-reversion opportunities.
 
 ## ⚙️ Configuration & Customization
 
@@ -125,6 +127,7 @@ Control the engine's physics:
 ## 🛡️ System Resilience
 
 *   **Partial Data Mode**: If the market data provider fails to return Option Chains (IV) but returns Price/HV, the system gracefully downgrades. It will calculate P/L and Delta but flag the Volatility metrics as `0.0` (missing) to prevent false positives in the screener.
+*   **Data Quality Safeguards (⚠️)**: Extreme IV readings (e.g. < 5% on a volatile stock) are flagged with a warning icon in the TUI. Portfolio-level metrics are **clamped** (Default: -50% to +100%) to prevent a single bad data point from skewing your total Alpha-Theta accounting.
 *   **Nightly Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET is automatically cached until 10:00 AM the next morning. This allows you to run analysis late at night or pre-market without hitting API errors or seeing blank dashboards.
 
 ```bash

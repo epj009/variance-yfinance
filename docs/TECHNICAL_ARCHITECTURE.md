@@ -61,7 +61,7 @@ $$ 	ext{AlphaTheta} = 	ext{Theta}_{	ext{Raw}} 	imes \left( \frac{\text{IV}_{\tex
 ### 3.2. Dynamic Tail Risk
 The engine is **label-agnostic**. It calculates the "Max Drawdown" based on the worst mathematical outcome of configured scenarios.
 
-1.  **Ingest:** Load scenarios from `config/trading_rules.json` (e.g., "-5% Crash", "+10% Moon").
+1.  **Ingest:** Load scenarios from `config/trading_rules.json` (e.g., "-5% Crash", "+10% Rally").
 2.  **Simulate:** For each scenario, calculate Portfolio P/L:
     $$ P/L = (\Delta \times \text{Move}) + (0.5 \times \Gamma \times \text{Move}^2) + (\text{Vega} \times \text{VolShock}) $$ 
 3.  **Select:** `Tail Risk = abs(min(All_Scenario_PLs))`
@@ -81,6 +81,14 @@ Action codes are assigned based on a strict priority waterfall:
 6.  **TOXIC:** `VRP < 0.8` AND `P/L` is stagnant (Dead Money).
 7.  **SCALABLE:** `VRP_Tactical` surge detected (> 1.5x) in a small position.
 
+### 3.4. Data Quality Safeguards
+To prevent yfinance data anomalies (e.g., 1% IV on a 100% IV stock) from corrupting the dashboard, the engine implements a dual-layer guardrail:
+
+1.  **Portfolio Accounting (Clamping):** When aggregating total Alpha-Theta, individual VRP Tactical markups are clamped:
+    *   **Floor:** -50% (Max penalty).
+    *   **Ceiling:** +100% (Max bonus).
+2.  **Transparency (Warning):** Individual positions displaying an absolute markup > 50% are tagged with a **⚠️ Data Quality Warning** in the TUI, prompting manual verification on the broker platform.
+
 ---
 
 ## 4. The Screener (`vol_screener.py`)
@@ -89,7 +97,6 @@ The screener synthesizes raw metrics into actionable "Signals" and a composite "
 
 ### 4.1. Signal Synthesis
 | Metric | Threshold | Signal | Recommended Strat |
-| :--- |
 | :--- | :--- | :--- | :--- |
 | **Earnings** | < 5 Days | `EVENT` | Avoid / Speculative |
 | **NVRP** | < -10% | `DISCOUNT` | Calendars / Diagonals |
@@ -102,9 +109,11 @@ The screener synthesizes raw metrics into actionable "Signals" and a composite "
     *   **Goal:** Efficient use of Buying Power for small accounts.
 
 ### 4.2. Variance Score (0-100)
-A weighted composite score to rank opportunities:
-*   **Structural Edge (50%):** `VRP_Structural` scaled.
-*   **Tactical Edge (50%):** `VRP_Tactical` scaled.
+A weighted composite score using **Absolute Dislocation**:
+*   **Math:** `Score = |VRP - 1.0| * 200`
+*   **Logic:** Significant dislocation in **either direction** (Rich or Cheap) resulting in a high score.
+*   **Weights:** 50% Structural Dislocation / 50% Tactical Dislocation.
+*   **Stability:** Tactical NVRP calculation uses a **5.0 HV Floor** and **3.0 Cap** to prevent "Infinity %" markup artifacts on flat tape.
 *   **Penalty:** Score halving (-50%) if `HV_Rank < 15` (Short Vol Trap).
 
 ---

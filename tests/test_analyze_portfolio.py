@@ -175,7 +175,7 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
         "stress_scenarios": [
             {"label": "Crash (-5%)", "move_pct": -0.05},
             {"label": "Flat", "move_pct": 0.0},
-            {"label": "Moon (+5%)", "move_pct": 0.05}
+            {"label": "Rally (+5%)", "move_pct": 0.05}
         ],
         "hedge_rules": {"enabled": False}
     })

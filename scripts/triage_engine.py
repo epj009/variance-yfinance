@@ -34,6 +34,7 @@ class TriageResult(TypedDict, total=False):
     delta: float
     gamma: float # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
+    data_quality_warning: bool # NEW: True if NVRP is suspicious
 
 
 class TriageContext(TypedDict, total=False):
@@ -417,6 +418,19 @@ def triage_cluster(
         note = "Price stale/absent; tested status uncertain"
         logic = f"{logic} | {note}" if logic else note
 
+    # --- Data Quality Warning ---
+    # nvrp check
+    quality_warning = False
+    warning_threshold = rules.get('nvrp_quality_warning_threshold', 0.50)
+    
+    # Calculate NVRP for check
+    hv20 = m_data.get('hv20')
+    iv30 = m_data.get('iv')
+    if hv20 and hv20 > 0 and iv30:
+        nvrp = (iv30 - hv20) / hv20
+        if abs(nvrp) > warning_threshold:
+            quality_warning = True
+
     return {
         'root': root,
         'strategy_name': strategy_name,
@@ -432,7 +446,8 @@ def triage_cluster(
         'sector': sector,
         'delta': strategy_delta,
         'gamma': strategy_gamma,
-        'is_hedge': is_hedge
+        'is_hedge': is_hedge,
+        'data_quality_warning': quality_warning
     }
 
 
@@ -537,10 +552,21 @@ def triage_portfolio(
         vrp_t = m_data.get('vrp_tactical')
 
         if vrp_t is not None:
-            # Alpha Theta = Raw Theta * Tactical Ratio
-            # Example: $10 Theta * 1.5 Ratio = $15 expected value (Capturing Richness)
-            # Example: $10 Theta * 0.8 Ratio = $8 expected value (Toxic Theta / Cheap)
-            cluster_theta_vrp_adj = cluster_theta_raw * vrp_t
+            # CLAMPING Logic for Portfolio Aggregation
+            # Prevent single-symbol data errors (like 1% IV) from skewing total portfolio quality
+            nvrp_floor = context['rules'].get('nvrp_aggregation_floor', -0.50)
+            nvrp_ceil = context['rules'].get('nvrp_aggregation_ceiling', 1.00)
+            
+            # Convert VRP Tactical (Ratio) to NVRP (Markup) for clamping
+            # VRP 1.5 -> NVRP 0.5. VRP 0.1 -> NVRP -0.9.
+            nvrp_val = vrp_t - 1.0
+            clamped_nvrp = max(nvrp_floor, min(nvrp_ceil, nvrp_val))
+            
+            # Re-convert to Clamped Ratio for multiplication
+            clamped_ratio = 1.0 + clamped_nvrp
+            
+            # Alpha Theta = Raw Theta * Clamped Tactical Ratio
+            cluster_theta_vrp_adj = cluster_theta_raw * clamped_ratio
         else:
             # Fallback: If VRP Tactical unavailable, use VRP Structural
             vrp_s = m_data.get('vrp_structural', 1.0)
