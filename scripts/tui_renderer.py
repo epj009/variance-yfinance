@@ -38,8 +38,8 @@ class TUIRenderer:
         # 2. Delta Spectrograph
         self.render_spectrograph()
 
-        # 3. Stress Box
-        self.render_stress_box()
+        # 3. Stress Box (Consolidated into Header)
+        # self.render_stress_box()
 
         # 4. Portfolio Triage
         self.render_triage()
@@ -108,19 +108,43 @@ class TUIRenderer:
         gyro_text.append(stab_status, style="dim")
 
         # Engine (Right)
-        tail_risk = self.portfolio_summary.get('total_tail_risk', 0.0)
-        tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
-        theta_nl_pct = self.portfolio_summary.get('theta_net_liquidity_pct', 0.0)
-        mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
+        # Extract Stress Scenarios
+        stress_scenarios = self.data.get('stress_box', {}).get('scenarios', [])
+        
+        # Downside (Worst Case)
+        downside_pl = 0.0
+        downside_label = "None"
+        worst_case = min(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
+        if worst_case and worst_case.get('est_pl', 0) < 0:
+            downside_pl = worst_case['est_pl']
+            downside_label = worst_case.get('label', 'Tail')
 
+        # Upside (Best Case)
+        upside_pl = 0.0
+        upside_label = "None"
+        best_case = max(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
+        if best_case and best_case.get('est_pl', 0) > 0:
+            upside_pl = best_case['est_pl']
+            upside_label = best_case.get('label', 'Rally')
+
+        # Risk Status
+        tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
         risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
         risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
 
+        theta_nl_pct = self.portfolio_summary.get('theta_net_liquidity_pct', 0.0)
+        mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
+
         engine_text = Text()
-        engine_text.append("THE ENGINE (Structure)\n", style="header")
-        engine_text.append(f"• Tail Risk: ", style="dim")
-        engine_text.append(f"{fmt_currency(tail_risk)} ", style=risk_style)
-        engine_text.append(f"({risk_status})\n", style="dim")
+        engine_text.append("THE ENGINE (Exposure)\n", style="header")
+        engine_text.append(f"• Downside:  ", style="dim")
+        engine_text.append(f"{fmt_currency(downside_pl)} ", style=risk_style)
+        engine_text.append(f"({downside_label})\n", style="dim")
+        
+        engine_text.append(f"• Upside:    ", style="dim")
+        engine_text.append(f"{fmt_currency(upside_pl)} ", style="profit")
+        engine_text.append(f"({upside_label})\n", style="dim")
+
         engine_text.append(f"• Usage:     ", style="dim")
         engine_text.append(f"{fmt_percent(theta_nl_pct)} ", style="neutral")
         engine_text.append("of Net Liq\n", style="dim")
