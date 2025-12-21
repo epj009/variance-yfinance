@@ -34,6 +34,145 @@ class TUIRenderer:
         self.portfolio_summary = self.data.get('portfolio_summary', {})
 
     def render(self):
+        """Orchestrates full TUI generation using Rich"""
+        # 1. Header Panels
+        self.render_header()
+
+        # 2. Delta Spectrograph
+        self.render_spectrograph()
+        
+        # 3. Portfolio DNA (New)
+        self.render_composition()
+
+        # 4. Portfolio Triage
+        self.render_triage()
+
+        # 5. Vol Screener Opportunities
+        self.render_opportunities()
+
+    def render_header(self):
+        """Renders the dashboard header panels using Rich Panels and Layout Tables"""
+        net_liq = self.portfolio_summary.get('net_liquidity', 0.0)
+        total_net_pl = self.portfolio_summary.get('total_net_pl', 0.0)
+        bp_usage_pct = self.portfolio_summary.get('bp_usage_pct', 0.0)
+
+        # --- Panel 1: Capital Console (Grid Layout) ---
+        cap_grid = Table.grid(padding=(0, 4))
+        cap_grid.add_column()
+        cap_grid.add_column()
+
+        # Left Column: Liquidity
+        bp_style = "profit" if bp_usage_pct < 0.50 else "warning" if bp_usage_pct <= 0.75 else "loss"
+        bp_status = "Deploy" if bp_usage_pct < 0.50 else "Optimal" if bp_usage_pct <= 0.75 else "⚠️ High"
+        
+        liq_text = Text()
+        liq_text.append("• Net Liq:  ", style="label")
+        liq_text.append(f"{fmt_currency(net_liq)}\n", style="value")
+        liq_text.append("• BP Usage: ", style="label")
+        liq_text.append(f"{fmt_percent(bp_usage_pct)} ", style=bp_style)
+        liq_text.append(f"({bp_status})", style="dim")
+
+        # Right Column: P/L
+        pl_style = "profit" if total_net_pl >= 0 else "loss"
+        pl_status = "Harvesting" if total_net_pl >= 0 else "Dragging"
+        
+        pl_text = Text()
+        pl_text.append("• Open P/L: ", style="label")
+        pl_text.append(f"{fmt_currency(total_net_pl)}\n", style=pl_style)
+        pl_text.append("• Status:   ", style="label")
+        pl_text.append(f"{pl_status}", style="dim")
+
+        cap_grid.add_row(liq_text, pl_text)
+
+        cap_panel = Panel(
+            cap_grid,
+            title="[header]THE CAPITAL CONSOLE[/header]",
+            border_style="blue",
+            box=box.ROUNDED,
+            expand=False
+        )
+
+        # --- Panel 2: Gyroscope & Engine (Grid Layout) ---
+        beta_delta = self.portfolio_summary.get('total_beta_delta', 0.0)
+        theta_raw = self.portfolio_summary.get('total_portfolio_theta', 0.0)
+        theta_vrp = self.portfolio_summary.get('total_portfolio_theta_vrp_adj', theta_raw)
+        stability = self.portfolio_summary.get('delta_theta_ratio', 0.0)
+        markup = self.portfolio_summary.get('portfolio_vrp_markup', 0.0)
+
+        tilt_style = "loss" if abs(beta_delta) > 100 else "neutral"
+        tilt_name = "Bearish" if beta_delta < -50 else "Bullish" if beta_delta > 50 else "Neutral"
+        stab_style = "profit" if -0.5 <= stability <= 0.5 else "warning"
+        stab_status = "Stable" if -0.5 <= stability <= 0.5 else "Unstable"
+
+        # Gyro (Left)
+        gyro_grid = Table.grid(padding=(0, 4))
+        gyro_grid.add_column()
+        gyro_grid.add_column()
+
+        gyro_left = Text()
+        gyro_left.append("THE GYROSCOPE (Risk)\n", style="header")
+        gyro_left.append("• Tilt:      ", style="label")
+        gyro_left.append(f"{tilt_name} ({beta_delta:.0f} Δ)\n", style=tilt_style)
+        gyro_left.append("• Theta:     ", style="label")
+        gyro_left.append(f"{fmt_currency(theta_raw)} → {fmt_currency(theta_vrp)} ", style="profit")
+        gyro_left.append(f"({markup:+.0%} VRP)\n", style="dim")
+        gyro_left.append("• Stability: ", style="label")
+        gyro_left.append(f"{stability:.2f} ", style=stab_style)
+        gyro_left.append(f"({stab_status})", style="dim")
+
+        # Engine (Right)
+        stress_scenarios = self.data.get('stress_box', {}).get('scenarios', [])
+        downside_pl = 0.0
+        downside_label = "None"
+        worst_case = min(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
+        if worst_case and worst_case.get('est_pl', 0) < 0:
+            downside_pl = worst_case['est_pl']
+            downside_label = worst_case.get('label', 'Tail')
+
+        upside_pl = 0.0
+        upside_label = "None"
+        best_case = max(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
+        if best_case and best_case.get('est_pl', 0) > 0:
+            upside_pl = best_case['est_pl']
+            upside_label = best_case.get('label', 'Rally')
+
+        tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
+        risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
+        risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
+        mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
+        
+        # Data Quality Gauge
+        dq_score = self.portfolio_summary.get('data_quality_score', 1.0)
+        dq_style = "profit" if dq_score > 0.9 else "warning" if dq_score > 0.7 else "loss"
+        dq_text = "Excellent" if dq_score > 0.9 else "Degraded" if dq_score > 0.7 else "Critical"
+
+        gyro_right = Text()
+        gyro_right.append("THE ENGINE (Exposure)\n", style="header")
+        gyro_right.append("• Downside:  ", style="label")
+        gyro_right.append(f"{fmt_currency(downside_pl)} ", style=risk_style)
+        gyro_right.append(f"({downside_label})\n", style="dim")
+        gyro_right.append("• Upside:    ", style="label")
+        gyro_right.append(f"{fmt_currency(upside_pl)} ", style="profit")
+        gyro_right.append(f"({upside_label})\n", style="dim")
+        gyro_right.append("• Mix:       ", style="label")
+        gyro_right.append("⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n", style="warning" if mix_warning else "profit")
+        gyro_right.append("• Data Qual: ", style="label")
+        gyro_right.append(f"{dq_score:.0%} ", style=dq_style)
+        gyro_right.append(f"({dq_text})", style="dim")
+
+        gyro_grid.add_row(gyro_left, gyro_right)
+
+        gyro_panel = Panel(
+            gyro_grid,
+            border_style="dim",
+            box=box.ROUNDED,
+            expand=False
+        )
+
+        self.console.print(cap_panel)
+        self.console.print(gyro_panel)
+
+    def render_triage(self):
         triage_actions = self.data.get('triage_actions', [])
         portfolio_overview = self.data.get('portfolio_overview', [])
         
