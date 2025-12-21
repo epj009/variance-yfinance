@@ -29,7 +29,7 @@ except ModuleNotFoundError:
     print("Error: Missing dependency 'yfinance'. Activate your venv.", file=sys.stderr)
     sys.exit(1)
 
-# Optional Tastytrade SDK for IV Rank - REMOVED
+# Optional Tastytrade SDK - REMOVED
 TASTYTRADE_AVAILABLE = False
 
 # --- CONFIGURATION ---
@@ -208,7 +208,6 @@ class MarketDataService:
                 - hv252 (float)
                 - hv20 (float|None)
                 - hv_rank (float|None)
-                - iv_rank (float|None)
                 - vrp_structural (float)
                 - vrp_tactical (float|None)
                 - atm_volume (float)
@@ -632,7 +631,15 @@ def get_price(ticker_obj: Any, symbol_key: str) -> Optional[Tuple[float, bool]]:
         return None
 
 def get_proxy_iv_and_hv(raw_symbol: str) -> Tuple[Optional[float], Optional[float], Optional[str]]:
-    proxy = FUTURES_PROXY.get(raw_symbol[:3])
+    # Find the best proxy match by checking decreasing prefix lengths
+    # (e.g., check '/MES' before checking '/ES')
+    proxy = None
+    sorted_proxies = sorted(FUTURES_PROXY.keys(), key=len, reverse=True)
+    for p_key in sorted_proxies:
+        if raw_symbol.startswith(p_key):
+            proxy = FUTURES_PROXY[p_key]
+            break
+            
     if not proxy: return None, None, None
     ptype = proxy.get('type')
     iv = hv = None
@@ -704,7 +711,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     if current_price is None or current_price <= 0:
         return raw_symbol, {"error": "bad_price"}
 
-    # Fetch HV, HV Rank, IV Rank, and IV
+    # Fetch HV, HV Rank, and IV
     hv_data = calculate_hv(ticker, yf_symbol)
     hv252_val = hv_data.get('hv252') if hv_data else None
     hv60_val = hv_data.get('hv60') if hv_data else None
@@ -712,8 +719,6 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     hv20_stderr = hv_data.get('hv20_stderr') if hv_data else None
 
     hv_rank_val = calculate_hv_rank(ticker, yf_symbol)
-    iv_rank_val = None # Tastytrade Removed
-
     iv_payload = get_current_iv(ticker, current_price, yf_symbol, hv_context=hv252_val)
 
     iv_val = iv_payload.get('iv') if iv_payload else None
@@ -765,7 +770,6 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
                 "hv20": hv20_val,
                 "hv20_stderr": hv20_stderr,
                 "hv_rank": hv_rank_val,
-                "iv_rank": iv_rank_val,
                 "vrp_structural": 0.0, # Default to 0 to fail downstream filters (Screener)
                 "vrp_tactical": 0.0,
                 "atm_volume": 0,
@@ -814,7 +818,6 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "hv20": hv20_val,
         "hv20_stderr": hv20_stderr,
         "hv_rank": hv_rank_val,
-        "iv_rank": iv_rank_val,
         "vrp_structural": vrp_structural,
         "vrp_tactical": vrp_tactical,
         "atm_volume": atm_vol,
