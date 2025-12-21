@@ -39,11 +39,14 @@ class TUIRenderer:
 
         # 2. Delta Spectrograph
         self.render_spectrograph()
+        
+        # 3. Portfolio DNA (New)
+        self.render_composition()
 
-        # 3. Portfolio Triage
+        # 4. Portfolio Triage
         self.render_triage()
 
-        # 4. Vol Screener Opportunities
+        # 5. Vol Screener Opportunities
         self.render_opportunities()
 
     def render_header(self):
@@ -135,7 +138,6 @@ class TUIRenderer:
         tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
         risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
         risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
-        theta_nl_pct = self.portfolio_summary.get('theta_net_liquidity_pct', 0.0)
         mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
 
         gyro_right = Text()
@@ -237,97 +239,6 @@ class TUIRenderer:
             title="\n[header]📊 DELTA SPECTROGRAPH (Portfolio Drag)[/header]\n[dim]Visualizing position contribution to Beta-Weighted Delta[/dim]",
             box=box.SIMPLE,
             title_justify="left",
-            show_header=False
-        )
-        table.add_column("Rank", width=4, justify="right")
-        table.add_column("Symbol", width=10, style="neutral")
-        table.add_column("Bar", width=35)
-        table.add_column("Delta", width=12, justify="right")
-
-        max_val = max([abs(d.get('delta', 0.0)) for d in deltas]) if deltas else 1.0
-        
-        for rank, item in enumerate(deltas[:10], start=1):
-            delta = item.get('delta', 0.0)
-            # Use fixed max bar length for tightness
-            bar_len = int((abs(delta) / max_val) * 30)
-            bar_style = "profit" if delta >= 0 else "loss"
-            bar = Text("┃" * bar_len, style=bar_style)
-            
-            table.add_row(
-                str(rank),
-                item.get('symbol', ''),
-                bar,
-                f"{delta:+.2f} Δ"
-            )
-        self.console.print(table)
-
-    def render_opportunities(self):
-        """Renders top vol screener opportunities using Rich Table"""
-        opportunities = self.data.get('opportunities', {})
-        candidates = opportunities.get('candidates', [])
-        meta = opportunities.get('meta', {})
-
-        if not candidates:
-            return
-
-        self.console.print("\n[header]🔍 VOL SCREENER OPPORTUNITIES[/header]")
-        
-        # Grid for Subheader
-        sub_grid = Table.grid(padding=(0, 2))
-        sub_grid.add_column()
-        sub_grid.add_column()
-        
-        excluded_count = meta.get('excluded_count', 0)
-        warning_text = ""
-        if excluded_count > 0:
-            excluded = meta.get('excluded_symbols', [])
-            warning_text = f"[warning]⚠️ {excluded_count} concentrated symbols excluded: {', '.join(excluded[:2])}[/warning]"
-        
-        sub_grid.add_row(
-            "   [dim]High Vol Bias candidates for portfolio diversification[/dim]",
-            warning_text
-        )
-        self.console.print(sub_grid)
-
-        table = Table(
-            box=box.ROUNDED,
-            header_style="bold cyan",
-            border_style="dim"
-        )
-        table.add_column("Symbol", style="neutral", width=10)
-        table.add_column("Price", justify="right", width=12)
-        table.add_column("VRP (S)", justify="right", style="sigma", width=10)
-        table.add_column("VRP (T)", justify="right", style="profit", width=10)
-        table.add_column("Signal", justify="center", width=15)
-        table.add_column("Asset Class", style="dim", justify="right", width=15)
-
-        for opp in candidates:
-            vrp_t = opp.get('NVRP', 0.0)
-            signal = opp.get('Signal', 'FAIR')
-            if opp.get('is_bats_efficient'):
-                signal = f"{signal} 🦇"
-
-            table.add_row(
-                opp.get('Symbol', ''),
-                fmt_currency(opp.get('Price', 0.0)),
-                f"{opp.get('VRP Structural', 0.0):.2f}",
-                f"{vrp_t:+.0%}",
-                signal,
-                opp.get('Asset Class', 'Equity')
-            )
-
-        self.console.print(table)
-        self.console.print("   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🤝 Fair[/dim]")
-
-    def render_spectrograph(self):
-        deltas = self.data.get('delta_spectrograph', [])
-        if not deltas:
-            return
-
-        table = Table(
-            title="\n[header]📊 DELTA SPECTROGRAPH (Portfolio Drag)[/header]\n[dim]Visualizing position contribution to Beta-Weighted Delta[/dim]",
-            box=box.SIMPLE,
-            title_justify="left",
             show_header=False,
             expand=False,
             padding=(0, 2)
@@ -338,6 +249,7 @@ class TUIRenderer:
         table.add_column("Delta", width=14, justify="right")
 
         max_val = max([abs(d.get('delta', 0.0)) for d in deltas]) if deltas else 1.0
+        if max_val == 0: max_val = 1.0
         
         for rank, item in enumerate(deltas[:10], start=1):
             delta = item.get('delta', 0.0)
@@ -354,6 +266,65 @@ class TUIRenderer:
             )
         
         self.console.print(table)
+
+    def render_composition(self):
+        """Renders Asset Class and Sector breakdown side-by-side"""
+        asset_mix = self.data.get('asset_mix', [])
+        sector_balance = self.data.get('sector_balance', [])
+
+        if not asset_mix and not sector_balance:
+            return
+
+        # Main Layout: 2 Columns
+        grid = Table.grid(padding=(0, 4), expand=False)
+        grid.add_column()
+        grid.add_column()
+
+        # Helper to build inner tables
+        def build_sub_table(title, items, label_key):
+            t = Table(
+                title=title, 
+                title_style="bold white",
+                title_justify="left",
+                box=box.SIMPLE, 
+                show_header=False, 
+                padding=(0, 1),
+                collapse_padding=True
+            )
+            t.add_column("Label", style="dim cyan", width=20)
+            t.add_column("Bar", width=8)
+            t.add_column("Pct", justify="right", style="bold white", width=5)
+            
+            # Sort and slice
+            sorted_items = sorted(items, key=lambda x: x.get('percentage', 0), reverse=True)
+            
+            for item in sorted_items[:6]:
+                label = item.get(label_key, 'Unknown')
+                pct = item.get('percentage', 0.0)
+                
+                # Bar
+                filled = int(pct * 8)
+                bar_str = "━" * filled
+                bar = Text(bar_str, style="blue")
+                
+                t.add_row(label, bar, f"{pct:.0%}")
+            return t
+
+        asset_table = build_sub_table("Asset Allocation", asset_mix, 'asset_class')
+        sector_table = build_sub_table("Sector Concentration", sector_balance, 'sector')
+
+        grid.add_row(asset_table, sector_table)
+        
+        panel = Panel(
+            grid,
+            title="[header]📊 EXPOSURE ANALYSIS[/header]",
+            border_style="dim",
+            box=box.ROUNDED,
+            expand=False
+        )
+        
+        self.console.print("\n")
+        self.console.print(panel)
 
     def render_opportunities(self):
         """Renders top vol screener opportunities using Rich Table"""
@@ -373,6 +344,21 @@ class TUIRenderer:
             excluded = meta.get('excluded_symbols', [])
             self.console.print(f"   [warning]⚠️  {excluded_count} concentrated position(s) excluded: {', '.join(excluded[:3])}[/warning]")
 
+        # Check for Data Integrity Skips (Strict Mode)
+        summary = self.data.get('opportunities', {}).get('summary', {})
+        integrity_skips = summary.get('data_integrity_skipped_count', 0)
+        lean_skips = summary.get('lean_data_skipped_count', 0)
+        anomalous_skips = summary.get('anomalous_data_skipped_count', 0)
+        
+        total_hidden = integrity_skips + lean_skips + anomalous_skips
+        if total_hidden > 0:
+            reasons = []
+            if integrity_skips: reasons.append(f"{integrity_skips} bad data")
+            if lean_skips: reasons.append(f"{lean_skips} lean data")
+            if anomalous_skips: reasons.append(f"{anomalous_skips} anomalies")
+            
+            self.console.print(f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]")
+
         table = Table(
             box=box.ROUNDED,
             header_style="bold cyan",
@@ -385,11 +371,23 @@ class TUIRenderer:
         table.add_column("VRP (S)", style="sigma")
         table.add_column("VRP (T)", style="profit")
         table.add_column("Signal")
+        table.add_column("Regime", style="dim cyan")
         table.add_column("Asset Class", style="dim")
 
         for opp in candidates:
             vrp_t = opp.get('NVRP', 0.0)
             signal = opp.get('Signal', 'FAIR')
+            regime = opp.get('Regime', 'NORMAL')
+            
+            # Icon mapping for Regime
+            regime_icon = ""
+            if regime == "COILED":
+                regime_icon = "🌀"
+            elif regime == "EXPANDING":
+                regime_icon = "⚡"
+            
+            regime_display = f"{regime} {regime_icon}".strip()
+
             if opp.get('is_bats_efficient'):
                 signal = f"{signal} 🦇"
 
@@ -399,11 +397,12 @@ class TUIRenderer:
                 f"{opp.get('VRP Structural', 0.0):.2f}",
                 f"{vrp_t:+.0%}",
                 signal,
+                regime_display,
                 opp.get('Asset Class', 'Equity')
             )
 
         self.console.print(table)
-        self.console.print("   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🤝 Fair[/dim]")
+        self.console.print("   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]")
 
 # --- Formatting Helpers ---
 

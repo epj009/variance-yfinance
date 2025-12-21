@@ -192,9 +192,9 @@
         "/6C": 100000
     },
     "DATA_FETCHING": {
-        "dte_window_min": 25,
-        "dte_window_max": 50,
-        "target_dte": 30,
+        "dte_window_min": 30,
+        "dte_window_max": 60,
+        "target_dte": 45,
         "strike_limit_lower": 0.8,
         "strike_limit_upper": 1.2,
         "option_chain_limit": 50

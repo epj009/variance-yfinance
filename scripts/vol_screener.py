@@ -90,59 +90,88 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     if symbol.startswith('/'):
         return False
 
-    # Read from flat structure (not nested)
-    atm_volume = metrics.get('atm_volume')
-    bid = metrics.get('atm_bid')
-    ask = metrics.get('atm_ask')
-
+    # 1. Check Total Volume
+    atm_volume = metrics.get('atm_volume', 0)
     if atm_volume is not None and atm_volume < rules['min_atm_volume']:
         return True
 
-    if bid is not None and ask is not None:
-        # Use mark price if available, otherwise mid price
-        mark_price = metrics.get('atm_mark')
-        if mark_price:
-            reference_price = float(mark_price)
-        else:
-            reference_price = (bid + ask) / 2
+    # 2. Per-Leg Liquidity Check (FINDING-002)
+    # Ensure NEITHER the call nor the put is "dead" (zero volume or excessive spread)
+    legs = [
+        ('call', metrics.get('call_bid'), metrics.get('call_ask'), metrics.get('call_vol')),
+        ('put', metrics.get('put_bid'), metrics.get('put_ask'), metrics.get('put_vol'))
+    ]
+    
+    for side, bid, ask, vol in legs:
+        # If any side has zero volume (Dead leg)
+        if vol is not None and vol <= 0:
+            return True
+            
+        # Check per-leg slippage
+        if bid is not None and ask is not None:
+            mid = (bid + ask) / 2
+            if mid > 0:
+                slippage = (ask - bid) / mid
+                if slippage > rules['max_slippage_pct']:
+                    return True
+            else:
+                return True # Bid/Ask are 0 or negative
 
-        if reference_price > 0:
-            slippage_pct = (ask - bid) / reference_price
-            if slippage_pct > rules['max_slippage_pct']:
-                return True
     return False
 
-def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
+def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], hv20: Optional[float], hv60: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
+    
+    # Coiled Logic: Requires BOTH long-term compression (vs 252) and medium-term compression (vs 60)
+    # to avoid flagging "new normal" low vol regimes as coiled.
+    is_coiled_long = (compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.75))
+    is_coiled_medium = True # Default to true if missing data
+    if hv60 and hv60 > 0 and hv20:
+        is_coiled_medium = (hv20 / hv60) < 0.85
+        
     return {
         'is_rich': bool(vrp_structural is not None and vrp_structural > rules.get('vrp_structural_rich_threshold', 1.0)),
         'is_fair': bool(vrp_structural is not None and rules['vrp_structural_threshold'] < vrp_structural <= rules.get('vrp_structural_rich_threshold', 1.0)),
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
-        'is_coiled': bool(compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.5)),
-        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.0)),
+        'is_coiled': bool(is_coiled_long and is_coiled_medium),
+        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.25)),
         'is_cheap': bool(nvrp is not None and nvrp < rules.get('vrp_tactical_cheap_threshold', -0.10))
     }
 
 def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules: Dict[str, Any]) -> str:
     """
     Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
-    Hierarchy: EVENT > DISCOUNT > COILED > RICH > FAIR
+    Hierarchy: EVENT > DISCOUNT > RICH > BOUND > FAIR
     """
     if flags['is_earnings_soon']:
         return "EVENT"
     
     if flags.get('is_cheap'): # VRP Tactical < -10%
         return "DISCOUNT"
+
+    # Rich Logic: High markup takes precedence over Coiled state
+    # Priority 1: Tactical VRP (NVRP) > 20%
+    if nvrp is not None and nvrp > 0.20:
+        return "RICH"
+    
+    # Priority 2: Structural VRP (Fallback if Tactical is missing/flat)
+    if flags.get('is_rich'):
+        return "RICH"
         
     if flags['is_coiled']: # Ratio < 0.75
         return "BOUND"
         
-    # Rich Logic: Not coiled, but high markup
-    # If VRP Tactical > 20% (0.20)
-    if nvrp is not None and nvrp > 0.20:
-        return "RICH"
-        
     return "FAIR"
+
+def _determine_regime_type(flags: Dict[str, bool]) -> str:
+    """
+    Determines the Volatility Regime based on compression flags.
+    """
+    if flags['is_coiled']:
+        return "COILED"
+    if flags['is_expanding']:
+        return "EXPANDING"
+    return "NORMAL"
 
 def _get_recommended_environment(signal_type: str) -> str:
     """Maps Signal Type to a recommended market environment for strategy selection."""
@@ -177,7 +206,7 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     # Example: 1.5 -> 0.5 * 200 = 100. 0.5 -> 0.5 * 200 = 100.
     bias = metrics.get('vrp_structural')
     if bias:
-        bias_dislocation = abs(bias - 1.0) * RULES.get('variance_score_dislocation_multiplier', 200)
+        bias_dislocation = abs(bias - 1.0) * rules.get('variance_score_dislocation_multiplier', 200)
         bias_score = max(0, min(100, bias_dislocation))
         score += bias_score * 0.50
         
@@ -256,6 +285,12 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     hv_rank_trap_skipped = 0  # Short vol trap filter
     low_iv_rank_skipped = 0   # Low IV Rank filter (three-factor filter)
     bats_zone_count = 0 # Initialize bats zone counter
+    
+    # Strict Mode Counters
+    data_integrity_skipped = 0
+    lean_data_skipped = 0
+    anomalous_data_skipped = 0
+    
     exclude_symbols_set = set(s.upper() for s in exclude_symbols) if exclude_symbols else set()
     
     # Expand held symbols using Family Map
@@ -287,6 +322,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
 
         iv30 = metrics.get('iv')
         hv252 = metrics.get('hv252')
+        hv60 = metrics.get('hv60')
         hv20 = metrics.get('hv20')
         vrp_structural = metrics.get('vrp_structural')
         price = metrics.get('price')
@@ -355,6 +391,16 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         elif hv252:
             is_data_lean = True
 
+        # --- FILTER: DATA INTEGRITY (Strict Mode) ---
+        # Reject any symbol with partial data, scaling warnings, or missing HV20
+        if metrics.get('warning'):
+            data_integrity_skipped += 1
+            continue
+            
+        if is_data_lean:
+            lean_data_skipped += 1
+            continue
+
         # 3.2. VRP Tactical Calculation (Stability Clamps)
         nvrp = None
         if hv20 and iv30:
@@ -363,6 +409,12 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             raw_nvrp = (iv30 - hv_floor) / hv_floor
             # Hard-cap NVRP at 3.0 (300%) for ranking
             nvrp = max(-0.99, min(3.0, raw_nvrp))
+
+        # Data quality warning for extreme negative NVRP (FINDING-006)
+        if nvrp is not None and nvrp < -0.30:
+            # STRICT MODE: Skip anomalies where IV is significantly below HV
+            anomalous_data_skipped += 1
+            continue
 
         days_to_earnings = get_days_to_date(earnings_date)
 
@@ -377,10 +429,13 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, nvrp, RULES)
+        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, nvrp, hv20, hv60, RULES)
         
         # Determine Signal Type
         signal_type = _determine_signal_type(flags, nvrp, RULES)
+        
+        # Determine Regime Type
+        regime_type = _determine_regime_type(flags)
         
         # Determine Recommended Environment
         env_idea = _get_recommended_environment(signal_type)
@@ -401,6 +456,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             'NVRP': nvrp,
             'Score': variance_score, # The Golden Metric
             'Signal': signal_type,
+            'Regime': regime_type, # New field
             'Environment': env_idea,
             'Earnings In': days_to_earnings,
             'Proxy': metrics.get('proxy'),
@@ -428,7 +484,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         # 2. Secondary Key: Variance Score (Descending). Structural edge.
         # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
         score = c['Score']
-        nvrp = c.get('NVRP') or -9.9 # Default to low if missing
+        nvrp = c.get('NVRP') if c.get('NVRP') is not None else -9.9 # Handle 0.0 correctly
         proxy = c.get('Proxy')
         quality = 1 if proxy else 0
         return (nvrp, score, -quality) # Sort by NVRP DESC, then Score DESC, then Quality ASC
@@ -449,6 +505,9 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         "hv_rank_trap_skipped_count": hv_rank_trap_skipped,
         "low_iv_rank_skipped_count": low_iv_rank_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
+        "data_integrity_skipped_count": data_integrity_skipped,
+        "lean_data_skipped_count": lean_data_skipped,
+        "anomalous_data_skipped_count": anomalous_data_skipped,
         "filter_note": f"{bias_note}; {liquidity_note}"
     }
 

@@ -439,7 +439,12 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[Dict[str, float]]
         
         hv252 = log_ret.std() * np.sqrt(252) * 100
         
-        # Calculate HV20 (last 20 days)
+        # Calculate HV60 (Quarterly Regime)
+        hv60 = None
+        if len(log_ret) >= 60:
+            hv60 = log_ret.tail(60).std() * np.sqrt(252) * 100
+            
+        # Calculate HV20 (Monthly Regime)
         # We need at least 20 days of data
         hv20 = None
         hv20_stderr = None
@@ -448,7 +453,7 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[Dict[str, float]]
             # FINDING-012: HV20 has high standard error (~22%) due to small sample size
             hv20_stderr = hv20 * 0.22 if hv20 else None  # Approximate 1-sigma uncertainty
 
-        return {'hv252': hv252, 'hv20': hv20, 'hv20_stderr': hv20_stderr}
+        return {'hv252': hv252, 'hv60': hv60, 'hv20': hv20, 'hv20_stderr': hv20_stderr}
 
     try:
         val = retry_fetch(_fetch)
@@ -523,19 +528,22 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
         min_diff = 999
         best_exp = None
 
-        # Strict DTE_MIN-DTE_MAX DTE window
+        # Select closest to target DTE within window; fallback to closest overall
+        best_window_diff = None
         for exp_str in exps:
             exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
             days_out = (exp_date - today).days
-            if DTE_MIN <= days_out <= DTE_MAX:
-                target_date = exp_str
-                break
             diff = abs(days_out - TARGET_DTE)
             if diff < min_diff:
                 min_diff = diff
                 best_exp = exp_str
+            if DTE_MIN <= days_out <= DTE_MAX:
+                if best_window_diff is None or diff < best_window_diff:
+                    best_window_diff = diff
+                    target_date = exp_str
 
-        if not target_date: target_date = best_exp
+        if target_date is None:
+            target_date = best_exp
         if not target_date: return None
 
         chain = ticker_obj.option_chain(target_date)
@@ -578,7 +586,13 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
             'iv': float(iv),
             'atm_vol': float(atm_vol) if not np.isnan(atm_vol) else 0,
             'atm_bid': float(c_bid + p_bid) / 2,
-            'atm_ask': float(c_ask + p_ask) / 2
+            'atm_ask': float(c_ask + p_ask) / 2,
+            'call_bid': float(c_bid),
+            'call_ask': float(c_ask),
+            'call_vol': float(atm_call.get('volume', 0)),
+            'put_bid': float(p_bid),
+            'put_ask': float(p_ask),
+            'put_vol': float(atm_put.get('volume', 0))
         }
         if warning:
             result['warning'] = warning
@@ -693,6 +707,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     # Fetch HV, HV Rank, IV Rank, and IV
     hv_data = calculate_hv(ticker, yf_symbol)
     hv252_val = hv_data.get('hv252') if hv_data else None
+    hv60_val = hv_data.get('hv60') if hv_data else None
     hv20_val = hv_data.get('hv20') if hv_data else None
     hv20_stderr = hv_data.get('hv20_stderr') if hv_data else None
 
@@ -706,6 +721,14 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     atm_bid = iv_payload.get('atm_bid') if iv_payload else None
     atm_ask = iv_payload.get('atm_ask') if iv_payload else None
     iv_warning = iv_payload.get('warning') if iv_payload else None
+    
+    # Per-leg metrics
+    call_bid = iv_payload.get('call_bid') if iv_payload else None
+    call_ask = iv_payload.get('call_ask') if iv_payload else None
+    call_vol = iv_payload.get('call_vol') if iv_payload else None
+    put_bid = iv_payload.get('put_bid') if iv_payload else None
+    put_ask = iv_payload.get('put_ask') if iv_payload else None
+    put_vol = iv_payload.get('put_vol') if iv_payload else None
 
     proxy_note = None
     if iv_val is None or hv252_val is None:
@@ -738,6 +761,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
                 "is_stale": True, # Force stale flag for partial data
                 "iv": iv_val,
                 "hv252": hv252_val,
+                "hv60": None,
                 "hv20": hv20_val,
                 "hv20_stderr": hv20_stderr,
                 "hv_rank": hv_rank_val,
@@ -747,6 +771,12 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
                 "atm_volume": 0,
                 "atm_bid": 0,
                 "atm_ask": 0,
+                "call_bid": None,
+                "call_ask": None,
+                "call_vol": None,
+                "put_bid": None,
+                "put_ask": None,
+                "put_vol": None,
                 "earnings_date": None,
                 "sector": safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals),
                 "proxy": proxy_note,
@@ -780,6 +810,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "is_stale": is_stale,
         "iv": iv_val,
         "hv252": hv252_val,
+        "hv60": hv60_val,
         "hv20": hv20_val,
         "hv20_stderr": hv20_stderr,
         "hv_rank": hv_rank_val,
@@ -789,6 +820,12 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "atm_volume": atm_vol,
         "atm_bid": atm_bid,
         "atm_ask": atm_ask,
+        "call_bid": call_bid,
+        "call_ask": call_ask,
+        "call_vol": call_vol,
+        "put_bid": put_bid,
+        "put_ask": put_ask,
+        "put_vol": put_vol,
         "earnings_date": earnings_date,
         "sector": sector,
         "proxy": proxy_note

@@ -211,6 +211,9 @@ def _beta_weight_gamma(leg: Dict[str, Any]) -> float:
 
     Gamma scaling follows the chain rule: gamma_beta = gamma_raw * scale^2.
     """
+    beta_gamma = parse_currency(leg.get('beta_gamma', '0'))
+    if beta_gamma:
+        return beta_gamma
     raw_gamma = parse_currency(leg.get('Gamma', '0'))
     scale = _beta_scale_from_deltas(leg)
     if scale is None:

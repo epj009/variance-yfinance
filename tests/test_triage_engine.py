@@ -275,6 +275,15 @@ class TestGammaScaling:
 
         assert result["gamma"] == pytest.approx(2.0)
 
+    def test_beta_gamma_short_circuits_scaling(self, make_option_leg, make_triage_context):
+        leg = make_option_leg(delta=10.0, beta_delta=20.0, gamma=0.5)
+        leg["beta_gamma"] = "1.25"
+        context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
+
+        result = triage_engine.triage_cluster([leg], context)
+
+        assert result["gamma"] == pytest.approx(1.25)
+
     def test_portfolio_gamma_aggregation_scaled(self, make_option_leg, make_triage_context):
         leg = make_option_leg(delta=5.0, beta_delta=15.0, gamma=0.2)
         context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
