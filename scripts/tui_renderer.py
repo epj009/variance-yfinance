@@ -79,26 +79,24 @@ class TUIRenderer:
         logic = item.get('logic', '')
         
         # Icon & Color Logic
-        icon = "🟢"
+        icon = ""
         style = "neutral"
         
         if is_action:
+            icon = "⚠️ "
             if code == "HARVEST": 
-                icon = "💰"
+                icon = "💰 "
                 style = "profit"
             elif code in ["DEFENSE", "GAMMA", "TOXIC"]: 
-                icon = "🛡️"
+                icon = "🛡️ "
                 style = "loss"
             elif code == "EXPIRING":
-                icon = "⏳"
-                style = "warning"
-            else:
-                icon = "⚠️"
+                icon = "⏳ "
                 style = "warning"
         
         # Format Node Text
         text = Text()
-        text.append(f"{icon} {sym} ", style="bold white")
+        text.append(f"{icon}{sym} ", style="bold white")
         text.append(f"({strat}) ", style="dim")
         
         # P/L
