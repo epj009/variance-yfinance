@@ -1,186 +1,141 @@
 # Variance: Systematic Volatility Engine
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-Layered_Pipeline-forestgreen.svg)]() [![Output](https://img.shields.io/badge/output-JSON-lightgrey.svg)]()
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-Layered_Pipeline-forestgreen.svg)]() [![Status](https://img.shields.io/badge/status-Strict_Mode-red.svg)]()
 
-Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It follows a strict **Layered Data Pipeline** architecture: CSV positions flow through ETL, analysis, and triage layers before reaching a terminal-first TUI. All trading thresholds are externalized to JSON configuration files, enabling quantitative reproducibility.
+Variance is a **Systematic Volatility Analysis Engine** for retail quants. It helps you identify statistical edges in the options market by synthesizing **Structural (252d)** and **Tactical (20d)** Volatility Risk Premia (VRP).
 
-## 🚀 Key Features
+It operates on a strict **"Math, Not Narratives"** philosophy:
+*   **Safety First:** "Strict Mode" filters reject low-quality or illiquid data automatically.
+*   **Regime Aware:** Distinguishes between "Rich" (Expensive) and "Coiled" (Explosive) volatility regimes.
+*   **Mechanical:** Automates portfolio triage based on probability, not P/L.
 
-*   **📡 Dual-VRP Synthesis**: Monitors both **Structural (252d)** and **Tactical (20d)** Volatility Risk Premia to find high-conviction trades.
-*   **💎 Alpha-Theta Metrics**: Visualizes the "Quality of Income" by adjusting raw Theta for the current VRP markup (`Raw → Expected`).
-*   **🧠 Strategist Workflow**: The Agent interprets mathematical states (e.g., "Bound") using the official Strategy Playbook and Mechanics documents.
-*   **🛡️ Portfolio Triage**: Automatically flags positions based on unified probabilistic rules:
-    *   `HARVEST`: Profit > 50%.
-    *   `DEFENSE`: Tested strikes needing active management.
-    *   `GAMMA`: Risk acceleration (< 21 DTE).
-    *   `SIZE RISK`: Position contributes > 5% of Net Liq to Tail Risk (2SD-).
-    *   `SCALABLE`: Fresh VRP surge detected in a small existing position.
-    *   `TOXIC`: Negative expectancy (Expected Yield < Statistical Cost).
-*   **🧪 Research Lab**: Includes institutional-grade utilities for Sector Z-Score analysis and Tactical/Structural divergence.
-*   **⚫ Monochrome UI**: A distraction-free, high-contrast terminal interface.
-*   **✨ Rich TUI**: Professional, color-coded panels and tables powered by the `rich` library.
+---
 
-## 🛠️ Architecture
+## ⚡ Quick Start
 
-```mermaid
-graph TD
-    subgraph "The World (Data)"
-        YAHOO[yfinance API] -->|Market Data: IV, HV, Price| FETCH[scripts/get_market_data.py]
-        BROKER[Broker CSV] -->|Positions| PARSER[scripts/portfolio_parser.py]
-    end
-
-    subgraph "The Engine (Analysis)"
-        FETCH -->|Standardized Metrics| ENGINE[scripts/analyze_portfolio.py]
-        PARSER -->|Normalized Rows| DETECTOR[scripts/strategy_detector.py]
-        
-        DETECTOR -->|Grouped Clusters| ENGINE
-        
-        subgraph "Triage Layer (scripts/triage_engine.py)"
-            ENGINE -->|Cluster Context| TRIAGE
-            TRIAGE -->|VRP & Alpha-Theta| VRP_LOGIC[Action Logic Gates]
-            TRIAGE -->|EM Simulator| STRESS_LOGIC[Probabilistic Scenarios]
-            
-            VRP_LOGIC -->|Result| BADGES[💰 🛡️ ☢️ 💀 🌳 ➕]
-            STRESS_LOGIC -->|Result| WHALE[🐳 SIZE RISK]
-        end
-        
-        subgraph "Screener Layer (scripts/vol_screener.py)"
-            FETCH -->|Watchlist Data| SCREENER
-            SCREENER -->|VRP Divergence| RANKING[Ranking: VRP Tactical Markup]
-            SCREENER -->|Sector Lookup| TAGGING[Asset Class Tagging]
-        end
-    end
-
-    subgraph "The View (scripts/tui_renderer.py)"
-        ENGINE -->|JSON Report| RENDERER
-        RENDERER -->|Rich.Table & Panel| RICH_LIB[Rich Library]
-        
-        RICH_LIB -->|HUD| CAP[Capital Console]
-        RICH_LIB -->|HUD| GYRO[Gyroscope & Engine]
-        RICH_LIB -->|Visual| SPECTRO[Delta Spectrograph]
-        RICH_LIB -->|Visual| PROB_BOX[Probabilistic Stress Box]
-        RICH_LIB -->|List| TRI_TREE[Portfolio Triage Tree]
-        RICH_LIB -->|List| VOL_TABLE[Flat Screener Table]
-    end
-
-    subgraph "The Strategist (AI Layer)"
-        RICH_LIB -->|Rich Text| AGENT[Gemini CLI Agent]
-        AGENT -->|Interpretation| PLAYBOOK[docs/STRATEGY_PLAYBOOK.md]
-        AGENT -->|Rules| CONFIG[config/trading_rules.json]
-        AGENT -->|Final Advice| USER[User]
-    end
-```
-
-### Layered Architecture
-
-| Layer | Module | Responsibility |
-|-------|--------|----------------|
-| **Presentation** | `tui_renderer.py` | Pure TUI formatting via `rich`. No business logic. |
-| **Orchestration** | `analyze_portfolio.py` | Thin coordinator. Assembles data flow. |
-| **Domain Logic** | `triage_engine.py`, `strategy_detector.py` | Business rules, risk triage, position clustering. |
-| **Data Access** | `get_market_data.py`, `portfolio_parser.py` | API fetching, CSV parsing, SQLite caching (WAL mode). |
-| **Configuration** | `config/*.json` | Externalized thresholds, stress scenarios, trading rules. |
-
-**Data Flow:** `positions/*.csv` -> Parser -> Market Data Fetcher -> Triage Engine -> TUI Renderer -> Terminal
-
-## 📊 Dashboard & Metrics Explained
-
-### 1. VRP Markup (The "Bonus" Yield)
-*   **Concept**: Not all Theta is created equal. Some theta is "cheap" (underpriced risk), and some is "rich" (overpriced risk).
-*   **Formula**: `Alpha-Theta = Raw Theta * (IV / HV)`
-*   **In Dashboard**: Displayed as `Theta: $42 → $52 (+24% VRP)`.
-*   **Meaning**: A **+24%** markup means you are collecting 24% more premium than the realized movement of the stock justifies. You are statistically "winning" before the trade even moves.
-
-### 2. Dynamic Tail Risk (The "Crash" Test)
-*   **Concept**: The maximum dollar amount you would lose if the single worst-case scenario in your config occurred *today*.
-*   **Behavior**: The engine runs every scenario in your Stress Box (e.g., "-5% Crash", "Vol Spike", "+10% Rally") and finds the floor.
-*   **Status**:
-    *   **Safe**: < 5% of Net Liq.
-    *   **Loaded**: 5-15% of Net Liq (Capital is efficiently deployed).
-    *   **Extreme**: > 15% of Net Liq (Danger zone).
-
-### 3. The "Signal" Logic (Regime Detection)
-The system synthesizes multiple metrics into a single "Signal" for the TUI:
-
-| Signal | Meaning | Target Environment |
-| :--- | :--- | :--- |
-| **RICH** | High Tactical VRP (>+20%) | Undefined Risk (Strangles) |
-| **BOUND** | Squeezed / Rangebound | Defined Risk (Iron Condors) |
-| **DISCOUNT** | Underpriced Vol (<-10%) | Long Vol (Calendars/Diagonals) |
-| **EVENT** | Binary event risk | Earnings (Avoid) |
-| **FAIR** | Fairly priced risk | Pass |
-| **TOXIC** | Theta Leakage (Alpha < Theta) | Exit / Recycle BPR |
-
-*   **Absolute Scoring**: The system rewards **dislocation**, not just richness. A deep discount (cheap vol) surfaces at the top of the screener alongside rich vol, as both represent high-probability mean-reversion opportunities.
-
-## ⚙️ Configuration & Customization
-
-### The Stress Box (`config/trading_rules.json`)
-You can define your own "nightmare scenarios" for the Tail Risk engine. The system supports both Percentage Moves (`move_pct`) and Standard Deviations (`sigma`).
-
-```json
-"stress_scenarios": [
-    {"label": "Crash (-5%)", "move_pct": -0.05, "vol_point_move": 15.0},
-    {"label": "Dip (-3%)", "move_pct": -0.03, "vol_point_move": 5.0},
-    {"label": "Vol Crush", "move_pct": 0.0, "vol_point_move": -10.0}
-]
-```
-
-### Trading Rules
-Control the engine's physics:
-*   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
-*   `net_liquidity`: Your account size (used for risk sizing).
-*   `profit_harvest_pct`: Target profit to trigger "HARVEST" (Default: 0.50).
-
-## 🛡️ System Resilience
-
-*   **Partial Data Mode**: If the market data provider fails to return Option Chains (IV) but returns Price/HV, the system gracefully downgrades. It will calculate P/L and Delta but flag the Volatility metrics as `0.0` (missing) to prevent false positives in the screener.
-*   **Data Quality Safeguards (⚠️)**: Extreme IV readings (e.g. < 5% on a volatile stock) are flagged with a warning icon in the TUI. Portfolio-level metrics are **clamped** (Default: -50% to +100%) to prevent a single bad data point from skewing your total Alpha-Theta accounting.
-*   **Weekend-Aware Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET (M-Th) is automatically cached until 10:00 AM the next morning. Friday afternoon and weekend data is persisted until Monday at 10:00 AM, ensuring a stable environment for research without hitting API rate limits or processing unstable after-hours quotes.
-
+### 1. Installation
 ```bash
-# 1. Clone the repository
+# Clone and Setup
 git clone https://github.com/epj009/variance-yfinance.git variance
 cd variance
-
-# 2. Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-
-# 3. (Optional) Set up Gemini CLI for the interactive Persona
-#    (Required only if you want the AI trading assistant features)
-mkdir -p .gemini
-cp variance-system-prompt.md .gemini/GEMINI.md
 ```
 
-## 🚦 Usage
+### 2. Run the Engine
+Drop your portfolio CSV into the `positions/` folder (or use the dummy data).
 
-### 1. Portfolio Triage (Daily Routine)
 ```bash
-./variance
+# Launch the HUD (Analysis + TUI)
+./variance --tui
 ```
-*Wrapper script that finds the newest CSV in `positions/`, analyzes it, and launches the dashboard.*
 
-### 2. Volatility Scanning
-```bash
-./venv/bin/python3 scripts/vol_screener.py
-```
-*Outputs a ranked list of opportunities with side-by-side VRP(S) and VRP(T) metrics.*
+---
 
-### 3. Quant Research Lab
-```bash
-python3 util/research_lab.py
-```
-*Deep-dive utility for Sector Z-Scores and Portfolio Alpha-Theta quality audit.*
+## 🚦 The Variance Workflow
+
+The engine is designed around two core loops: **Defense (Triage)** and **Offense (Screener)**.
+
+### 1. Portfolio Triage (The Shield)
+The TUI organizes your positions into a unified priority tree.
+
+*   **💰 HARVEST:** Profit > 50% (or high velocity win). **Action:** Close.
+*   **🛡️ DEFENSE:** Tested strikes with < 21 DTE. **Action:** Roll or Manage.
+*   **☢️ GAMMA:** Untested but < 21 DTE. **Action:** Close to avoid gamma risk.
+*   **🐳 SIZE RISK:** Single position contributes > 5% of Net Liq to Tail Risk (-2SD).
+*   **➕ SCALABLE:** VRP Surge detected in a small existing position. **Action:** Size up.
+*   **⏳ HOLDING:** Healthy position. **Action:** Do nothing.
+
+### 2. Volatility Screener (The Sword)
+The screener ranks opportunities by **VRP Tactical Markup** (NVRP).
+
+| Signal | Logic | Recommended Mechanic |
+| :--- | :--- | :--- |
+| **RICH** | VRP (T) > +20% | **Short Strangle / Naked Put** (Sell Premium) |
+| **BOUND** | Compression < 0.75 | **Iron Condor** (Range Trade) |
+| **DISCOUNT** | VRP (T) < -10% | **Calendar / Diagonal** (Buy Premium) |
+| **EXPANDING** | HV20 > HV60 | **Trend Following** (Respect the move) |
+
+---
+
+## 📊 Dashboard & Metrics
+
+### The "Data Quality" Gauge
+Variance includes a dedicated safety system to prevent "Garbage In, Garbage Out."
+*   **Strict Mode:** Symbols with partial data, zero volume, or excessive spreads are **hard-rejected**.
+*   **Advisory:** A red banner appears if your CSV has unit errors (e.g., per-share Greeks vs total position).
+
+### VRP Markup (Alpha-Theta)
+We quantify the "Quality of Income" by adjusting raw time decay for the Volatility Risk Premium.
+*   **Formula:** `Alpha-Theta = Raw Theta * (IV / HV)`
+*   **Logic:** If IV (20%) > HV (15%), every $1.00 of Theta is statistically "worth" $1.33.
+
+### Dynamic Tail Risk
+The engine runs a "Crash Test" simulation on every refresh.
+*   **Scenario:** -5% Crash, Vol Spike, etc. (Configurable in `trading_rules.json`).
+*   **Metric:** The maximum drawdown from the worst-case scenario.
+
+---
+
+## 🛠️ CLI Reference
+
+The `variance` launcher handles the pipeline orchestration.
+
+| Command | Description |
+| :--- | :--- |
+| `./variance` | **Hybrid Mode (Default).** Runs the TUI analysis, then launches an interactive Gemini strategy session. |
+| `./variance --tui` | **TUI Only.** Fast, deterministic dashboard. Best for quick checks. |
+| `./variance --chat` | **Chat Only.** Launches the Gemini agent without running the analysis pipeline first. |
+
+---
 
 ## ⚙️ Configuration
 
-Control the engine's physics in `config/trading_rules.json`:
+The engine's physics are defined in `config/trading_rules.json`.
 
-*   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
-*   `vrp_tactical_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
-*   `net_liquidity`: Your account size (used for risk sizing and Alpha calculations).
+```json
+{
+  "net_liquidity": 50000,
+  "profit_harvest_pct": 0.50,
+  "vrp_structural_threshold": 0.85,
+  "vrp_scalable_threshold": 1.35,
+  "stress_scenarios": [
+    {"label": "Crash (-5%)", "move_pct": -0.05, "vol_point_move": 15.0}
+  ]
+}
+```
+
+---
+
+## 🏗️ Architecture
+
+Variance follows a strict **Model-View-Controller (MVC)** pattern for reliability.
+
+```mermaid
+graph TD
+    subgraph "Data Layer"
+        YAHOO[yfinance] -->|Fetch| CACHE[(SQLite WAL)]
+        BROKER[CSV] -->|Parse| NORMAL[Normalized Data]
+    end
+
+    subgraph "Engine Layer"
+        CACHE -->|Metrics| TRIAGE[Triage Engine]
+        NORMAL -->|Positions| TRIAGE
+        TRIAGE -->|Risk Rules| LOGIC[Decision Matrix]
+    end
+
+    subgraph "Presentation Layer"
+        LOGIC -->|JSON Payload| TUI[Rich TUI Renderer]
+        TUI -->|Console| USER
+    end
+```
+
+*   **Resilience:** The data layer uses intelligent caching with dynamic TTL (short during market hours, long overnight).
+*   **Precision:** Micro Futures (`/MES`, `/MNQ`) are correctly mapped and proxied.
+*   **Auditability:** Every decision (Harvest, Defense) is logged with a specific reason code.
+
+---
 
 ## ⚠️ Disclaimer
-Variance is a research tool for quantitative analysis. It does not provide financial advice. Trading options involves significant risk.
+Variance is a research tool for quantitative analysis. It does not provide financial advice. Options trading involves significant risk of loss.
