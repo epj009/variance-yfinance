@@ -188,11 +188,10 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
     if token.startswith('./'):
         token = token.replace('./', '/')
 
-    # Futures roots like /ESZ4 -> /ES, /MESZ4 -> /MES, /6EZ4 -> /6E
+    # Futures roots like /ESZ4 -> /ES, /MESZ4 -> /MES, /6EZ4 -> /6E (case-insensitive)
     if token.startswith('/'):
-        # Regex: Starts with /, followed by Root (alphanumeric), then Month Code, then Year (1-2 digits), end of string.
-        # Month Codes: F, G, H, J, K, M, N, Q, U, V, X, Z
-        match = re.match(r"^(/[A-Z0-9]+)([FGHJKMNQUVXZ])(\d{1,2})$", token)
+        upper_token = token.upper()
+        match = re.match(r"^(/[A-Z0-9]+)([FGHJKMNQUVXZ])(\d{1,2})$", upper_token)
         if match:
             return match.group(1)
         return token
