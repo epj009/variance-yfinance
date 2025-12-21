@@ -390,7 +390,7 @@ class TUIRenderer:
         table.add_column("Symbol", style="neutral")
         table.add_column("Price")
         table.add_column("VRP (S)", style="sigma")
-        table.add_column("NVRP", style="profit") # Renamed from VRP (T)
+        table.add_column("VRP (T)", style="profit")
         table.add_column("Signal")
         table.add_column("Regime", style="dim cyan")
         table.add_column("Asset Class", style="dim")
