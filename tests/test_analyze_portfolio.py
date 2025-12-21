@@ -143,7 +143,7 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
             "ABC": {
                 "price": 100.0,
                 "is_stale": False,
-                "vol_bias": 1.2,
+                "vrp_structural": 1.2,
                 "earnings_date": None,
                 "sector": "Technology"
             }
@@ -152,8 +152,8 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
 
     # Deterministic rules for testing
     monkeypatch.setattr(analyze_portfolio, "RULES", {
-        "vol_bias_threshold": 0.85,
-        "dead_money_vol_bias_threshold": 0.80,
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
         "dead_money_pl_pct_low": -0.10,
         "dead_money_pl_pct_high": 0.10,
         "low_ivr_threshold": 20,
@@ -198,11 +198,11 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
     # Stub market data: AAPL, TSLA, NVDA (Technology = Equity), GLD (Metals = Commodity)
     def mock_get_market_data(symbols):
         return {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vol_bias": 0.75},
-            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vol_bias": 0.83},
-            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vol_bias": 0.90},
-            "AMZN": {"price": 140.0, "sector": "Consumer Cyclical", "iv30": 35.0, "hv252": 40.0, "vol_bias": 0.88},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vol_bias": 1.33},
+            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
+            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
+            "AMZN": {"price": 140.0, "sector": "Consumer Cyclical", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
+            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
         }
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
 
@@ -236,12 +236,12 @@ def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
     """Test that asset mix warning triggers when equity > 80%."""
     def mock_get_market_data(symbols):
         return {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vol_bias": 0.75},
-            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vol_bias": 0.83},
-            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vol_bias": 0.90},
-            "AMZN": {"price": 140.0, "sector": "Healthcare", "iv30": 35.0, "hv252": 40.0, "vol_bias": 0.88},
-            "MSFT": {"price": 380.0, "sector": "Technology", "iv30": 32.0, "hv252": 38.0, "vol_bias": 0.84},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vol_bias": 1.33},
+            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
+            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
+            "AMZN": {"price": 140.0, "sector": "Healthcare", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
+            "MSFT": {"price": 380.0, "sector": "Technology", "iv30": 32.0, "hv252": 38.0, "vrp_structural": 0.84},
+            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
         }
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
 
@@ -273,11 +273,11 @@ def test_asset_mix_diversified(tmp_path, monkeypatch):
     """Test that diversified portfolios don't trigger warnings."""
     def mock_get_market_data(symbols):
         return {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vol_bias": 0.75},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vol_bias": 1.33},
-            "/CL": {"price": 70.0, "sector": "Energy", "iv30": 40.0, "hv252": 35.0, "vol_bias": 1.14},
-            "/6E": {"price": 1.1, "sector": "Currencies", "iv30": 10.0, "hv252": 8.0, "vol_bias": 1.25},
-            "TLT": {"price": 95.0, "sector": "Fixed Income", "iv30": 12.0, "hv252": 10.0, "vol_bias": 1.20},
+            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+            "/CL": {"price": 70.0, "sector": "Energy", "iv30": 40.0, "hv252": 35.0, "vrp_structural": 1.14},
+            "/6E": {"price": 1.1, "sector": "Currencies", "iv30": 10.0, "hv252": 8.0, "vrp_structural": 1.25},
+            "TLT": {"price": 95.0, "sector": "Fixed Income", "iv30": 12.0, "hv252": 10.0, "vrp_structural": 1.20},
         }
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
 

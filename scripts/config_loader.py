@@ -10,8 +10,8 @@ from typing import Dict, Any
 # Consolidated defaults (Union of analyze_portfolio and vol_screener defaults)
 DEFAULT_TRADING_RULES: Dict[str, Any] = {
     # Triage / Analyzer Defaults
-    "vol_bias_threshold": 0.85,
-    "dead_money_vol_bias_threshold": 0.80,
+    "vrp_structural_threshold": 0.85,
+    "dead_money_vrp_structural_threshold": 0.80,
     "dead_money_pl_pct_low": -0.10,
     "dead_money_pl_pct_high": 0.10,
     "low_ivr_threshold": 20,
@@ -40,7 +40,7 @@ DEFAULT_TRADING_RULES: Dict[str, Any] = {
     "max_slippage_pct": 0.05,
     "bats_efficiency_min_price": 15,
     "bats_efficiency_max_price": 75,
-    "bats_efficiency_vol_bias": 1.0,
+    "bats_efficiency_vrp_structural": 1.0,
 }
 
 

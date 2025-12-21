@@ -65,7 +65,7 @@ class TestDefaultTradingRules:
     def test_default_keys_exist(self):
         """All expected default keys present."""
         expected_keys = {
-            "vol_bias_threshold", "dead_money_vol_bias_threshold",
+            "vrp_structural_threshold", "dead_money_vrp_structural_threshold",
             "dead_money_pl_pct_low", "dead_money_pl_pct_high",
             "low_ivr_threshold", "gamma_dte_threshold",
             "profit_harvest_pct", "earnings_days_threshold",
@@ -76,7 +76,7 @@ class TestDefaultTradingRules:
             "data_integrity_min_theta", "asset_mix_equity_threshold",
             "stress_scenarios", "min_atm_volume", "max_slippage_pct",
             "bats_efficiency_min_price", "bats_efficiency_max_price",
-            "bats_efficiency_vol_bias"
+            "bats_efficiency_vrp_structural"
         }
 
         assert set(config_loader.DEFAULT_TRADING_RULES.keys()) == expected_keys
@@ -86,7 +86,7 @@ class TestDefaultTradingRules:
         defaults = config_loader.DEFAULT_TRADING_RULES
 
         # Numeric types
-        assert isinstance(defaults["vol_bias_threshold"], float)
+        assert isinstance(defaults["vrp_structural_threshold"], float)
         assert isinstance(defaults["gamma_dte_threshold"], int)
         assert isinstance(defaults["net_liquidity"], int)
 
@@ -110,13 +110,13 @@ class TestLoadTradingRules:
         """Load valid JSON file and verify merge with defaults."""
         # Arrange
         config_file = config_dir / "trading_rules.json"
-        config_file.write_text('{"vol_bias_threshold": 0.95, "net_liquidity": 75000}')
+        config_file.write_text('{"vrp_structural_threshold": 0.95, "net_liquidity": 75000}')
 
         # Act
         result = config_loader.load_trading_rules()
 
         # Assert
-        assert result["vol_bias_threshold"] == 0.95  # Overridden
+        assert result["vrp_structural_threshold"] == 0.95  # Overridden
         assert result["net_liquidity"] == 75000       # Overridden
         assert result["gamma_dte_threshold"] == 21    # Default preserved
 
@@ -129,7 +129,7 @@ class TestLoadTradingRules:
 
         assert result["gamma_dte_threshold"] == 14
         assert result["profit_harvest_pct"] == 0.60
-        assert result["vol_bias_threshold"] == 0.85  # Default
+        assert result["vrp_structural_threshold"] == 0.85  # Default
 
     def test_missing_file_returns_defaults(self, config_dir):
         """Graceful fallback when file doesn't exist."""

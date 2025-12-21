@@ -418,7 +418,7 @@ def screen_volatility(
 def get_screener_results(
     exclude_symbols: Optional[List[str]] = None,
     held_symbols: Optional[List[str]] = None,
-    min_vol_bias: float = 0.85,
+    min_vrp_structural: float = 0.85,
     limit: int = 20,
     filter_illiquid: bool = True,
     exclude_sectors: Optional[List[str]] = None,
@@ -432,7 +432,7 @@ def get_screener_results(
     Args:
         exclude_symbols: List of symbols to exclude from the scan.
         held_symbols: List of symbols currently held in the portfolio.
-        min_vol_bias: Minimum Vol Bias threshold for candidates.
+        min_vrp_structural: Minimum VRP Structural threshold for candidates.
         limit: Maximum number of candidates to return.
         filter_illiquid: If True, illiquid symbols are filtered out.
         exclude_sectors: List of sector names to hide from results.
@@ -444,14 +444,14 @@ def get_screener_results(
     """
     return screen_volatility(
         limit=limit,
-        show_all=(min_vol_bias <= 0),  # If min_vol_bias is 0 or negative, show all
+        show_all=(min_vrp_structural <= 0),  # If min_vrp_structural is 0 or negative, show all
         show_illiquid=(not filter_illiquid),
         exclude_symbols=exclude_symbols,
         held_symbols=held_symbols,
         exclude_sectors=exclude_sectors,
         include_asset_classes=include_asset_classes,
         exclude_asset_classes=exclude_asset_classes,
-        min_vrp_override=min_vol_bias if min_vol_bias > 0 else None
+        min_vrp_override=min_vrp_structural if min_vrp_structural > 0 else None
     )
 
 if __name__ == "__main__":
@@ -459,8 +459,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
-    parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of Vol Bias')
+    parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of VRP Structural')
     parser.add_argument('--show-illiquid', action='store_true', help='Include illiquid symbols (low volume or wide spreads)')
+    parser.add_argument('--min-vrp-structural', '--min-vol-bias', type=float, default=0.85, dest='min_vrp_structural', help='Minimum VRP Structural (IV30/HV252) threshold for screening')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
@@ -468,6 +469,7 @@ if __name__ == "__main__":
     parser.add_argument('--held-symbols', type=str, help='Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)')
 
     args = parser.parse_args()
+    min_vrp_structural = args.min_vrp_structural
 
     exclude_list = None
     if args.exclude_sectors:
@@ -497,7 +499,8 @@ if __name__ == "__main__":
         include_asset_classes=include_assets,
         exclude_asset_classes=exclude_assets,
         exclude_symbols=exclude_symbols_list,
-        held_symbols=held_symbols_list
+        held_symbols=held_symbols_list,
+        min_vrp_override=min_vrp_structural if min_vrp_structural > 0 else None
     )
     
     if "error" in report_data:

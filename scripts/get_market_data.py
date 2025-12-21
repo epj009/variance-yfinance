@@ -726,19 +726,19 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
 
         return raw_symbol, {"error": "insufficient_iv_hv", "details": f"IV: {iv_val}, HV: {hv252_val}, Proxy: {proxy_note}"}
 
-    vol_bias_structural = iv_val / hv252_val if hv252_val else None
-    
+    vrp_structural = iv_val / hv252_val if hv252_val else None
+
     # Calculate Short-Term Bias (Tactical Edge)
     # Apply HV floor to prevent division by near-zero values causing explosion ratios
     # (e.g., 30% IV / 0.5% HV = 60x is unrealistic; floor of 5% gives max 6x)
     HV_FLOOR_DEFAULT = 5.0  # Fallback if config unavailable at this layer
     if hv20_val and hv20_val > 0:
         hv20_floored = max(hv20_val, HV_FLOOR_DEFAULT)
-        vol_bias_tactical = iv_val / hv20_floored
+        vrp_tactical = iv_val / hv20_floored
     else:
-        vol_bias_tactical = None
+        vrp_tactical = None
 
-    if vol_bias_structural is None or vol_bias_structural <= 0:
+    if vrp_structural is None or vrp_structural <= 0:
         return raw_symbol, {"error": "invalid_vrp_structural"}
 
     earnings_date = None if skip_fundamentals else get_earnings_date(ticker, raw_symbol, yf_symbol)
@@ -754,8 +754,8 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "hv20_stderr": hv20_stderr,
         "hv_rank": hv_rank_val,
         "iv_rank": iv_rank_val,
-        "vrp_structural": vol_bias_structural,
-        "vrp_tactical": vol_bias_tactical,
+        "vrp_structural": vrp_structural,
+        "vrp_tactical": vrp_tactical,
         "atm_volume": atm_vol,
         "atm_bid": atm_bid,
         "atm_ask": atm_ask,
