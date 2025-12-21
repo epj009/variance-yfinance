@@ -66,9 +66,15 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
         return True
 
     if bid is not None and ask is not None:
-        mid = (bid + ask) / 2
-        if mid > 0:
-            slippage_pct = (ask - bid) / mid
+        # Use mark price if available, otherwise mid price
+        mark_price = metrics.get('atm_mark')
+        if mark_price:
+            reference_price = float(mark_price)
+        else:
+            reference_price = (bid + ask) / 2
+
+        if reference_price > 0:
+            slippage_pct = (ask - bid) / reference_price
             if slippage_pct > rules['max_slippage_pct']:
                 return True
     return False
@@ -138,7 +144,7 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     # Example: 1.5 -> 0.5 * 200 = 100. 0.5 -> 0.5 * 200 = 100.
     bias = metrics.get('vrp_structural')
     if bias:
-        bias_dislocation = abs(bias - 1.0) * 200
+        bias_dislocation = abs(bias - 1.0) * RULES.get('variance_score_dislocation_multiplier', 200)
         bias_score = max(0, min(100, bias_dislocation))
         score += bias_score * 0.50
         
@@ -267,8 +273,9 @@ def screen_volatility(
         # 3.2. VRP Tactical Calculation (Stability Clamps)
         nvrp = None
         if hv20 and iv30:
-            # Use HV Floor of 5.0 to prevent division by zero/explosion on flat tape
-            hv_floor = max(hv20, 5.0)
+            # Use configurable HV Floor to prevent division by near-zero values
+            hv_floor_config = RULES.get('hv_floor_percent', 5.0)
+            hv_floor = max(hv20, hv_floor_config)
             raw_nvrp = (iv30 - hv_floor) / hv_floor
             # Hard-cap NVRP at 3.0 (300%) for ranking
             nvrp = max(-0.99, min(3.0, raw_nvrp))
@@ -366,6 +373,12 @@ def screen_volatility(
             'is_held': bool(sym.upper() in held_symbols_set),
             'is_data_lean': is_data_lean
         }
+
+        # Data quality warning for extreme negative NVRP (FINDING-006)
+        if nvrp is not None and nvrp < -0.30:
+            candidate_data['data_quality_warning'] = True
+            candidate_data['nvrp_warning'] = "Unusual: IV significantly below HV"
+
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     

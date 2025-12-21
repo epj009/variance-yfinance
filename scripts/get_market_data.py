@@ -302,6 +302,10 @@ def normalize_iv(raw_iv: float, hv_context: Optional[float] = None) -> Tuple[flo
     if bias_if_decimal > 10.0 and 0.5 <= bias_if_percent <= 3.0:
         return raw_iv, "iv_scale_corrected_percent"
 
+    # FINDING-009: Protect against low-IV scaling errors
+    if implied_decimal_iv > 200:  # No equity has 200% annualized IV
+        return raw_iv, "iv_implausibly_high_assuming_percent"
+
     # Default to decimal format
     return implied_decimal_iv, None
 
@@ -407,10 +411,13 @@ def calculate_hv(ticker_obj: Any, symbol_key: str) -> Optional[Dict[str, float]]
         # Calculate HV20 (last 20 days)
         # We need at least 20 days of data
         hv20 = None
+        hv20_stderr = None
         if len(log_ret) >= 20:
             hv20 = log_ret.tail(20).std() * np.sqrt(252) * 100
+            # FINDING-012: HV20 has high standard error (~22%) due to small sample size
+            hv20_stderr = hv20 * 0.22 if hv20 else None  # Approximate 1-sigma uncertainty
 
-        return {'hv252': hv252, 'hv20': hv20}
+        return {'hv252': hv252, 'hv20': hv20, 'hv20_stderr': hv20_stderr}
 
     try:
         val = retry_fetch(_fetch)
@@ -656,6 +663,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     hv_data = calculate_hv(ticker, yf_symbol)
     hv252_val = hv_data.get('hv252') if hv_data else None
     hv20_val = hv_data.get('hv20') if hv_data else None
+    hv20_stderr = hv_data.get('hv20_stderr') if hv_data else None
 
     hv_rank_val = calculate_hv_rank(ticker, yf_symbol)
     iv_rank_val = None # Tastytrade Removed
@@ -700,6 +708,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
                 "iv": iv_val,
                 "hv252": hv252_val,
                 "hv20": hv20_val,
+                "hv20_stderr": hv20_stderr,
                 "hv_rank": hv_rank_val,
                 "iv_rank": iv_rank_val,
                 "vrp_structural": 0.0, # Default to 0 to fail downstream filters (Screener)
@@ -720,7 +729,14 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     vol_bias_structural = iv_val / hv252_val if hv252_val else None
     
     # Calculate Short-Term Bias (Tactical Edge)
-    vol_bias_tactical = iv_val / hv20_val if (hv20_val and hv20_val > 0) else None
+    # Apply HV floor to prevent division by near-zero values causing explosion ratios
+    # (e.g., 30% IV / 0.5% HV = 60x is unrealistic; floor of 5% gives max 6x)
+    HV_FLOOR_DEFAULT = 5.0  # Fallback if config unavailable at this layer
+    if hv20_val and hv20_val > 0:
+        hv20_floored = max(hv20_val, HV_FLOOR_DEFAULT)
+        vol_bias_tactical = iv_val / hv20_floored
+    else:
+        vol_bias_tactical = None
 
     if vol_bias_structural is None or vol_bias_structural <= 0:
         return raw_symbol, {"error": "invalid_vrp_structural"}
@@ -735,6 +751,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "iv": iv_val,
         "hv252": hv252_val,
         "hv20": hv20_val,
+        "hv20_stderr": hv20_stderr,
         "hv_rank": hv_rank_val,
         "iv_rank": iv_rank_val,
         "vrp_structural": vol_bias_structural,

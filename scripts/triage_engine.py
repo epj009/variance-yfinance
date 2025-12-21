@@ -35,6 +35,7 @@ class TriageResult(TypedDict, total=False):
     gamma: float # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
     data_quality_warning: bool # NEW: True if NVRP is suspicious
+    futures_multiplier_warning: Optional[str]
 
 
 class TriageContext(TypedDict, total=False):
@@ -120,6 +121,75 @@ def detect_hedge_tag(
 
     # All conditions met - this is a hedge
     return True
+
+
+def validate_futures_delta(
+    root: str,
+    beta_delta: float,
+    market_config: Dict[str, Any],
+    rules: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Validate that futures positions have plausible beta-weighted delta values.
+
+    Detects potential multiplier issues by checking if futures delta is
+    suspiciously small (suggesting raw broker delta was not multiplied).
+
+    ASSUMPTION: Broker CSV 'beta_delta' column should contain BETA-WEIGHTED values
+    (i.e., already multiplied by contract multiplier and normalized to SPY-equivalent).
+    If your broker provides raw delta, pre-process the CSV before importing.
+
+    Args:
+        root: Root symbol (e.g., '/ES', 'AAPL')
+        beta_delta: Beta-weighted delta value from broker CSV
+        market_config: Market configuration containing FUTURES_MULTIPLIERS
+        rules: Trading rules containing validation thresholds
+
+    Returns:
+        Dict with keys:
+            - is_futures: bool (True if symbol is a futures contract)
+            - multiplier: float (contract multiplier from config, or 1.0)
+            - potential_issue: bool (True if delta looks suspiciously small)
+            - expected_min: float (minimum expected abs(delta) for this contract)
+            - message: str (human-readable warning if issue detected)
+    """
+    result = {
+        'is_futures': False,
+        'multiplier': 1.0,
+        'potential_issue': False,
+        'expected_min': 0.0,
+        'message': ''
+    }
+
+    # Only check symbols starting with '/'
+    if not root.startswith('/'):
+        return result
+
+    result['is_futures'] = True
+
+    # Get multiplier from config
+    futures_multipliers = market_config.get('FUTURES_MULTIPLIERS', {})
+    multiplier = futures_multipliers.get(root, 1.0)
+    result['multiplier'] = multiplier
+
+    # Get validation thresholds from rules
+    validation_rules = rules.get('futures_delta_validation', {})
+    if not validation_rules.get('enabled', True):
+        return result
+
+    min_delta_threshold = validation_rules.get('min_abs_delta_threshold', 1.0)
+    result['expected_min'] = min_delta_threshold
+
+    # Check if delta is suspiciously small for a futures position
+    if abs(beta_delta) < min_delta_threshold and abs(beta_delta) > 0:
+        result['potential_issue'] = True
+        result['message'] = (
+            f"Futures delta ({beta_delta:.2f}) appears unmultiplied. "
+            f"Expected: delta x {multiplier} = {beta_delta * multiplier:.1f} SPY-eq. "
+            f"Verify broker CSV contains beta-weighted values."
+        )
+
+    return result
 
 
 def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
@@ -217,12 +287,31 @@ def triage_cluster(
         gamma_trigger_dte = strategy_config['metadata']['gamma_trigger_dte']
         earnings_stance = strategy_config['metadata'].get('earnings_stance', 'avoid')
 
+    # --- Greek Aggregation ---
+    # ASSUMPTION: Broker CSV 'beta_delta' column contains BETA-WEIGHTED delta values.
+    # For futures, this means: raw_delta * contract_multiplier * (underlying_beta / SPY).
+    # If your broker provides raw delta, pre-multiply before importing.
+    # See: docs/TECHNICAL_ARCHITECTURE.md Section 3.5 for details.
+
     strategy_delta = 0.0
     strategy_gamma = 0.0
+    futures_delta_warnings = []
+
     for l in legs:
         b_delta = parse_currency(l['beta_delta'])
         strategy_delta += b_delta
-        
+
+        # Validate futures delta looks reasonable (not raw/unmultiplied)
+        leg_root = get_root_symbol(l['Symbol'])
+        futures_check = validate_futures_delta(
+            root=leg_root,
+            beta_delta=b_delta,
+            market_config=market_config,
+            rules=rules
+        )
+        if futures_check['potential_issue']:
+            futures_delta_warnings.append(futures_check['message'])
+
         # Aggregate Gamma (Beta-weighted Gamma if available, else raw)
         b_gamma = parse_currency(l.get('Gamma', '0'))
         strategy_gamma += b_gamma
@@ -284,6 +373,11 @@ def triage_cluster(
             usage_pct = abs(loss_at_2sd) / net_liquidity
             size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
 
+
+    # --- 0. Expiration Day Check (Highest Priority) ---
+    if dte == 0:
+        action_code = "EXPIRING"
+        logic = "Expiration Day - Manual Management Required"
 
     # --- 1. Harvest Logic (Enhanced with Velocity) ---
     # Standard Harvest
@@ -447,7 +541,8 @@ def triage_cluster(
         'delta': strategy_delta,
         'gamma': strategy_gamma,
         'is_hedge': is_hedge,
-        'data_quality_warning': quality_warning
+        'data_quality_warning': quality_warning,
+        'futures_multiplier_warning': futures_delta_warnings[0] if futures_delta_warnings else None
     }
 
 
@@ -576,7 +671,7 @@ def triage_portfolio(
 
     # Calculate Friction Horizon (Φ)
     friction_horizon_days = 0.0
-    if total_abs_theta > 1.0:
+    if total_abs_theta > RULES.get('friction_horizon_min_theta', 0.01):
         friction_horizon_days = total_liquidity_cost / total_abs_theta
     elif total_liquidity_cost > 0:
         friction_horizon_days = traffic_jam_friction  # Infinite friction (trapped)

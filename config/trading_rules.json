@@ -4,6 +4,7 @@
     "compression_coiled_threshold": 0.75,
     "compression_expanding_threshold": 1.0,
     "vrp_tactical_cheap_threshold": -0.10,
+    "hv_floor_percent": 5.0,
     "hv_rank_trap_threshold": 15.0,
     "iv_rank_threshold": 30.0,
     "dead_money_vrp_structural_threshold": 0.80,
@@ -34,6 +35,9 @@
     "beta_weighted_symbol": "SPY",
     "global_staleness_threshold": 0.50,
     "data_integrity_min_theta": 0.50,
+    "data_integrity_min_gamma": 0.001,
+    "friction_horizon_min_theta": 0.01,
+    "variance_score_dislocation_multiplier": 200,
     "asset_mix_equity_threshold": 0.80,
     "stress_scenarios": [
         {"label": "Crash (-5%)", "move_pct": -0.05, "vol_point_move": 15.0},
@@ -50,5 +54,10 @@
         "qualifying_strategies": ["Long Put", "Vertical Spread (Put)", "Diagonal Spread (Put)"],
         "delta_threshold": -5,
         "require_portfolio_long": true
+    },
+    "futures_delta_validation": {
+        "enabled": true,
+        "min_abs_delta_threshold": 1.0,
+        "comment": "Warn if futures beta_delta < 1.0 (suggests raw delta, not multiplied)"
     }
 }

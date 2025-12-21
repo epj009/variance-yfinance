@@ -180,6 +180,19 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         report['data_integrity_warning']['risk'] = True
         report['data_integrity_warning']['details'] = f"Average theta per leg ({avg_theta_per_leg:.2f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
 
+    # Gamma Integrity Check (detect per-share vs per-contract units)
+    total_portfolio_gamma = metrics.get('total_portfolio_gamma', 0.0)
+    avg_gamma_per_leg = abs(total_portfolio_gamma) / total_option_legs if total_option_legs > 0 else 0
+
+    if total_option_legs > 0 and avg_gamma_per_leg < RULES.get('data_integrity_min_gamma', 0.001):
+        report['data_integrity_warning']['risk'] = True
+        # Append to existing details (may already have theta warning)
+        gamma_warning = f"Average gamma per leg ({avg_gamma_per_leg:.4f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Tail risk (Stress Box) may be understated by 100x."
+        if report['data_integrity_warning']['details']:
+            report['data_integrity_warning']['details'] += f" | {gamma_warning}"
+        else:
+            report['data_integrity_warning']['details'] = gamma_warning
+
     # Populate Delta Spectrograph
     root_deltas = defaultdict(float)
     for r in all_position_reports:
