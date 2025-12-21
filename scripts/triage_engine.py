@@ -561,6 +561,7 @@ def triage_portfolio(
         Tuple of (position_reports, metrics)
     """
     market_config = context['market_config']
+    rules = context['rules']
     traffic_jam_friction = context['traffic_jam_friction']
 
     all_position_reports = []
@@ -671,7 +672,7 @@ def triage_portfolio(
 
     # Calculate Friction Horizon (Φ)
     friction_horizon_days = 0.0
-    if total_abs_theta > RULES.get('friction_horizon_min_theta', 0.01):
+    if total_abs_theta > rules.get('friction_horizon_min_theta', 0.01):
         friction_horizon_days = total_liquidity_cost / total_abs_theta
     elif total_liquidity_cost > 0:
         friction_horizon_days = traffic_jam_friction  # Infinite friction (trapped)
