@@ -139,6 +139,11 @@ class TUIRenderer:
         risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
         risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
         mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
+        
+        # Data Quality Gauge
+        dq_score = self.portfolio_summary.get('data_quality_score', 1.0)
+        dq_style = "profit" if dq_score > 0.9 else "warning" if dq_score > 0.7 else "loss"
+        dq_text = "Excellent" if dq_score > 0.9 else "Degraded" if dq_score > 0.7 else "Critical"
 
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
@@ -149,7 +154,10 @@ class TUIRenderer:
         gyro_right.append(f"{fmt_currency(upside_pl)} ", style="profit")
         gyro_right.append(f"({upside_label})\n", style="dim")
         gyro_right.append("• Mix:       ", style="label")
-        gyro_right.append("⚠️ Equity Heavy" if mix_warning else "🌍 Diversified", style="warning" if mix_warning else "profit")
+        gyro_right.append("⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n", style="warning" if mix_warning else "profit")
+        gyro_right.append("• Data Qual: ", style="label")
+        gyro_right.append(f"{dq_score:.0%} ", style=dq_style)
+        gyro_right.append(f"({dq_text})", style="dim")
 
         gyro_grid.add_row(gyro_left, gyro_right)
 
@@ -166,6 +174,17 @@ class TUIRenderer:
     def render_triage(self):
         triage_actions = self.data.get('triage_actions', [])
         portfolio_overview = self.data.get('portfolio_overview', [])
+        
+        # Global Warnings Display
+        integrity = self.data.get('data_integrity_warning', {})
+        freshness = self.data.get('data_freshness_warning', False)
+        
+        if integrity.get('risk') or freshness:
+            self.console.print("\n[bold red on white]🚨 DATA ADVISORY[/bold red on white]")
+            if integrity.get('risk'):
+                self.console.print(f"[bold red]INTEGRITY ERROR:[/bold red] {integrity.get('details')}")
+            if freshness:
+                self.console.print("[bold yellow]STALE DATA:[/bold yellow] >50% of portfolio pricing is outdated.")
 
         self.console.print("\n[header]📊 PORTFOLIO TRIAGE[/header]")
 
@@ -178,6 +197,7 @@ class TUIRenderer:
             "HEDGE_CHECK": "🌳",
             "SCALABLE": "➕",
             "EARNINGS_WARNING": "📅",
+            "EXPIRING": "⏳",
             None: "⏳"
         }
 
@@ -198,8 +218,9 @@ class TUIRenderer:
                 net_pl = action.get('net_pl', 0.0)
                 row.append(f"{fmt_currency(net_pl)}", style="profit" if net_pl >= 0 else "loss")
                 
+                # Per-Position Data Warning
                 if action.get('data_quality_warning'):
-                    row.append(" ⚠️", style="warning")
+                    row.append(" ⚠️ Data", style="warning")
                 
                 self.console.print(row)
                 
@@ -221,7 +242,7 @@ class TUIRenderer:
                 row.append(f"{fmt_currency(net_pl)}", style="profit" if net_pl >= 0 else "loss")
                 
                 if pos.get('data_quality_warning'):
-                    row.append(" ⚠️", style="warning")
+                    row.append(" ⚠️ Data", style="warning")
                 
                 row.append(f" ({pos.get('dte', 0)} DTE)", style="dim")
                 
@@ -369,7 +390,7 @@ class TUIRenderer:
         table.add_column("Symbol", style="neutral")
         table.add_column("Price")
         table.add_column("VRP (S)", style="sigma")
-        table.add_column("VRP (T)", style="profit")
+        table.add_column("NVRP", style="profit") # Renamed from VRP (T)
         table.add_column("Signal")
         table.add_column("Regime", style="dim cyan")
         table.add_column("Asset Class", style="dim")

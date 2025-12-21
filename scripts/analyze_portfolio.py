@@ -113,7 +113,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "theta_net_liquidity_pct": 0.0,
             "theta_vrp_net_liquidity_pct": 0.0,
             "delta_theta_ratio": 0.0,
-            "bp_usage_pct": 0.0
+            "bp_usage_pct": 0.0,
+            "data_quality_score": 1.0  # Default perfect score
         },
         "data_integrity_warning": {"risk": False, "details": ""},
         "delta_spectrograph": [],
@@ -124,7 +125,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         "caution_items": [],
         "stress_box": None,
         "health_check": {
-            "liquidity_warnings": []
+            "liquidity_warnings": [],
+            "data_quality_breakdown": []
         }
     }
 
@@ -142,7 +144,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "dte": r['dte'],
             "logic": r['logic'],
             "sector": r['sector'],
-            "is_hedge": r.get('is_hedge', False)
+            "is_hedge": r.get('is_hedge', False),
+            "data_quality_warning": r.get('data_quality_warning', False)
         }
         if r['action_code']:
             entry["action_code"] = r['action_code']
@@ -151,6 +154,25 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             entry["action_code"] = None
             report['portfolio_overview'].append(entry)
 
+    # --- Data Quality Score Calculation ---
+    dq_score = 100.0
+    dq_log = []
+
+    # 1. Staleness Penalty
+    if stale_count > 0:
+        total_syms = len(market_data)
+        stale_pct = stale_count / total_syms if total_syms > 0 else 0
+        penalty = stale_pct * 20.0  # Max 20 points for 100% staleness
+        dq_score -= penalty
+        dq_log.append(f"Staleness: -{penalty:.1f} ({stale_count}/{total_syms} symbols)")
+
+    if widespread_staleness:
+        dq_score -= 30.0 # Major penalty for system-wide staleness
+        dq_log.append("Widespread Staleness: -30.0")
+
+    # 2. Integrity Penalty (Unit Errors)
+    # Calculated later after integrity check...
+    
     # Step 7: Finalize Portfolio Summary and Report
     net_liq = RULES['net_liquidity']
     report['portfolio_summary']['net_liquidity'] = net_liq
@@ -178,6 +200,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     if total_option_legs > 0 and avg_theta_per_leg < RULES['data_integrity_min_theta']:
         report['data_integrity_warning']['risk'] = True
         report['data_integrity_warning']['details'] = f"Average theta per leg ({avg_theta_per_leg:.2f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
+        dq_score -= 50.0 # Critical integrity failure
+        dq_log.append("Integrity Error (Theta): -50.0")
 
     # Gamma Integrity Check (detect per-share vs per-contract units)
     total_portfolio_gamma = metrics.get('total_portfolio_gamma', 0.0)
@@ -191,6 +215,12 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             report['data_integrity_warning']['details'] += f" | {gamma_warning}"
         else:
             report['data_integrity_warning']['details'] = gamma_warning
+            dq_score -= 50.0 # Critical integrity failure (if not already penalized)
+            dq_log.append("Integrity Error (Gamma): -50.0")
+
+    # Finalize DQ Score
+    report['portfolio_summary']['data_quality_score'] = max(0.0, dq_score / 100.0)
+    report['health_check']['data_quality_breakdown'] = dq_log
 
     # Populate Delta Spectrograph
     root_deltas = defaultdict(float)
