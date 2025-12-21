@@ -7,6 +7,7 @@ Extracted from analyze_portfolio.py to improve maintainability.
 
 import csv
 import sys
+import re
 from typing import Dict, List, Optional, TypedDict
 
 
@@ -187,9 +188,14 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
     if token.startswith('./'):
         token = token.replace('./', '/')
 
-    # Futures roots like /ESZ4 -> /ES
-    if token.startswith('/') and len(token) >= 3:
-        return token[:3]
+    # Futures roots like /ESZ4 -> /ES, /MESZ4 -> /MES, /6EZ4 -> /6E
+    if token.startswith('/'):
+        # Regex: Starts with /, followed by Root (alphanumeric), then Month Code, then Year (1-2 digits), end of string.
+        # Month Codes: F, G, H, J, K, M, N, Q, U, V, X, Z
+        match = re.match(r"^(/[A-Z0-9]+)([FGHJKMNQUVXZ])(\d{1,2})$", token)
+        if match:
+            return match.group(1)
+        return token
 
     # Handle crypto/forex/class shares: ETH/USD -> ETH-USD, BRK/B -> BRK-B
     if '/' in token and not token.startswith('/'):
