@@ -102,6 +102,15 @@ class TestNormalizeIV:
         assert iv == 100.0
         assert warning is None
 
+    def test_normalize_iv_decimal_gt_one_with_context(self):
+        """
+        IV > 1.0 can still be decimal (e.g., 1.5 = 150%) with HV context.
+        Should not be treated as 1.5%.
+        """
+        iv, warning = get_market_data.normalize_iv(1.5, hv_context=60.0)
+        assert iv == 150.0
+        assert warning is None
+
     def test_normalize_iv_extreme_low_values(self):
         """Very low IV (0.01) still converted to percentage."""
         iv, warning = get_market_data.normalize_iv(0.01, hv_context=5.0)
@@ -109,10 +118,10 @@ class TestNormalizeIV:
         assert warning is None
 
     def test_normalize_iv_high_value_unchanged(self):
-        """High IV values (>1.0) pass through unchanged."""
+        """High IV values (>1.0) treated as percent when bias indicates."""
         iv, warning = get_market_data.normalize_iv(75.5, hv_context=50.0)
         assert iv == 75.5
-        assert warning is None
+        assert warning == "iv_scale_corrected_percent"
 
 
 # ============================================================================

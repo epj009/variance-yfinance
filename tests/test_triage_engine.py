@@ -261,6 +261,30 @@ class TestTriageClusterDefense:
 
 
 # ============================================================================
+# TEST CLASS 4: Gamma Scaling Consistency
+# ============================================================================
+
+class TestGammaScaling:
+    """Validate beta-weighted gamma scaling when raw delta is available."""
+
+    def test_gamma_scaled_by_beta_delta_ratio(self, make_option_leg, make_triage_context):
+        leg = make_option_leg(delta=10.0, beta_delta=20.0, gamma=0.5)
+        context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
+
+        result = triage_engine.triage_cluster([leg], context)
+
+        assert result["gamma"] == pytest.approx(2.0)
+
+    def test_portfolio_gamma_aggregation_scaled(self, make_option_leg, make_triage_context):
+        leg = make_option_leg(delta=5.0, beta_delta=15.0, gamma=0.2)
+        context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
+
+        _, metrics = triage_engine.triage_portfolio([[leg]], context)
+
+        expected_gamma = 0.2 * (15.0 / 5.0) ** 2
+        assert metrics["total_portfolio_gamma"] == pytest.approx(expected_gamma)
+
+# ============================================================================
 # TEST CLASS 4: triage_cluster() - GAMMA Action
 # ============================================================================
 
@@ -323,81 +347,103 @@ class TestTriageClusterGamma:
 
 
 # ============================================================================
-# TEST CLASS 5: triage_cluster() - ZOMBIE Action
+# TEST CLASS 5: triage_cluster() - TOXIC Action
 # ============================================================================
 
 class TestTriageClusterToxic:
-    """Unit tests for ZOMBIE (dead money) action code."""
+    """Unit tests for TOXIC (dead money) action code."""
 
-    def test_zombie_flat_pl_low_vol_bias(self, make_option_leg, make_triage_context):
-        """Flat P/L with low vol bias triggers ZOMBIE."""
+    def test_toxic_low_carry_vs_cost(self, make_option_leg, make_triage_context):
+        """Low carry relative to expected gamma cost triggers TOXIC."""
         leg = make_option_leg(
             cost=-100.0,
             pl_open=5.0,  # 5% profit
+            theta=0.05,
+            gamma=1.0,
+            underlying_price=100.0,
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vrp_structural": 0.50}}
+            market_data={"AAPL": {"hv20": 30.0, "hv252": 25.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
         assert result['action_code'] == "TOXIC"
 
-    def test_zombie_boundary_low(self, make_option_leg, make_triage_context):
-        """P/L at -10% (low boundary) triggers ZOMBIE."""
+    def test_toxic_floor_uses_hv_floor(self, make_option_leg, make_triage_context):
+        """HV floor should increase cost and allow TOXIC in low-HV regimes."""
         leg = make_option_leg(
             cost=-100.0,
-            pl_open=-10.0,
+            pl_open=5.0,
+            theta=0.01,
+            gamma=1.0,
+            underlying_price=100.0,
             dte=30
         )
+        base_rules = make_triage_context()["rules"]
+        custom_rules = {
+            **base_rules,
+            "hv_floor_percent": 10.0,
+            "theta_efficiency_low": 0.10,
+        }
         context = make_triage_context(
-            market_data={"AAPL": {"vrp_structural": 0.70}}
+            market_data={"AAPL": {"hv20": 1.0, "hv252": 1.0}},
+            rules=custom_rules
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
         assert result['action_code'] == "TOXIC"
 
-    def test_zombie_boundary_high(self, make_option_leg, make_triage_context):
-        """P/L at +10% (high boundary) triggers ZOMBIE."""
+    def test_no_toxic_when_carry_sufficient(self, make_option_leg, make_triage_context):
+        """Healthy carry vs cost should not trigger TOXIC."""
         leg = make_option_leg(
             cost=-100.0,
-            pl_open=10.0,
+            pl_open=5.0,
+            theta=5.0,
+            gamma=0.05,
+            underlying_price=100.0,
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vrp_structural": 0.70}}
-        )
-
-        result = triage_engine.triage_cluster([leg], context)
-
-        assert result['action_code'] == "TOXIC"
-
-    def test_no_zombie_pl_too_negative(self, make_option_leg, make_triage_context):
-        """P/L at -15% does not trigger ZOMBIE (outside range)."""
-        leg = make_option_leg(
-            cost=-100.0,
-            pl_open=-15.0,
-            dte=30
-        )
-        context = make_triage_context(
-            market_data={"AAPL": {"vrp_structural": 0.70}}
+            market_data={"AAPL": {"hv20": 20.0, "hv252": 18.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
 
         assert result['action_code'] != "TOXIC"
 
-    def test_no_zombie_vol_bias_too_high(self, make_option_leg, make_triage_context):
-        """Flat P/L but high vol bias (0.85) does not trigger ZOMBIE."""
+    def test_no_toxic_for_debit_trade(self, make_option_leg, make_triage_context):
+        """Debit trades should not be flagged as TOXIC."""
         leg = make_option_leg(
-            cost=-100.0,
+            cost=100.0,
             pl_open=5.0,
+            theta=0.05,
+            gamma=1.0,
+            underlying_price=100.0,
             dte=30
         )
         context = make_triage_context(
-            market_data={"AAPL": {"vrp_structural": 0.85}}
+            market_data={"AAPL": {"hv20": 30.0, "hv252": 25.0}}
+        )
+
+        result = triage_engine.triage_cluster([leg], context)
+
+        assert result['action_code'] != "TOXIC"
+
+    def test_no_toxic_pl_outside_range(self, make_option_leg, make_triage_context):
+        """P/L outside dead money range should not trigger TOXIC."""
+        leg = make_option_leg(
+            cost=-100.0,
+            pl_open=-15.0,
+            theta=0.05,
+            gamma=1.0,
+            underlying_price=100.0,
+            dte=30
+        )
+        context = make_triage_context(
+            market_data={"AAPL": {"hv20": 30.0, "hv252": 25.0}}
         )
 
         result = triage_engine.triage_cluster([leg], context)
@@ -632,7 +678,7 @@ class TestTriagePortfolio:
 class TestGetPositionAwareOpportunities:
     """Unit tests for vol screener integration."""
 
-    @patch('vol_screener.get_screener_results')
+    @patch('vol_screener.screen_volatility')
     def test_held_symbols_passed_to_screener(self, mock_screener, make_option_leg, mock_trading_rules):
         """All held roots passed to vol_screener."""
         mock_screener.return_value = {"candidates": [], "summary": {}}
@@ -654,13 +700,14 @@ class TestGetPositionAwareOpportunities:
 
         # Check held_symbols argument
         call_args = mock_screener.call_args
-        held_symbols = call_args[1].get('held_symbols', [])
+        config = call_args[0][0]
+        held_symbols = config.held_symbols
 
         assert 'AAPL' in held_symbols
         assert 'TSLA' in held_symbols
         assert 'SPY' in held_symbols
 
-    @patch('vol_screener.get_screener_results')
+    @patch('vol_screener.screen_volatility')
     def test_screener_mock_integration(self, mock_screener, make_option_leg, mock_trading_rules):
         """Verifies screener is called with correct arguments."""
         mock_screener.return_value = {"candidates": [{"Symbol": "NVDA"}], "summary": {}}

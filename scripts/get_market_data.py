@@ -83,6 +83,23 @@ except FileNotFoundError:
     STRIKE_UPPER = 1.2
     OPTION_CHAIN_LIMIT = 50
 
+# --- TRADING RULES (Optional) ---
+try:
+    from .config_loader import load_trading_rules
+except ImportError:
+    try:
+        from config_loader import load_trading_rules
+    except ImportError:
+        load_trading_rules = None
+
+HV_FLOOR_PERCENT = 5.0
+if load_trading_rules:
+    try:
+        _rules = load_trading_rules()
+        HV_FLOOR_PERCENT = _rules.get('hv_floor_percent', HV_FLOOR_PERCENT)
+    except Exception:
+        pass
+
 # --- TASTYTRADE SESSION (Optional) - REMOVED ---
 _tastytrade_session = None
 
@@ -244,16 +261,33 @@ class MarketDataService:
 # --- HELPER FUNCTIONS ---
 def get_dynamic_ttl(category: str, default_seconds: int) -> int:
     """
-    Calculates a dynamic TTL based on time of day.
+    Calculates a dynamic TTL based on time of day and day of week.
     
     Strategy:
-    - Market Hours (09:30 - 16:00): Use default short TTL (e.g. 15m) for freshness.
-    - After Hours (16:00 - 09:30): Extend TTL to 10:00 AM next day to bridge the gap.
+    - Market Hours (M-F 09:30 - 16:00): Use default short TTL (e.g. 15m).
+    - Weeknights (M-Th > 16:00): Extend to 10:00 AM next day.
+    - Weekends (Fri > 16:00, Sat, Sun): Extend to Monday 10:00 AM.
     """
     now = datetime.now()
+    weekday = now.weekday() # 0=Mon, 4=Fri, 5=Sat, 6=Sun
     
-    # Define "After Hours" loosely as before 9:00 AM or after 4:00 PM
-    # This assumes system time is somewhat aligned with market time or user preference
+    # 1. Weekend Handling
+    # If Saturday (5) or Sunday (6), target is next Monday
+    # If Friday (4) AND After Hours (>= 16:00), target is next Monday
+    is_weekend_hold = (weekday >= 5) or (weekday == 4 and now.hour >= 16)
+    
+    if is_weekend_hold:
+        days_ahead = 7 - weekday # If Sun (6), add 1 day -> Mon (0). If Sat (5), add 2.
+        if weekday == 4: days_ahead = 3 # Fri -> Mon
+            
+        future_monday = now + timedelta(days=days_ahead)
+        target = future_monday.replace(hour=10, minute=0, second=0, microsecond=0)
+        
+        seconds_remaining = (target - now).total_seconds()
+        return max(default_seconds, int(seconds_remaining))
+
+    # 2. Weeknight Handling
+    # Define "After Hours" as >= 16:00 or < 09:00
     is_after_hours = (now.hour >= 16) or (now.hour < 9)
     
     if is_after_hours:
@@ -266,7 +300,6 @@ def get_dynamic_ttl(category: str, default_seconds: int) -> int:
              target = now.replace(hour=10, minute=0, second=0, microsecond=0)
              
         seconds_remaining = (target - now).total_seconds()
-        # Ensure we don't return negative or super short duration
         return max(default_seconds, int(seconds_remaining))
         
     return default_seconds
@@ -282,16 +315,14 @@ def normalize_iv(raw_iv: float, hv_context: Optional[float] = None) -> Tuple[flo
     Returns:
         (normalized_iv, warning_flag)
     """
-    # Case 1: Clear Percentage (e.g., 12.5, 50.0)
-    if raw_iv > 1.0:
-        return raw_iv, None
-
-    # Case 2: Ambiguous (e.g., 0.5) -> Could be 0.5% or 50%
-    implied_decimal_iv = raw_iv * 100
-
-    # If no context, use decimal standard
+    # Preserve legacy behavior when no context is available.
     if hv_context is None or hv_context == 0:
-        return implied_decimal_iv, None
+        if raw_iv > 1.0:
+            return raw_iv, None
+        return raw_iv * 100, None
+
+    # Ambiguous values: evaluate both interpretations against HV context.
+    implied_decimal_iv = raw_iv * 100
 
     # Calculate biases under both interpretations
     bias_if_decimal = implied_decimal_iv / hv_context
@@ -729,11 +760,10 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     vrp_structural = iv_val / hv252_val if hv252_val else None
 
     # Calculate Short-Term Bias (Tactical Edge)
-    # Apply HV floor to prevent division by near-zero values causing explosion ratios
-    # (e.g., 30% IV / 0.5% HV = 60x is unrealistic; floor of 5% gives max 6x)
-    HV_FLOOR_DEFAULT = 5.0  # Fallback if config unavailable at this layer
+    # Apply configured HV floor to prevent division by near-zero values causing explosion ratios
+    # (e.g., 30% IV / 0.5% HV = 60x is unrealistic; floor gives max 6x)
     if hv20_val and hv20_val > 0:
-        hv20_floored = max(hv20_val, HV_FLOOR_DEFAULT)
+        hv20_floored = max(hv20_val, HV_FLOOR_PERCENT)
         vrp_tactical = iv_val / hv20_floored
     else:
         vrp_tactical = None

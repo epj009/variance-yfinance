@@ -24,7 +24,10 @@ class NormalizedPosition(TypedDict, total=False):
     Cost: str
     IV_Rank: str
     beta_delta: str
+    Delta: str
     Theta: str
+    Gamma: str
+    Vega: str
     Bid: str
     Ask: str
     Mark: str
@@ -47,6 +50,7 @@ class PortfolioParser:
         'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
         'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
         'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
+        'Delta': ['Delta', 'Δ', 'Position Delta', 'Raw Delta'],
         'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
         'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
         'Vega': ['Vega', '/ Vega'],

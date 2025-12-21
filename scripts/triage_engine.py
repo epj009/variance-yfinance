@@ -192,6 +192,32 @@ def validate_futures_delta(
     return result
 
 
+def _beta_scale_from_deltas(leg: Dict[str, Any]) -> Optional[float]:
+    """
+    Derive a beta-weighting scale from raw vs beta-weighted deltas.
+
+    Returns None if inputs are missing or near-zero.
+    """
+    raw_delta = parse_currency(leg.get('Delta', '0'))
+    beta_delta = parse_currency(leg.get('beta_delta', '0'))
+    if abs(raw_delta) < 1e-6 or abs(beta_delta) < 1e-6:
+        return None
+    return beta_delta / raw_delta
+
+
+def _beta_weight_gamma(leg: Dict[str, Any]) -> float:
+    """
+    Convert raw gamma to beta-weighted gamma when raw delta is available.
+
+    Gamma scaling follows the chain rule: gamma_beta = gamma_raw * scale^2.
+    """
+    raw_gamma = parse_currency(leg.get('Gamma', '0'))
+    scale = _beta_scale_from_deltas(leg)
+    if scale is None:
+        return raw_gamma
+    return raw_gamma * (scale ** 2)
+
+
 def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
     """
     Calculate the number of days the position has been held.
@@ -295,6 +321,8 @@ def triage_cluster(
 
     strategy_delta = 0.0
     strategy_gamma = 0.0
+    cluster_theta_raw = 0.0
+    cluster_gamma_raw = 0.0
     futures_delta_warnings = []
 
     for l in legs:
@@ -313,8 +341,10 @@ def triage_cluster(
             futures_delta_warnings.append(futures_check['message'])
 
         # Aggregate Gamma (Beta-weighted Gamma if available, else raw)
-        b_gamma = parse_currency(l.get('Gamma', '0'))
+        b_gamma = _beta_weight_gamma(l)
         strategy_gamma += b_gamma
+        cluster_gamma_raw += parse_currency(l.get('Gamma', '0'))
+        cluster_theta_raw += parse_currency(l.get('Theta', '0'))
 
     pl_pct = None
     # Treat negatives as credits received, positives as debits paid
@@ -444,21 +474,28 @@ def triage_cluster(
                 logic = f"Protective hedge on {root}. Review utility."
 
     # --- 5. Toxic Theta (ZOMBIE) ---
-    # Triggered if Exp. Alpha < Raw Theta (The market is underpricing the risk of movement)
-    # Only flag if not already a winner/defense/gamma and P/L is relatively stagnant
+    # Triggered if carry (theta) is insufficient to cover expected gamma cost.
+    # Only flag if not already a winner/defense/gamma and P/L is relatively stagnant.
     if not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        # Calculate Alpha for this cluster specifically
-        cluster_alpha = 0.0
-        if vrp_structural > 0:
-            cluster_alpha = strategy_delta * vrp_structural # Simplified proxy for the check
-            # Real check: is VRP below the 'dead money' threshold?
-            if vrp_structural < rules.get('dead_money_vrp_structural_threshold', 0.80):
-                if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-                    action_code = "TOXIC"
-                    logic = f"Toxic Theta: Expected Yield ({vrp_structural:.2f}x) < Statistical Cost"
+        if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
+            if net_cost < 0:
+                hv_ref = m_data.get('hv20') or m_data.get('hv252')
+                price_for_move = live_price if live_price else underlying_price
+                if hv_ref and hv_ref > 0 and price_for_move > 0:
+                    hv_floor = rules.get('hv_floor_percent', 5.0)
+                    hv_ref_floored = max(hv_ref, hv_floor)
+                    em_1sd = price_for_move * (hv_ref_floored / 100.0 / 15.87)
+                    expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd ** 2)
+                    if expected_gamma_cost > 0:
+                        theta_income = abs(cluster_theta_raw)
+                        efficiency = theta_income / expected_gamma_cost
+                        threshold = rules.get('theta_efficiency_low', 0.10)
+                        if efficiency < threshold:
+                            action_code = "TOXIC"
+                            logic = f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
             elif vrp_structural == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
-                 action_code = "TOXIC"
-                 logic = "Low IVR (Stale) & Flat P/L"
+                action_code = "TOXIC"
+                logic = "Low IVR (Stale) & Flat P/L"
 
     # --- 6. Earnings Check (Enhanced with Stance) ---
     earnings_note = ""
@@ -500,7 +537,7 @@ def triage_cluster(
     # Triggered if Tactical VRP is surging above Structural (Fresh Opportunity)
     # AND we aren't already oversized or in trouble.
     if not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        if vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > 1.5:
+        if vrp_tactical is not None and vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > 1.5:
             # Safety check: Only suggest scaling if current Tail Risk is low (< 2% of Net Liq)
             # This prevents over-sizing already significant positions.
             if abs(loss_at_2sd) < (0.02 * net_liquidity) and (pl_pct or 0) < 0.25:
@@ -608,7 +645,7 @@ def triage_portfolio(
             leg_vega = parse_currency(l.get('Vega', '0'))
             total_portfolio_vega += leg_vega
             
-            leg_gamma = parse_currency(l.get('Gamma', '0'))
+            leg_gamma = _beta_weight_gamma(l)
             total_portfolio_gamma += leg_gamma
 
             # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
@@ -717,7 +754,7 @@ def get_position_aware_opportunities(
         Dict with 'meta' (excluded info) and 'candidates' (screening results)
     """
     from collections import defaultdict
-    from vol_screener import get_screener_results
+    from vol_screener import screen_volatility, ScreenerConfig
 
     # 1. Extract all unique roots
     held_roots = set()
@@ -797,13 +834,14 @@ def get_position_aware_opportunities(
     concentrated_roots = list(concentrated_roots_set)
 
     # 4. Call vol screener with position context
-    screener_results = get_screener_results(
+    screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
-        min_vol_bias=rules.get('vrp_structural_threshold', 0.85),
+        min_vrp_structural=rules.get('vrp_structural_threshold', 0.85),
         limit=None,
-        filter_illiquid=True
+        allow_illiquid=False
     )
+    screener_results = screen_volatility(screener_config)
 
     # 5. Package results
     return {
