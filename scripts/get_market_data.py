@@ -144,6 +144,103 @@ class MarketCache:
 cache = MarketCache()
 _EARNINGS_IO_LOCK = threading.Lock()
 
+class MarketDataService:
+    """
+    Injectable market data fetcher with explicit cache dependency.
+
+    Usage:
+        # Production (uses default global cache)
+        service = MarketDataService()
+        data = service.get_market_data(['AAPL', 'GOOGL'])
+
+        # Testing (inject mock cache)
+        mock_cache = MarketCache(db_path='/tmp/test.db')
+        service = MarketDataService(cache=mock_cache)
+        data = service.get_market_data(['AAPL'])
+
+    Attributes:
+        cache (MarketCache): SQLite cache instance for data persistence
+    """
+
+    def __init__(self, cache: Optional[MarketCache] = None) -> None:
+        """
+        Initialize service with injectable cache.
+
+        Args:
+            cache: MarketCache instance. If None, uses module-level default cache.
+        """
+        self._cache = cache if cache is not None else globals()['cache']
+
+    @property
+    def cache(self) -> MarketCache:
+        """Read-only access to cache instance."""
+        return self._cache
+
+    def get_market_data(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch market data for a list of symbols concurrently.
+
+        Args:
+            symbols: List of ticker symbols (e.g., ['AAPL', '/ES', 'SPY'])
+
+        Returns:
+            Dict mapping symbol -> market data dict with keys:
+                - price (float)
+                - is_stale (bool)
+                - iv (float)
+                - hv252 (float)
+                - hv20 (float|None)
+                - hv_rank (float|None)
+                - iv_rank (float|None)
+                - vrp_structural (float)
+                - vrp_tactical (float|None)
+                - atm_volume (float)
+                - atm_bid (float)
+                - atm_ask (float)
+                - earnings_date (str|None)
+                - sector (str)
+                - proxy (str|None)
+                - warning (str|None) [optional]
+                - error (str) [on failure]
+        """
+        result: Dict[str, Dict[str, Any]] = {}
+        symbols = list(set(symbols))  # Deduplicate
+
+        # Attempt cache first
+        for sym in list(symbols):
+            cached = self._cache.get(f"md_{map_symbol(sym) or sym}")
+            if cached:
+                result[sym] = cached
+                symbols.remove(sym)
+
+        if not symbols:
+            return result
+
+        # Concurrent fetch for misses
+        with futures.ThreadPoolExecutor(max_workers=min(8, len(symbols))) as executor:
+            future_to_sym = {executor.submit(self._process_single_symbol, sym): sym for sym in symbols}
+            for future in futures.as_completed(future_to_sym):
+                sym = future_to_sym[future]
+                try:
+                    key, data = future.result()
+                    result[key] = data
+                except Exception as exc:
+                    result[sym] = {"error": str(exc)}
+
+        return result
+
+    def _process_single_symbol(self, raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
+        """
+        Internal: Fetch data for single symbol using instance cache.
+
+        Delegates to module-level process_single_symbol but uses instance cache
+        for any caching operations performed within this method's scope.
+        """
+        # For now, delegate to existing function
+        # The existing process_single_symbol uses global cache internally
+        # This is acceptable for Phase 1 - full cache injection requires deeper refactor
+        return process_single_symbol(raw_symbol)
+
 # --- HELPER FUNCTIONS ---
 def get_dynamic_ttl(category: str, default_seconds: int) -> int:
     """
@@ -653,35 +750,49 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     cache.set(f"md_{yf_symbol}", data, get_dynamic_ttl('price', TTL.get('price', 600)))
     return raw_symbol, data
 
-def get_market_data(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+# Module-level singleton service (lazy initialization)
+_default_service: Optional[MarketDataService] = None
+
+def _get_default_service() -> MarketDataService:
+    """Get or create the default MarketDataService singleton."""
+    global _default_service
+    if _default_service is None:
+        _default_service = MarketDataService()
+    return _default_service
+
+def get_market_data(symbols: List[str], *, _service: Optional[MarketDataService] = None) -> Dict[str, Dict[str, Any]]:
     """
     Fetch market data for a list of symbols concurrently with resilience and caching.
+
+    Backward-compatible wrapper around MarketDataService.
+
+    Args:
+        symbols: List of ticker symbols
+        _service: (Testing) Injected service instance. Not for production use.
+
+    Returns:
+        Dict mapping symbol -> market data dict (see MarketDataService.get_market_data)
+
+    Example:
+        # Production
+        data = get_market_data(['AAPL', 'GOOGL'])
+
+        # Testing
+        mock_cache = MarketCache('/tmp/test.db')
+        test_service = MarketDataService(cache=mock_cache)
+        data = get_market_data(['AAPL'], _service=test_service)
     """
-    result: Dict[str, Dict[str, Any]] = {}
-    symbols = list(set(symbols))  # Deduplicate
+    service = _service if _service is not None else _get_default_service()
+    return service.get_market_data(symbols)
 
-    # Attempt cache first
-    for sym in list(symbols):
-        cached = cache.get(f"md_{map_symbol(sym) or sym}")
-        if cached:
-            result[sym] = cached
-            symbols.remove(sym)
+def _reset_default_service() -> None:
+    """
+    Reset the default service singleton.
 
-    if not symbols:
-        return result
-
-    # Concurrent fetch for misses
-    with futures.ThreadPoolExecutor(max_workers=min(8, len(symbols))) as executor:
-        future_to_sym = {executor.submit(process_single_symbol, sym): sym for sym in symbols}
-        for future in futures.as_completed(future_to_sym):
-            sym = future_to_sym[future]
-            try:
-                key, data = future.result()
-                result[key] = data
-            except Exception as exc:
-                result[sym] = {"error": str(exc)}
-
-    return result
+    FOR TESTING ONLY. Allows tests to reset state between runs.
+    """
+    global _default_service
+    _default_service = None
 
 if __name__ == "__main__":
     import argparse

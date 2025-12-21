@@ -378,28 +378,27 @@ class TUIRenderer:
             header_style="bold cyan",
             border_style="dim",
             expand=False,
-            padding=(0, 2)
+            padding=(0, 1)
         )
-        table.add_column("Symbol", style="neutral", width=10)
-        table.add_column("Price", justify="right", width=12)
-        table.add_column("VRP (S)", justify="right", style="sigma", width=10)
-        table.add_column("VRP (T)", justify="right", style="profit", width=10)
-        table.add_column("Signal", justify="center", width=16)
-        table.add_column("Asset Class", style="dim", justify="right", width=16)
+        table.add_column("Symbol", style="neutral")
+        table.add_column("Price")
+        table.add_column("VRP (S)", style="sigma")
+        table.add_column("VRP (T)", style="profit")
+        table.add_column("Signal")
+        table.add_column("Asset Class", style="dim")
 
         for opp in candidates:
             vrp_t = opp.get('NVRP', 0.0)
-            
-            signal_display = opp.get('Signal', 'FAIR')
+            signal = opp.get('Signal', 'FAIR')
             if opp.get('is_bats_efficient'):
-                signal_display = f"{signal_display} 🦇"
+                signal = f"{signal} 🦇"
 
             table.add_row(
                 opp.get('Symbol', ''),
                 fmt_currency(opp.get('Price', 0.0)),
                 f"{opp.get('VRP Structural', 0.0):.2f}",
                 f"{vrp_t:+.0%}",
-                signal_display,
+                signal,
                 opp.get('Asset Class', 'Equity')
             )
 

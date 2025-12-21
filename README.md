@@ -1,8 +1,8 @@
 # Variance: Systematic Volatility Engine
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-MVC-forestgreen.svg)]() [![Output](https://img.shields.io/badge/output-JSON-lightgrey.svg)]()
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) [![Architecture](https://img.shields.io/badge/architecture-Layered_Pipeline-forestgreen.svg)]() [![Output](https://img.shields.io/badge/output-JSON-lightgrey.svg)]()
 
-Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It operates on a strict Model-View-Controller (MVC) architecture, providing industry-standard quantitative resolution for retail traders.
+Variance is a **Systematic Volatility Analysis Engine** designed to identify statistical edges in the options market using purely open-source data (yfinance). It follows a strict **Layered Data Pipeline** architecture: CSV positions flow through ETL, analysis, and triage layers before reaching a terminal-first TUI. All trading thresholds are externalized to JSON configuration files, enabling quantitative reproducibility.
 
 ## 🚀 Key Features
 
@@ -71,9 +71,17 @@ graph TD
     end
 ```
 
-- **Model (Python)**: `scripts/*.py`. Pure data crunching. Outputs structured JSON.
-- **View (CLI)**: Renders the "Capital Console" TUI, visualizes risk with ASCII charts, and provides human-readable triage.
-- **Data Engine**: High-performance SQLite cache with WAL mode to respect API rate limits while maintaining speed.
+### Layered Architecture
+
+| Layer | Module | Responsibility |
+|-------|--------|----------------|
+| **Presentation** | `tui_renderer.py` | Pure TUI formatting via `rich`. No business logic. |
+| **Orchestration** | `analyze_portfolio.py` | Thin coordinator. Assembles data flow. |
+| **Domain Logic** | `triage_engine.py`, `strategy_detector.py` | Business rules, risk triage, position clustering. |
+| **Data Access** | `get_market_data.py`, `portfolio_parser.py` | API fetching, CSV parsing, SQLite caching (WAL mode). |
+| **Configuration** | `config/*.json` | Externalized thresholds, stress scenarios, trading rules. |
+
+**Data Flow:** `positions/*.csv` -> Parser -> Market Data Fetcher -> Triage Engine -> TUI Renderer -> Terminal
 
 ## 📊 Dashboard & Metrics Explained
 
