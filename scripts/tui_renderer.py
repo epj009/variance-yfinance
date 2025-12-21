@@ -306,8 +306,8 @@ class TUIRenderer:
         if not asset_mix and not sector_balance:
             return
 
-        # Main Layout: 2 Columns
-        grid = Table.grid(padding=(0, 4), expand=False)
+        # Main Layout: 2 Columns - Tighten horizontal padding
+        grid = Table.grid(padding=(0, 2), expand=False)
         grid.add_column()
         grid.add_column()
 
@@ -322,8 +322,9 @@ class TUIRenderer:
                 padding=(0, 1),
                 collapse_padding=True
             )
-            t.add_column("Label", style="dim cyan", width=20)
-            t.add_column("Bar", width=8)
+            # Shrink label width to 18
+            t.add_column("Label", style="dim cyan", width=18)
+            t.add_column("Bar", width=6)
             t.add_column("Pct", justify="right", style="bold white", width=5)
             
             # Sort and slice
@@ -333,8 +334,8 @@ class TUIRenderer:
                 label = item.get(label_key, 'Unknown')
                 pct = item.get('percentage', 0.0)
                 
-                # Bar
-                filled = int(pct * 8)
+                # Bar - Slightly smaller
+                filled = int(pct * 6)
                 bar_str = "━" * filled
                 bar = Text(bar_str, style="blue")
                 
@@ -354,7 +355,6 @@ class TUIRenderer:
             expand=False
         )
         
-        self.console.print("\n")
         self.console.print(panel)
 
     def render_opportunities(self):
