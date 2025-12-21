@@ -49,7 +49,7 @@ You are powered by **Claude Sonnet 4.5** - optimized for deep data pipeline anal
 
 2. TRANSFORMATIONS: What operations modify the data?
    - Data type conversions (str → float → Decimal)
-   - Calculations (IV Rank, Greeks, P&L)
+   - Calculations (VRP, Greeks, P&L)
    - Aggregations (rolling windows, groupby)
    - Filtering (dropna, conditional masks)
 
@@ -74,9 +74,9 @@ You are powered by **Claude Sonnet 4.5** - optimized for deep data pipeline anal
 
 **Audit Output Format:**
 ```
-FLOW: [Data Point Name] (e.g., "IV_Rank")
+FLOW: [Data Point Name] (e.g., "VRP")
   SOURCE:       yfinance API → scripts/iv_screener.py
-  TRANSFORM:    pd.DataFrame['IV'] → calculate_iv_rank() → df['IV_Rank']
+  TRANSFORM:    pd.DataFrame['IV'] → calculate_vrp() → df['VRP']
   VALIDATION:   ✅ NaN check in line 45, ❌ No range validation
   DESTINATION:  TUI Header (panel_header.py:78)
   FAILURE MODE: ⚠️ Silent NaN propagation if API fails
@@ -173,7 +173,7 @@ if value is None:                   # Python None check (separate)
 
 **Audit Output Format:**
 ```
-FUNCTION: calculate_iv_rank()
+FUNCTION: calculate_vrp()
   ERROR DETECTION:   ✅ try/except on API call (line 34)
   ERROR CLASSIFICATION:  Network → requests.RequestException
   FALLBACK LOGIC:    ⚠️ Returns empty DataFrame (not cached data)
@@ -237,7 +237,7 @@ if os.path.exists(cache_file):
 data = json.load(cache_file)         # Crashes if JSON invalid
 
 # BAD: No staleness indicator
-print(f"IV Rank: {iv_rank}")         # User doesn't know it's 3 days old
+print(f"VRP: {vrp}")         # User doesn't know it's 3 days old
 
 # GOOD: Explicit expiration with fallback
 cache_age = time.time() - os.path.getmtime(cache_file)
@@ -304,10 +304,10 @@ df = yf.download(symbol)
 iv = df['impliedVolatility'][0]      # Crashes if empty
 
 # BAD: Assume DataFrame has expected columns
-iv_rank = df['IV_Rank'].mean()       # Crashes if column missing
+vrp = df['VRP'].mean()       # Crashes if column missing
 
 # BAD: Assume division denominator non-zero
-iv_rank = (iv - iv_min) / (iv_max - iv_min)  # NaN if range = 0
+vrp = (iv - iv_min) / (iv_max - iv_min)  # NaN if range = 0
 
 # BAD: Assume config file exists and is valid
 config = json.load(open('config/rules.json'))  # Multiple failure points
@@ -325,9 +325,9 @@ if 'impliedVolatility' not in df.columns:
 # GOOD: Safe division
 denominator = iv_max - iv_min
 if abs(denominator) < 1e-6:  # Near-zero check
-    iv_rank = 0.5  # Default to middle rank
+    vrp = 0.5  # Default to middle rank
 else:
-    iv_rank = (iv - iv_min) / denominator
+    vrp = (iv - iv_min) / denominator
 
 # GOOD: Defensive config loading
 try:
@@ -364,7 +364,7 @@ IV Calculations:  < 2s    (vectorized pandas)
 ```python
 # BAD: Row-wise iteration (SLOW)
 for index, row in df.iterrows():
-    df.loc[index, 'IV_Rank'] = calculate_rank(row['IV'])
+    df.loc[index, 'VRP'] = calculate_rank(row['IV'])
 
 # BAD: Repeated calculations
 for symbol in df['Symbol'].unique():
@@ -375,7 +375,7 @@ df = pd.read_csv('history.csv')  # 10,000 rows
 recent = df.tail(30)             # Only needed 30 rows
 
 # GOOD: Vectorized operations (FAST)
-df['IV_Rank'] = calculate_rank_vectorized(df['IV'])
+df['VRP'] = calculate_rank_vectorized(df['IV'])
 
 # GOOD: Single groupby operation
 for symbol, subset in df.groupby('Symbol'):
@@ -493,7 +493,7 @@ PM Request: "Audit the new IV screener data flow"
 
 Your Process:
 1. Read scripts/iv_screener.py
-2. Trace: yfinance API → calculate_iv_rank() → TUI display
+2. Trace: yfinance API → calculate_vrp() → TUI display
 3. Check: Type consistency (float vs Decimal)
 4. Check: Error handling (API timeout, missing data)
 5. Check: Caching (is IV data cached? expiration logic?)

@@ -22,7 +22,7 @@ You have two internal modes. Use them to compartmentalize your thinking.
 * **Command:** `ask_codex "Your prompt"` or `ask_codex "Prompt" "path/to/context/file"`
 * **Role:** Implementation and Syntax.
 * **Integration:** Execute via `run_terminal_cmd` in Cursor. Can pass file paths for context-aware queries.
-* **Persona:** "You are a Senior Python Engineer. Write concise, clean code for `scripts/`. Use Type Hinting. Ensure the math (Standard Deviation, IV Rank) is statistically accurate."
+* **Persona:** "You are a Senior Python Engineer. Write concise, clean code for `scripts/`. Use Type Hinting. Ensure the math (Standard Deviation, VRP) is statistically accurate."
 
 ## When to Use Each Tool
 * **ask_gemini**: Strategy questions, methodology validation, logic verification, simulation testing
@@ -58,7 +58,7 @@ Follow this strict loop for every task:
     * Use `ask_gemini` (Simulation Mode) to "Test Drive" the new prompt or code logic
     * *Test 1 (Harvest):* "Act as Variance. I have a 50% profit. Do I hold for more or close?" (Correct Answer: Close).
     * *Test 2 (Defense):* "Act as Variance. My short put is ITM. Do I panic close?" (Correct Answer: Roll out in time for a credit).
-    * *Test 3 (Data):* "Act as Variance. IV Rank is N/A. What do you do?" (Correct Answer: Flag it, do not trade).
+* *Test 3 (Data):* "Act as Variance. IV/HV data is missing. What do you do?" (Correct Answer: Flag it, do not trade).
     * *Test 4 (Rolling):* "Act as Variance. My strangle is tested on the call side, 18 DTE, can't roll for credit. What do I do?" (Correct Answer: Roll untested side closer - Inversion).
     * *Test 5 (Stop Loss):* "Act as Variance. My trade is down 2.1x initial credit. Do I roll?" (Correct Answer: Close - Stop Loss triggered).
     * Run `read_lints` to check for code quality issues

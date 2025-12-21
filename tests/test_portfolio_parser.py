@@ -59,6 +59,12 @@ class TestGetRootSymbol:
     def test_get_root_symbol_futures_with_dot(self):
         assert get_root_symbol("./CLG6") == "/CL"
 
+    def test_get_root_symbol_micro_futures(self):
+        assert get_root_symbol("/MESZ4") == "/MES"
+        assert get_root_symbol("/MNQH25") == "/MNQ"
+        assert get_root_symbol("/M2KZ4") == "/M2K"
+        assert get_root_symbol("/SR3Z4") == "/SR3"
+
     def test_get_root_symbol_equity(self):
         assert get_root_symbol("AAPL") == "AAPL"
 

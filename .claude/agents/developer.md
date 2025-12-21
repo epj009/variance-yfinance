@@ -112,13 +112,13 @@ If errors occur:
 import pandas as pd
 import numpy as np
 
-def calculate_iv_rank(df: pd.DataFrame, config: dict) -> pd.DataFrame:
-    """Calculate IV Rank using config thresholds."""
+def calculate_vrp(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """Calculate VRP using config thresholds."""
     # Pull threshold from config, not hardcoded
-    lookback = config['iv_rank_lookback_days']
+    lookback = config['vrp_lookback_days']
 
     # Vectorized pandas operations (fast)
-    df['IV_Rank'] = (df['IV'] - df['IV'].rolling(lookback).min()) / \
+    df['VRP'] = (df['IV'] - df['IV'].rolling(lookback).min()) / \
                     (df['IV'].rolling(lookback).max() - df['IV'].rolling(lookback).min())
 
     return df
@@ -127,7 +127,7 @@ def calculate_iv_rank(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 ### Config Files (config/*.json)
 ```json
 {
-  "iv_rank_lookback_days": 252,
+  "vrp_lookback_days": 252,
   "profit_target_pct": 0.50,
   "roll_dte_threshold": 21
 }
@@ -154,7 +154,7 @@ if dte < config['roll_dte_threshold']:  # GOOD
 
 ❌ **Trading Advice in Data Scripts**
 ```python
-if iv_rank > 50:
+if vrp > 50:
     print("SELL PREMIUM")  # BAD - scripts/ is data only
 ```
 

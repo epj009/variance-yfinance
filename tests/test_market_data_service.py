@@ -173,7 +173,6 @@ class TestDataFetchingWithInjection:
             "hv252": 25.0,
             "hv20": 22.0,
             "hv_rank": 45.0,
-            "iv_rank": None,
             "vrp_structural": 1.2,
             "vrp_tactical": 1.36,
             "atm_volume": 1000,

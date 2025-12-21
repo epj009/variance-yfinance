@@ -496,9 +496,6 @@ def triage_cluster(
                         if efficiency < threshold:
                             action_code = "TOXIC"
                             logic = f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
-            elif vrp_structural == 0 and 'IV Rank' in legs[0] and parse_currency(legs[0]['IV Rank']) < rules['low_ivr_threshold']:
-                action_code = "TOXIC"
-                logic = "Low IVR (Stale) & Flat P/L"
 
     # --- 6. Earnings Check (Enhanced with Stance) ---
     earnings_note = ""
@@ -553,16 +550,16 @@ def triage_cluster(
         logic = f"{logic} | {note}" if logic else note
 
     # --- Data Quality Warning ---
-    # nvrp check
+    # Tactical Markup check
     quality_warning = False
-    warning_threshold = rules.get('nvrp_quality_warning_threshold', 0.50)
+    warning_threshold = rules.get('vrp_tactical_quality_warning_threshold', 0.50)
     
-    # Calculate NVRP for check
+    # Calculate VRP Tactical Markup for check
     hv20 = m_data.get('hv20')
     iv30 = m_data.get('iv')
     if hv20 and hv20 > 0 and iv30:
-        nvrp = (iv30 - hv20) / hv20
-        if abs(nvrp) > warning_threshold:
+        markup = (iv30 - hv20) / hv20
+        if abs(markup) > warning_threshold:
             quality_warning = True
 
     return {
@@ -690,16 +687,16 @@ def triage_portfolio(
         if vrp_t is not None:
             # CLAMPING Logic for Portfolio Aggregation
             # Prevent single-symbol data errors (like 1% IV) from skewing total portfolio quality
-            nvrp_floor = context['rules'].get('nvrp_aggregation_floor', -0.50)
-            nvrp_ceil = context['rules'].get('nvrp_aggregation_ceiling', 1.00)
+            vta_floor = context['rules'].get('vrp_tactical_aggregation_floor', -0.50)
+            vta_ceil = context['rules'].get('vrp_tactical_aggregation_ceiling', 1.00)
             
-            # Convert VRP Tactical (Ratio) to NVRP (Markup) for clamping
-            # VRP 1.5 -> NVRP 0.5. VRP 0.1 -> NVRP -0.9.
-            nvrp_val = vrp_t - 1.0
-            clamped_nvrp = max(nvrp_floor, min(nvrp_ceil, nvrp_val))
+            # Convert VRP Tactical (Ratio) to Markup for clamping
+            # VRP 1.5 -> Markup 0.5. VRP 0.1 -> Markup -0.9.
+            markup = vrp_t - 1.0
+            clamped_markup = max(vta_floor, min(vta_ceil, markup))
             
             # Re-convert to Clamped Ratio for multiplication
-            clamped_ratio = 1.0 + clamped_nvrp
+            clamped_ratio = 1.0 + clamped_markup
             
             # Alpha Theta = Raw Theta * Clamped Tactical Ratio
             cluster_theta_vrp_adj = cluster_theta_raw * clamped_ratio

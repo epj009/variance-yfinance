@@ -35,7 +35,7 @@ class TestSignalSynthesis:
             'is_cheap': True,
             'is_coiled': True
         }
-        signal = vol_screener._determine_signal_type(flags, nvrp=-0.20, rules=mock_rules)
+        signal = vol_screener._determine_signal_type(flags, vrp_t_markup=-0.20, rules=mock_rules)
         assert signal == "EVENT"
 
     def test_signal_discount(self, mock_rules):
@@ -45,7 +45,7 @@ class TestSignalSynthesis:
             'is_cheap': True,
             'is_coiled': False
         }
-        signal = vol_screener._determine_signal_type(flags, nvrp=-0.15, rules=mock_rules)
+        signal = vol_screener._determine_signal_type(flags, vrp_t_markup=-0.15, rules=mock_rules)
         assert signal == "DISCOUNT"
 
     def test_signal_bound(self, mock_rules):
@@ -55,18 +55,18 @@ class TestSignalSynthesis:
             'is_cheap': False,
             'is_coiled': True
         }
-        signal = vol_screener._determine_signal_type(flags, nvrp=0.10, rules=mock_rules)
+        signal = vol_screener._determine_signal_type(flags, vrp_t_markup=0.10, rules=mock_rules)
         assert signal == "BOUND"
 
     def test_signal_rich(self, mock_rules):
-        """High NVRP (>0.20) triggers RICH if not coiled."""
+        """High Tactical Markup (>0.20) triggers RICH if not coiled."""
         flags = {
             'is_earnings_soon': False,
             'is_cheap': False,
             'is_coiled': False
         }
-        # NVRP > 0.20 is hardcoded in _determine_signal_type
-        signal = vol_screener._determine_signal_type(flags, nvrp=0.25, rules=mock_rules)
+        # Markup > 0.20 is hardcoded in _determine_signal_type
+        signal = vol_screener._determine_signal_type(flags, vrp_t_markup=0.25, rules=mock_rules)
         assert signal == "RICH"
 
     def test_signal_fair(self, mock_rules):
@@ -76,7 +76,7 @@ class TestSignalSynthesis:
             'is_cheap': False,
             'is_coiled': False
         }
-        signal = vol_screener._determine_signal_type(flags, nvrp=0.10, rules=mock_rules)
+        signal = vol_screener._determine_signal_type(flags, vrp_t_markup=0.10, rules=mock_rules)
         assert signal == "FAIR"
 
 

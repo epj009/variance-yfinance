@@ -87,7 +87,7 @@ Analyze results:
 For CSV-based features, verify:
   - Schema validation (expected columns present)
   - Type checking (strings, floats, dates parsed correctly)
-  - Range validation (DTE >= 0, IV Rank 0-100, etc.)
+  - Range validation (DTE >= 0, VRP 0-100, etc.)
   - Null handling (what if a field is empty?)
 
 Create data validation functions in tests/validators.py
@@ -115,7 +115,7 @@ Before approving any new feature:
 ```
 tests/
 ├── test_analyze_portfolio.py      # Main analysis script tests
-├── test_iv_rank_calculator.py     # IV Rank calculation tests
+├── test_vrp_calculator.py     # VRP calculation tests
 ├── test_earnings_checker.py       # Earnings proximity tests
 ├── test_data_validators.py        # CSV schema validation tests
 └── fixtures/
@@ -128,7 +128,7 @@ tests/
 ```python
 import pytest
 import pandas as pd
-from scripts.analyze_portfolio import calculate_iv_rank
+from scripts.analyze_portfolio import calculate_vrp
 
 # Fixture: Reusable test data
 @pytest.fixture
@@ -143,36 +143,36 @@ def valid_position_df():
 @pytest.fixture
 def config():
     """Sample config dictionary."""
-    return {'iv_rank_lookback_days': 252}
+    return {'vrp_lookback_days': 252}
 
 # Happy Path
-def test_calculate_iv_rank_valid_input(valid_position_df, config):
-    result = calculate_iv_rank(valid_position_df, config)
-    assert 'IV_Rank' in result.columns
-    assert result['IV_Rank'].between(0, 1).all()
+def test_calculate_vrp_valid_input(valid_position_df, config):
+    result = calculate_vrp(valid_position_df, config)
+    assert 'VRP' in result.columns
+    assert result['VRP'].between(0, 1).all()
 
 # Edge Case: Empty DataFrame
-def test_calculate_iv_rank_empty_dataframe(config):
+def test_calculate_vrp_empty_dataframe(config):
     empty_df = pd.DataFrame(columns=['Symbol', 'IV', 'DTE'])
-    result = calculate_iv_rank(empty_df, config)
+    result = calculate_vrp(empty_df, config)
     assert len(result) == 0
-    assert 'IV_Rank' in result.columns
+    assert 'VRP' in result.columns
 
 # Error Case: Missing Column
-def test_calculate_iv_rank_missing_column(config):
+def test_calculate_vrp_missing_column(config):
     bad_df = pd.DataFrame({'Symbol': ['AAPL'], 'DTE': [45]})  # Missing 'IV'
     with pytest.raises(KeyError):
-        calculate_iv_rank(bad_df, config)
+        calculate_vrp(bad_df, config)
 
 # Edge Case: Single Row
-def test_calculate_iv_rank_single_row(config):
+def test_calculate_vrp_single_row(config):
     single_row = pd.DataFrame({'Symbol': ['AAPL'], 'IV': [32.1], 'DTE': [45]})
-    result = calculate_iv_rank(single_row, config)
-    # With only one row, IV_Rank should be NaN or 0 (no historical range)
+    result = calculate_vrp(single_row, config)
+    # With only one row, VRP should be NaN or 0 (no historical range)
     assert len(result) == 1
 
 # Performance Test
-def test_calculate_iv_rank_large_dataset(config):
+def test_calculate_vrp_large_dataset(config):
     import time
     large_df = pd.DataFrame({
         'Symbol': ['AAPL'] * 10000,
@@ -180,7 +180,7 @@ def test_calculate_iv_rank_large_dataset(config):
         'DTE': [45] * 10000
     })
     start = time.time()
-    result = calculate_iv_rank(large_df, config)
+    result = calculate_vrp(large_df, config)
     duration = time.time() - start
     assert duration < 1.0  # Should process 10k rows in < 1 second
 ```
@@ -217,11 +217,11 @@ def validate_position_types(df: pd.DataFrame) -> tuple[bool, list[str]]:
     if 'DTE' in df.columns and not pd.api.types.is_numeric_dtype(df['DTE']):
         errors.append("DTE column is not numeric")
 
-    # IV Rank should be 0-100
-    if 'IV Rank' in df.columns:
-        out_of_range = df[(df['IV Rank'] < 0) | (df['IV Rank'] > 100)]
+    # VRP should be 0-100
+    if 'VRP' in df.columns:
+        out_of_range = df[(df['VRP'] < 0) | (df['VRP'] > 100)]
         if len(out_of_range) > 0:
-            errors.append(f"IV Rank out of range (0-100) for {len(out_of_range)} rows")
+            errors.append(f"VRP out of range (0-100) for {len(out_of_range)} rows")
 
     # Quantity should be positive
     if 'Quantity' in df.columns:
@@ -417,7 +417,7 @@ pytest tests/ --cov=scripts --cov-report=html
 pytest tests/test_analyze_portfolio.py
 
 # Specific test function
-pytest tests/test_analyze_portfolio.py::test_calculate_iv_rank_valid_input
+pytest tests/test_analyze_portfolio.py::test_calculate_vrp_valid_input
 ```
 
 ## QUALITY GATES
@@ -465,13 +465,13 @@ def test_internal_state():
 # GOOD - tests observable behavior
 def test_analyzer_returns_correct_output():
     result = analyze_portfolio(sample_df)
-    assert 'IV_Rank' in result.columns
+    assert 'VRP' in result.columns
 ```
 
 ❌ **Hardcoded Test Data**
 ```python
 # BAD - magic numbers
-def test_iv_rank():
+def test_vrp():
     df = pd.DataFrame({'IV': [32.1, 41.2]})
 ```
 ✅ **Fixtures for Reusability**
@@ -498,7 +498,7 @@ assert abs(result - 32.123456789) < 0.0001
 ```python
 # BAD - only tests happy path
 def test_calculate():
-    result = calculate_iv_rank(valid_df)
+    result = calculate_vrp(valid_df)
     assert result is not None
 ```
 ✅ **Test Error Conditions**
@@ -506,7 +506,7 @@ def test_calculate():
 # GOOD - tests failure modes
 def test_calculate_invalid_input():
     with pytest.raises(ValueError, match="Missing 'IV' column"):
-        calculate_iv_rank(invalid_df)
+        calculate_vrp(invalid_df)
 ```
 
 ## GEMINI PROMPT ENGINEERING
@@ -516,26 +516,26 @@ def test_calculate_invalid_input():
 TASK: Generate comprehensive pytest test suite for [Feature Name]
 
 FUNCTION SIGNATURE:
-def calculate_iv_rank(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+def calculate_vrp(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """
-    Calculate IV Rank (0-100 percentile over lookback period).
+    Calculate VRP (0-100 percentile over lookback period).
     Input: df with columns ['Symbol', 'IV']
-    Output: df with new column 'IV_Rank'
+    Output: df with new column 'VRP'
     """
 
 TEST CASES NEEDED:
 1. Happy Path:
    - Input: DataFrame with 5 rows, valid IV values
-   - Expected: IV_Rank column added, values 0-100
+   - Expected: VRP column added, values 0-100
 
 2. Edge Cases:
    - Empty DataFrame (0 rows)
    - Single row (no historical range)
-   - All IV values identical (IV_Rank = 0)
+   - All IV values identical (VRP = 0)
    - Missing 'IV' column
 
 3. Error Cases:
-   - Invalid config (missing 'iv_rank_lookback_days')
+   - Invalid config (missing 'vrp_lookback_days')
    - Non-numeric IV values
    - Negative IV values (should handle gracefully)
 
@@ -549,7 +549,7 @@ CONSTRAINTS:
 - Mark slow tests with @pytest.mark.slow
 
 OUTPUT:
-Complete test file tests/test_iv_rank_calculator.py with:
+Complete test file tests/test_vrp_calculator.py with:
 - Fixtures at top
 - Happy path tests
 - Edge case tests

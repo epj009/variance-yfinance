@@ -236,24 +236,19 @@ class TestVolScreenerVRPTactical:
         """
         from vol_screener import RULES
 
-        # Test Case 1: Low HV20 (should be floored)
-        iv30 = 30.0
-        hv20 = 0.5
-        hv_floor_config = RULES.get('hv_floor_percent', 5.0)
-        hv_floor = max(hv20, hv_floor_config)
-        raw_nvrp = (iv30 - hv_floor) / hv_floor
-        nvrp = max(-0.99, min(3.0, raw_nvrp))
+        raw_markup = (iv30 - hv_floor) / hv_floor
+        markup = max(-0.99, min(3.0, raw_markup))
 
         # With floor: (30 - 5.0) / 5.0 = 5.0 (capped VRP)
         expected_raw = (30.0 - 5.0) / 5.0
-        assert abs(raw_nvrp - expected_raw) < 0.01, f"Expected {expected_raw}, got {raw_nvrp}"
-        assert nvrp >= -0.99 and nvrp <= 3.0, "NVRP should be clamped to [-0.99, 3.0]"
+        assert abs(raw_markup - expected_raw) < 0.01, f"Expected {expected_raw}, got {raw_markup}"
+        assert markup >= -0.99 and markup <= 3.0, "VRP Tactical Markup should be clamped to [-0.99, 3.0]"
 
         # Test Case 2: Normal HV20 (should be unchanged)
         hv20 = 25.0
         hv_floor = max(hv20, hv_floor_config)
-        raw_nvrp = (iv30 - hv_floor) / hv_floor
-        nvrp = max(-0.99, min(3.0, raw_nvrp))
+        raw_markup = (iv30 - hv_floor) / hv_floor
+        markup = max(-0.99, min(3.0, raw_markup))
 
         # Normal: (30 - 25) / 25 = 0.2
         expected_raw = (30.0 - 25.0) / 25.0

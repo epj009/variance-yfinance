@@ -396,7 +396,7 @@ class TUIRenderer:
         table.add_column("Asset Class", style="dim")
 
         for opp in candidates:
-            vrp_t = opp.get('NVRP', 0.0)
+            vrp_t = opp.get('VRP_Tactical_Markup', 0.0)
             signal = opp.get('Signal', 'FAIR')
             regime = opp.get('Regime', 'NORMAL')
             

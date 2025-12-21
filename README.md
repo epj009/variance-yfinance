@@ -46,7 +46,7 @@ graph TD
         
         subgraph "Screener Layer (scripts/vol_screener.py)"
             FETCH -->|Watchlist Data| SCREENER
-            SCREENER -->|VRP Divergence| RANKING[Ranking: nVRP Tactical]
+            SCREENER -->|VRP Divergence| RANKING[Ranking: VRP Tactical Markup]
             SCREENER -->|Sector Lookup| TAGGING[Asset Class Tagging]
         end
     end

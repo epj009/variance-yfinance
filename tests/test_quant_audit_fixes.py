@@ -319,80 +319,80 @@ class TestExpiringActionCode:
 
 
 # ============================================================================
-# FINDING-006: Extreme NVRP Warnings
+# FINDING-006: Extreme VRP Tactical Markup Warnings
 # ============================================================================
 
-class TestExtremeNVRPWarnings:
+class TestExtremeMarkupWarnings:
     """
-    Test data quality warnings for extreme negative NVRP values.
+    Test data quality warnings for extreme negative markup values.
 
-    FIX: Added NVRP warning in vol_screener.py:377-380
-    THRESHOLD: NVRP < -30% triggers warning
+    FIX: Added markup warning in vol_screener.py
+    THRESHOLD: Markup < -30% triggers warning
     """
 
-    def test_nvrp_warning_extreme_negative(self):
+    def test_markup_warning_extreme_negative(self):
         """
-        NVRP < -30% should trigger data quality warning.
+        VRP Tactical Markup < -30% should trigger data quality warning.
 
-        Scenario: NVRP = -0.50 (IV 50% below HV - unusual)
+        Scenario: Markup = -0.50 (IV 50% below HV - unusual)
         Expected: data_quality_warning = True
         """
-        nvrp = -0.50
+        markup = -0.50
 
-        should_warn = nvrp < -0.30
+        should_warn = markup < -0.30
 
         assert should_warn == True
 
-    def test_nvrp_warning_boundary_condition(self):
+    def test_markup_warning_boundary_condition(self):
         """
-        NVRP exactly at -30% should trigger warning.
+        VRP Tactical Markup exactly at -30% should trigger warning.
 
-        Scenario: NVRP = -0.30
+        Scenario: Markup = -0.30
         Expected: data_quality_warning = True
         """
-        nvrp = -0.30
+        markup = -0.30
 
-        # Implementation uses strict < (line 378), so -0.30 does NOT trigger
-        should_warn = nvrp < -0.30
-
-        assert should_warn == False
-
-    def test_nvrp_warning_moderate_negative(self):
-        """
-        NVRP between -30% and 0% should not trigger warning.
-
-        Scenario: NVRP = -0.20 (IV 20% below HV - acceptable)
-        Expected: data_quality_warning = False
-        """
-        nvrp = -0.20
-
-        should_warn = nvrp < -0.30
+        # Implementation uses strict <, so -0.30 does NOT trigger
+        should_warn = markup < -0.30
 
         assert should_warn == False
 
-    def test_nvrp_warning_positive_value(self):
+    def test_markup_warning_moderate_negative(self):
         """
-        Positive NVRP should not trigger warning.
+        VRP Tactical Markup between -30% and 0% should not trigger warning.
 
-        Scenario: NVRP = 0.50 (IV 50% above HV - rich premium)
+        Scenario: Markup = -0.20 (IV 20% below HV - acceptable)
         Expected: data_quality_warning = False
         """
-        nvrp = 0.50
+        markup = -0.20
 
-        should_warn = nvrp < -0.30
+        should_warn = markup < -0.30
 
         assert should_warn == False
 
-    def test_nvrp_warning_none_value(self):
+    def test_markup_warning_positive_value(self):
         """
-        None NVRP should not trigger warning.
+        Positive Tactical Markup should not trigger warning.
 
-        Scenario: NVRP = None (no HV20 data)
+        Scenario: Markup = 0.50 (IV 50% above HV - rich premium)
         Expected: data_quality_warning = False
         """
-        nvrp = None
+        markup = 0.50
 
-        should_warn = nvrp is not None and nvrp < -0.30
+        should_warn = markup < -0.30
+
+        assert should_warn == False
+
+    def test_markup_warning_none_value(self):
+        """
+        None Markup should not trigger warning.
+
+        Scenario: Markup = None (no HV20 data)
+        Expected: data_quality_warning = False
+        """
+        markup = None
+
+        should_warn = markup is not None and markup < -0.30
 
         assert should_warn == False
 

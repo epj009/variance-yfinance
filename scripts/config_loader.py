@@ -14,7 +14,6 @@ DEFAULT_TRADING_RULES: Dict[str, Any] = {
     "dead_money_vrp_structural_threshold": 0.80,
     "dead_money_pl_pct_low": -0.10,
     "dead_money_pl_pct_high": 0.10,
-    "low_ivr_threshold": 20,
     "gamma_dte_threshold": 21,
     "profit_harvest_pct": 0.50,
     "earnings_days_threshold": 5,

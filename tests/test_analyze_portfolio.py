@@ -182,8 +182,8 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
 
     csv_path = tmp_path / "positions.csv"
     csv_path.write_text(
-        "Symbol,Type,Quantity,Exp Date,DTE,Strike Price,Call/Put,Underlying Last Price,P/L Open,Cost,Beta Delta,Theta,IV Rank\n"
-        "ABC,Option,-1,2025-01-17,30,90,Put,100,50,-100,10,2,30\n"
+        "Symbol,Type,Quantity,Exp Date,DTE,Strike Price,Call/Put,Underlying Last Price,P/L Open,Cost,Beta Delta,Theta\n"
+        "ABC,Option,-1,2025-01-17,30,90,Put,100,50,-100,10,2\n"
     )
 
     report = analyze_portfolio.analyze_portfolio(str(csv_path))

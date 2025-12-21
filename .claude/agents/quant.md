@@ -136,7 +136,7 @@ em_1sd = beta_price * (beta_iv / 100.0 / 15.87)
 | Metric | Method | Statistical Concern |
 |--------|--------|---------------------|
 | HV Rank | Percentile of current HV vs 1-year rolling | Overlapping windows introduce autocorrelation |
-| IV Rank | (Current - Min) / (Max - Min) | Extreme sensitivity to outliers |
+| VRP | (Current - Min) / (Max - Min) | Extreme sensitivity to outliers |
 | Variance Score | Weighted dislocation | Arbitrary weighting (50/50) |
 
 **Percentile Calculation Review:**

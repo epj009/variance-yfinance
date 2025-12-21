@@ -213,8 +213,7 @@ def make_option_leg():
         gamma: float = 0.05,
         bid: float = 1.00,
         ask: float = 1.10,
-        underlying_price: float = 155.0,
-        iv_rank: float = 35.0
+        underlying_price: float = 155.0
     ) -> dict:
         return {
             "Symbol": f"{symbol} 250117P{int(strike)}",
@@ -233,7 +232,6 @@ def make_option_leg():
             "Bid": str(bid),
             "Ask": str(ask),
             "Underlying Last Price": str(underlying_price),
-            "IV Rank": str(iv_rank),
             "Mark": str((bid + ask) / 2)
         }
     return _make

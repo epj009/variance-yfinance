@@ -119,7 +119,7 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
 
     return False
 
-def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], nvrp: Optional[float], hv20: Optional[float], hv60: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
+def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], vrp_t_markup: Optional[float], hv20: Optional[float], hv60: Optional[float], rules: Dict[str, Any]) -> Dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
     
     # Coiled Logic: Requires BOTH long-term compression (vs 252) and medium-term compression (vs 60)
@@ -135,10 +135,10 @@ def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: U
         'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
         'is_coiled': bool(is_coiled_long and is_coiled_medium),
         'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.25)),
-        'is_cheap': bool(nvrp is not None and nvrp < rules.get('vrp_tactical_cheap_threshold', -0.10))
+        'is_cheap': bool(vrp_t_markup is not None and vrp_t_markup < rules.get('vrp_tactical_cheap_threshold', -0.10))
     }
 
-def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules: Dict[str, Any]) -> str:
+def _determine_signal_type(flags: Dict[str, bool], vrp_t_markup: Optional[float], rules: Dict[str, Any]) -> str:
     """
     Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
     Hierarchy: EVENT > DISCOUNT > RICH > BOUND > FAIR
@@ -146,12 +146,12 @@ def _determine_signal_type(flags: Dict[str, bool], nvrp: Optional[float], rules:
     if flags['is_earnings_soon']:
         return "EVENT"
     
-    if flags.get('is_cheap'): # VRP Tactical < -10%
+    if flags.get('is_cheap'): # VRP Tactical Markup < -10%
         return "DISCOUNT"
 
     # Rich Logic: High markup takes precedence over Coiled state
-    # Priority 1: Tactical VRP (NVRP) > 20%
-    if nvrp is not None and nvrp > 0.20:
+    # Priority 1: Tactical VRP Markup > 20%
+    if vrp_t_markup is not None and vrp_t_markup > 0.20:
         return "RICH"
     
     # Priority 2: Structural VRP (Fallback if Tactical is missing/flat)
@@ -283,7 +283,6 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     illiquid_skipped = 0
     excluded_symbols_skipped = 0
     hv_rank_trap_skipped = 0  # Short vol trap filter
-    low_iv_rank_skipped = 0   # Low IV Rank filter (three-factor filter)
     bats_zone_count = 0 # Initialize bats zone counter
     
     # Strict Mode Counters
@@ -402,16 +401,16 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             continue
 
         # 3.2. VRP Tactical Calculation (Stability Clamps)
-        nvrp = None
+        vrp_t_markup = None
         if hv20 and iv30:
             # Use configurable HV Floor to prevent division by near-zero values
             hv_floor = max(hv20, hv_floor_absolute)
-            raw_nvrp = (iv30 - hv_floor) / hv_floor
-            # Hard-cap NVRP at 3.0 (300%) for ranking
-            nvrp = max(-0.99, min(3.0, raw_nvrp))
+            raw_markup = (iv30 - hv_floor) / hv_floor
+            # Hard-cap Markup at 3.0 (300%) for ranking
+            vrp_t_markup = max(-0.99, min(3.0, raw_markup))
 
-        # Data quality warning for extreme negative NVRP (FINDING-006)
-        if nvrp is not None and nvrp < -0.30:
+        # Data quality warning for extreme negative markup (FINDING-006)
+        if vrp_t_markup is not None and vrp_t_markup < -0.30:
             # STRICT MODE: Skip anomalies where IV is significantly below HV
             anomalous_data_skipped += 1
             continue
@@ -429,10 +428,10 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, nvrp, hv20, hv60, RULES)
+        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, RULES)
         
         # Determine Signal Type
-        signal_type = _determine_signal_type(flags, nvrp, RULES)
+        signal_type = _determine_signal_type(flags, vrp_t_markup, RULES)
         
         # Determine Regime Type
         regime_type = _determine_regime_type(flags)
@@ -452,8 +451,8 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             'HV20': hv20,
             'Compression Ratio': compression_ratio,
             'VRP Structural': vrp_structural,
-            'VRP Tactical': metrics.get('vrp_tactical'), # Add VRP Tactical here
-            'NVRP': nvrp,
+            'VRP Tactical': metrics.get('vrp_tactical'), # Ratio
+            'VRP_Tactical_Markup': vrp_t_markup, # Renamed from NVRP
             'Score': variance_score, # The Golden Metric
             'Signal': signal_type,
             'Regime': regime_type, # New field
@@ -469,25 +468,25 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             'is_data_lean': is_data_lean
         }
 
-        # Data quality warning for extreme negative NVRP (FINDING-006)
-        if nvrp is not None and nvrp < -0.30:
+        # Data quality warning for extreme negative markup (FINDING-006)
+        if vrp_t_markup is not None and vrp_t_markup < -0.30:
             candidate_data['data_quality_warning'] = True
             candidate_data['nvrp_warning'] = "Unusual: IV significantly below HV"
 
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
-    # 4. Sort by signal quality: NVRP (Desc), then Variance Score (Desc), then Proxy bias last
+    # 4. Sort by signal quality: Tactical Markup (Desc), then Variance Score (Desc), then Proxy bias last
     def _signal_key(c):
         # Sorting Logic:
-        # 1. Primary Key: NVRP (Descending). Fattest premium markup over movement.
+        # 1. Primary Key: VRP_Tactical_Markup (Descending). Fattest premium markup over movement.
         # 2. Secondary Key: Variance Score (Descending). Structural edge.
         # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
         score = c['Score']
-        nvrp = c.get('NVRP') if c.get('NVRP') is not None else -9.9 # Handle 0.0 correctly
+        vtm = c.get('VRP_Tactical_Markup') if c.get('VRP_Tactical_Markup') is not None else -9.9 # Handle 0.0 correctly
         proxy = c.get('Proxy')
         quality = 1 if proxy else 0
-        return (nvrp, score, -quality) # Sort by NVRP DESC, then Score DESC, then Quality ASC
+        return (vtm, score, -quality) # Sort by VTM DESC, then Score DESC, then Quality ASC
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
@@ -503,7 +502,6 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         "illiquid_skipped_count": illiquid_skipped,
         "excluded_symbols_skipped_count": excluded_symbols_skipped,
         "hv_rank_trap_skipped_count": hv_rank_trap_skipped,
-        "low_iv_rank_skipped_count": low_iv_rank_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
         "data_integrity_skipped_count": data_integrity_skipped,
         "lean_data_skipped_count": lean_data_skipped,

@@ -199,7 +199,7 @@ VERIFICATION PLAN:
 ### ❌ Wrong Layer (Trading Logic in scripts/)
 ```python
 # BAD: analyze_portfolio.py (scripts/)
-if iv_rank > 50:
+if vrp > 50:
     print("SELL PREMIUM NOW")  # This is trading advice!
 ```
 **Fix:** Move advice to `system_prompt.md`. Scripts calculate data ONLY.
@@ -227,13 +227,13 @@ BAD: "Function returns a DataFrame"
 ```
 **Fix:** Specify exact schema:
 ```
-Returns: pd.DataFrame with columns ['Symbol', 'IV_Rank', 'HV_Ratio']
+Returns: pd.DataFrame with columns ['Symbol', 'VRP', 'HV_Ratio']
 Types: [str, float, float]
 ```
 
 ### ❌ Forgetting TUI Constraints (120 chars)
 ```
-BAD: "Add columns for Strike, Expiration, IV, HV, IV_Rank, HV_Ratio, Delta, Gamma, Theta, Vega, PnL"
+BAD: "Add columns for Strike, Expiration, IV, HV, VRP, HV_Ratio, Delta, Gamma, Theta, Vega, PnL"
 ```
 **Fix:** Prioritize columns, design horizontal scrolling, or create multi-table views.
 
@@ -256,7 +256,7 @@ positions/  scripts/     scripts/     system_prompt.md
 ### Template 2: Multi-Source Merge
 ```
 [Market Data API] ──┐
-                    ├─→ [Merger] → [IV Rank Calculator] → [TUI Output]
+                    ├─→ [Merger] → [VRP Calculator] → [TUI Output]
 [Positions CSV] ────┘
 ```
 
@@ -265,7 +265,7 @@ positions/  scripts/     scripts/     system_prompt.md
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ VARIANCE PORTFOLIO ANALYSIS                                                                      [2024-02-15 14:32:18] │
 ├────────┬───────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────────┤
-│ Symbol │  DTE  │   IV %   │  IV Rank │   Theta  │    PnL   │   BAC    │ Theta Eff│  Status  │  Action  │   Notes      │
+│ Symbol │  DTE  │   IV %   │  VRP │   Theta  │    PnL   │   BAC    │ Theta Eff│  Status  │  Action  │   Notes      │
 ├────────┼───────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────────┤
 │ AAPL   │  45   │   32.1   │    67    │  -12.45  │  +234.56 │  1500.00 │   0.83%  │    💰    │   HOLD   │              │
 │ GOOGL  │  12   │   41.2   │    89    │  -23.11  │  -123.45 │  2000.00 │   1.16%  │    ☢️    │   ROLL   │ Low DTE      │
@@ -282,7 +282,7 @@ Position Loaded
     ├─ PnL > profit_target (50%)? ──────YES──> 💰 CLOSE
     │                                    NO
     │                                    ↓
-    └─ IV_Rank < entry_threshold (30)? ─YES──> ⏸️ WAIT
+    └─ VRP < entry_threshold (30)? ─YES──> ⏸️ WAIT
                                         NO
                                         ↓
                                     🛡️ HOLD
@@ -390,13 +390,13 @@ Constraint: Must use pandas vectorization, no loops"
 
 ❌ **Missing Context**
 ```
-"Add IV Rank to the output"
+"Add VRP to the output"
 ```
 **Problem:** Without context, architecture decisions are incomplete
 
 ✅ **With Context**
 ```
-"Add IV Rank to the output. Current code:
+"Add VRP to the output. Current code:
 [paste analyze_portfolio.py lines 45-60]
 Config file:
 [paste config/trading_rules.json]
@@ -415,7 +415,7 @@ Before handing a blueprint to the Developer, verify:
 - [ ] VERIFICATION PLAN provides runnable test command
 
 ### Interface Quality
-- [ ] Function names are descriptive (calculate_iv_rank, not calc_ir)
+- [ ] Function names are descriptive (calculate_vrp, not calc_ir)
 - [ ] Input/output types specified (pd.DataFrame, float, dict)
 - [ ] DataFrame schemas documented (column names, types)
 - [ ] Config keys follow snake_case (roll_dte_threshold, not rollDTE)
@@ -470,7 +470,7 @@ RESULT: ✅ Blueprint ready for Developer
 - **Clinical:** No fluff, no marketing speak
 - **Precise:** Exact file paths, line numbers if relevant
 - **Visual:** Use ASCII diagrams for data flow
-- **Quantitative:** Reference formulas (IV Rank = (IV - IV_low) / (IV_high - IV_low))
+- **Quantitative:** Reference formulas (VRP = (IV - IV_low) / (IV_high - IV_low))
 
 ## REMEMBER
 You are the **brain**, not the **hands**. Design the system, then hand the blueprint to the Developer agent to implement.
