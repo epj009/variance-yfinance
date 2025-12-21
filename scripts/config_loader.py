@@ -43,6 +43,12 @@ DEFAULT_TRADING_RULES: Dict[str, Any] = {
     "bats_efficiency_vrp_structural": 1.0,
 }
 
+DEFAULT_SCREENER_PROFILES: Dict[str, Dict[str, Any]] = {
+    "balanced": {"min_vrp_structural": 0.85, "allow_illiquid": False},
+    "broad": {"min_vrp_structural": 0.0, "allow_illiquid": True},
+    "high_quality": {"min_vrp_structural": 1.0, "allow_illiquid": False},
+}
+
 
 def load_trading_rules() -> Dict[str, Any]:
     """
@@ -59,6 +65,21 @@ def load_trading_rules() -> Dict[str, Any]:
         print(f"Warning: config/trading_rules.json is malformed ({e}). Using defaults.", file=sys.stderr)
         return DEFAULT_TRADING_RULES.copy()
 
+
+def load_screener_profiles() -> Dict[str, Dict[str, Any]]:
+    """
+    Loads 'config/screener_profiles.json'.
+    Returns the dictionary or defaults if not found (with warning).
+    """
+    try:
+        with open('config/screener_profiles.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print("Warning: config/screener_profiles.json not found. Using defaults.", file=sys.stderr)
+        return DEFAULT_SCREENER_PROFILES.copy()
+    except json.JSONDecodeError as e:
+        print(f"Warning: config/screener_profiles.json is malformed ({e}). Using defaults.", file=sys.stderr)
+        return DEFAULT_SCREENER_PROFILES.copy()
 
 def load_market_config() -> Dict[str, Any]:
     """

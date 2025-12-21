@@ -37,7 +37,8 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
         "max_slippage_pct": 0.05
     })
 
-    report = vol_screener.screen_volatility(show_all=False, exclude_sectors=["Energy"])
+    config = vol_screener.ScreenerConfig(exclude_sectors=["Energy"])
+    report = vol_screener.screen_volatility(config)
     candidates = report["candidates"]
     summary = report["summary"]
 
@@ -79,7 +80,11 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
     })
 
     # Test: Include only Commodity and FX
-    report = vol_screener.screen_volatility(show_all=True, include_asset_classes=["Commodity", "FX"])
+    config = vol_screener.ScreenerConfig(
+        min_vrp_structural=0.0,
+        include_asset_classes=["Commodity", "FX"]
+    )
+    report = vol_screener.screen_volatility(config)
     candidates = report["candidates"]
     summary = report["summary"]
 
@@ -128,7 +133,11 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path):
     })
 
     # Test: Exclude Equity
-    report = vol_screener.screen_volatility(show_all=True, exclude_asset_classes=["Equity"])
+    config = vol_screener.ScreenerConfig(
+        min_vrp_structural=0.0,
+        exclude_asset_classes=["Equity"]
+    )
+    report = vol_screener.screen_volatility(config)
     candidates = report["candidates"]
     summary = report["summary"]
 

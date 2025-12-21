@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 
@@ -10,11 +11,11 @@ from get_market_data import get_market_data
 # Import common utilities
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
-    from .config_loader import load_trading_rules, load_system_config
+    from .config_loader import load_trading_rules, load_system_config, load_screener_profiles
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
-    from config_loader import load_trading_rules, load_system_config
+    from config_loader import load_trading_rules, load_system_config, load_screener_profiles
 
 # Load Configurations
 RULES = load_trading_rules()
@@ -29,6 +30,38 @@ except Exception:
 
 WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
 FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
+
+
+@dataclass
+class ScreenerConfig:
+    limit: Optional[int] = None
+    min_vrp_structural: Optional[float] = None
+    allow_illiquid: bool = False
+    exclude_sectors: List[str] = field(default_factory=list)
+    include_asset_classes: List[str] = field(default_factory=list)
+    exclude_asset_classes: List[str] = field(default_factory=list)
+    exclude_symbols: List[str] = field(default_factory=list)
+    held_symbols: List[str] = field(default_factory=list)
+
+
+def load_profile_config(profile_name: str) -> ScreenerConfig:
+    profiles = load_screener_profiles()
+    profile_key = profile_name.lower()
+    profile_data = profiles.get(profile_key)
+    if profile_data is None:
+        available = ", ".join(sorted(profiles.keys()))
+        raise ValueError(f"Unknown profile '{profile_name}'. Available profiles: {available}")
+
+    return ScreenerConfig(
+        limit=None,
+        min_vrp_structural=profile_data.get("min_vrp_structural"),
+        allow_illiquid=profile_data.get("allow_illiquid", False),
+        exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
+        include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),
+        exclude_asset_classes=list(profile_data.get("exclude_asset_classes", []) or []),
+        exclude_symbols=list(profile_data.get("exclude_symbols", []) or []),
+        held_symbols=list(profile_data.get("held_symbols", []) or []),
+    )
 
 def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     """
@@ -168,36 +201,30 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
         
     return round(score, 1)
 
-def screen_volatility(
-    limit: Optional[int] = None,
-    show_all: bool = False,
-    show_illiquid: bool = False,
-    exclude_sectors: Optional[List[str]] = None,
-    include_asset_classes: Optional[List[str]] = None,
-    exclude_asset_classes: Optional[List[str]] = None,
-    exclude_symbols: Optional[List[str]] = None,
-    held_symbols: Optional[List[str]] = None,
-    min_vrp_override: Optional[float] = None
-) -> Dict[str, Any]:
+def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
 
-    Fetches market data, filters by Vol Bias threshold (unless show_all=True), filters out illiquid names
-    (unless show_illiquid=True),
+    Fetches market data, filters by Vol Bias threshold (unless min_vrp_structural <= 0), filters out illiquid names
+    (unless allow_illiquid=True),
     and optionally excludes specific sectors or filters by asset class. Returns a structured report.
 
     Args:
-        limit: Max number of symbols to scan.
-        show_all: If True, displays all symbols regardless of Vol Bias.
-        show_illiquid: If True, includes names that fail liquidity checks.
-        exclude_sectors: List of sector names to hide from results.
-        include_asset_classes: Only show these asset classes (e.g., ["Commodity", "FX"]).
-        exclude_asset_classes: Hide these asset classes (e.g., ["Equity"]).
-        min_vrp_override: Dynamically override the structural threshold from config.
+        config: ScreenerConfig with filters, limits, and overrides.
 
     Returns:
         A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
     """
+    limit = config.limit
+    exclude_sectors = config.exclude_sectors or []
+    include_asset_classes = config.include_asset_classes or []
+    exclude_asset_classes = config.exclude_asset_classes or []
+    exclude_symbols = config.exclude_symbols or []
+    held_symbols = config.held_symbols or []
+    allow_illiquid = config.allow_illiquid
+    min_vrp_structural = config.min_vrp_structural
+    show_all = min_vrp_structural is not None and min_vrp_structural <= 0
+
     # 1. Read Watchlist
     symbols = []
     try:
@@ -244,7 +271,11 @@ def screen_volatility(
             held_symbols_set.update(siblings_upper)
 
     # Threshold Logic
-    structural_threshold = min_vrp_override if min_vrp_override is not None else RULES['vrp_structural_threshold']
+    structural_threshold = RULES['vrp_structural_threshold'] if min_vrp_structural is None else min_vrp_structural
+    
+    # Absolute Vol Floor: Filter out dead assets where Ratio is high only because HV is near zero
+    # Example: /ZT (HV=1.5, IV=3.5 -> Ratio 2.3). Untradable noise.
+    hv_floor_absolute = RULES.get('hv_floor_percent', 5.0)
 
     for sym, metrics in data.items():
         if 'error' in metrics:
@@ -261,34 +292,12 @@ def screen_volatility(
         price = metrics.get('price')
         earnings_date = metrics.get('earnings_date')
         sector = metrics.get('sector', 'Unknown')
-
-        # 3.1. Compression Logic (Fallback)
-        is_data_lean = False
-        compression_ratio = 1.0 # Default to Neutral
-        if hv20 and hv252 and hv252 > 0:
-            compression_ratio = hv20 / hv252
-        elif hv252:
-            is_data_lean = True
-
-        # 3.2. VRP Tactical Calculation (Stability Clamps)
-        nvrp = None
-        if hv20 and iv30:
-            # Use configurable HV Floor to prevent division by near-zero values
-            hv_floor_config = RULES.get('hv_floor_percent', 5.0)
-            hv_floor = max(hv20, hv_floor_config)
-            raw_nvrp = (iv30 - hv_floor) / hv_floor
-            # Hard-cap NVRP at 3.0 (300%) for ranking
-            nvrp = max(-0.99, min(3.0, raw_nvrp))
-
-        # Refactored liquidity check
-        is_illiquid = _is_illiquid(sym, metrics, RULES)
-
-        # Sector Filter
+        
+        # --- FILTER: SECTOR & ASSET CLASS ---
         if exclude_sectors and sector in exclude_sectors:
             sector_skipped += 1
             continue
 
-        # Asset Class Filter
         asset_class = map_sector_to_asset_class(sector)
         if include_asset_classes and asset_class not in include_asset_classes:
             asset_class_skipped += 1
@@ -297,17 +306,32 @@ def screen_volatility(
             asset_class_skipped += 1
             continue
 
-        days_to_earnings = get_days_to_date(earnings_date)
-        
+        # --- FILTER: LIQUIDITY ---
+        is_illiquid = _is_illiquid(sym, metrics, RULES)
+        if is_illiquid and not allow_illiquid:
+            illiquid_skipped += 1
+            continue
+
+        # --- FILTER: VOLATILITY REGIME (Structural) ---
         if vrp_structural is None:
             missing_bias += 1
-            if not show_all:
-                continue
+            if not show_all: continue
         elif vrp_structural <= structural_threshold and not show_all:
             low_bias_skipped += 1
             continue
 
-        # HV Rank Trap Detection: Filter short vol traps (high VRP Structural in dead volatility regimes)
+        # --- FILTER: LOW VOL TRAP (Denominator Effect) ---
+        # If HV is below the absolute floor (e.g. 5%), the ratio is noise.
+        is_low_vol_trap = (hv252 is not None and hv252 < hv_floor_absolute)
+        
+        if is_low_vol_trap and not show_all:
+            # We treat this effectively as "Low Bias" (Not enough juice)
+            # Or track it separately if we want granular stats
+            hv_rank_trap_skipped += 1 # Re-using trap counter for simplicity
+            continue
+
+        # --- FILTER: HV RANK TRAP (Relative) ---
+        # High Ratio but Low Rank (e.g. TSLA going sideways)
         hv_rank = metrics.get('hv_rank')
         rich_threshold = RULES.get('vrp_structural_rich_threshold', 1.0)
         trap_threshold = RULES.get('hv_rank_trap_threshold', 15.0)
@@ -323,9 +347,24 @@ def screen_volatility(
             hv_rank_trap_skipped += 1
             continue
 
-        if is_illiquid and not show_illiquid:
-            illiquid_skipped += 1
-            continue
+        # 3.1. Compression Logic (Fallback)
+        is_data_lean = False
+        compression_ratio = 1.0 # Default to Neutral
+        if hv20 and hv252 and hv252 > 0:
+            compression_ratio = hv20 / hv252
+        elif hv252:
+            is_data_lean = True
+
+        # 3.2. VRP Tactical Calculation (Stability Clamps)
+        nvrp = None
+        if hv20 and iv30:
+            # Use configurable HV Floor to prevent division by near-zero values
+            hv_floor = max(hv20, hv_floor_absolute)
+            raw_nvrp = (iv30 - hv_floor) / hv_floor
+            # Hard-cap NVRP at 3.0 (300%) for ranking
+            nvrp = max(-0.99, min(3.0, raw_nvrp))
+
+        days_to_earnings = get_days_to_date(earnings_date)
 
         # BATS Efficiency Check (Retail Focus)
         is_bats_efficient = bool(
@@ -397,7 +436,7 @@ def screen_volatility(
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
     bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
-    liquidity_note = "Illiquid included" if show_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
+    liquidity_note = "Illiquid included" if allow_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
 
     summary = {
         "scanned_symbols_count": len(symbols),
@@ -415,53 +454,12 @@ def screen_volatility(
 
     return {"candidates": candidates_with_status, "summary": summary}
 
-def get_screener_results(
-    exclude_symbols: Optional[List[str]] = None,
-    held_symbols: Optional[List[str]] = None,
-    min_vrp_structural: float = 0.85,
-    limit: int = 20,
-    filter_illiquid: bool = True,
-    exclude_sectors: Optional[List[str]] = None,
-    include_asset_classes: Optional[List[str]] = None,
-    exclude_asset_classes: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    """
-    Convenience wrapper for screen_volatility with sensible defaults.
-    Used by analyze_portfolio.py for position-aware screening.
-
-    Args:
-        exclude_symbols: List of symbols to exclude from the scan.
-        held_symbols: List of symbols currently held in the portfolio.
-        min_vrp_structural: Minimum VRP Structural threshold for candidates.
-        limit: Maximum number of candidates to return.
-        filter_illiquid: If True, illiquid symbols are filtered out.
-        exclude_sectors: List of sector names to hide from results.
-        include_asset_classes: Only show these asset classes.
-        exclude_asset_classes: Hide these asset classes.
-
-    Returns:
-        Dict with 'candidates' (list of opportunities) and 'summary' (scan metadata)
-    """
-    return screen_volatility(
-        limit=limit,
-        show_all=(min_vrp_structural <= 0),  # If min_vrp_structural is 0 or negative, show all
-        show_illiquid=(not filter_illiquid),
-        exclude_symbols=exclude_symbols,
-        held_symbols=held_symbols,
-        exclude_sectors=exclude_sectors,
-        include_asset_classes=include_asset_classes,
-        exclude_asset_classes=exclude_asset_classes,
-        min_vrp_override=min_vrp_structural if min_vrp_structural > 0 else None
-    )
-
 if __name__ == "__main__":
     warn_if_not_venv()
 
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
-    parser.add_argument('--show-all', action='store_true', help='Show all symbols regardless of VRP Structural')
-    parser.add_argument('--show-illiquid', action='store_true', help='Include illiquid symbols (low volume or wide spreads)')
-    parser.add_argument('--min-vrp-structural', '--min-vol-bias', type=float, default=0.85, dest='min_vrp_structural', help='Minimum VRP Structural (IV30/HV252) threshold for screening')
+    parser.add_argument('--profile', type=str, default='balanced', help='Profile name from config/screener_profiles.json')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
@@ -469,7 +467,14 @@ if __name__ == "__main__":
     parser.add_argument('--held-symbols', type=str, help='Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)')
 
     args = parser.parse_args()
-    min_vrp_structural = args.min_vrp_structural
+    try:
+        config = load_profile_config(args.profile)
+    except ValueError as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        sys.exit(2)
+
+    if args.limit is not None:
+        config.limit = args.limit
 
     exclude_list = None
     if args.exclude_sectors:
@@ -491,17 +496,18 @@ if __name__ == "__main__":
     if args.held_symbols:
         held_symbols_list = [s.strip().upper() for s in args.held_symbols.split(',') if s.strip()]
 
-    report_data = screen_volatility(
-        limit=args.limit,
-        show_all=args.show_all,
-        show_illiquid=args.show_illiquid,
-        exclude_sectors=exclude_list,
-        include_asset_classes=include_assets,
-        exclude_asset_classes=exclude_assets,
-        exclude_symbols=exclude_symbols_list,
-        held_symbols=held_symbols_list,
-        min_vrp_override=min_vrp_structural if min_vrp_structural > 0 else None
-    )
+    if exclude_list:
+        config.exclude_sectors = exclude_list
+    if include_assets:
+        config.include_asset_classes = include_assets
+    if exclude_assets:
+        config.exclude_asset_classes = exclude_assets
+    if exclude_symbols_list:
+        config.exclude_symbols = exclude_symbols_list
+    if held_symbols_list:
+        config.held_symbols = held_symbols_list
+
+    report_data = screen_volatility(config)
     
     if "error" in report_data:
         print(json.dumps(report_data, indent=2))

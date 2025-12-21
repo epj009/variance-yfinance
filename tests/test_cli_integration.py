@@ -42,7 +42,7 @@ def test_vol_screener_cli_default_json():
     
     # We can pass a limit to avoid hitting the whole watchlist
     result = subprocess.run(
-        [PYTHON_EXE, SCREENER_SCRIPT, "1"], 
+        [PYTHON_EXE, SCREENER_SCRIPT, "1", "--profile", "balanced"],
         capture_output=True,
         text=True
     )

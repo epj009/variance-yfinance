@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from get_market_data import get_market_data
-from vol_screener import get_screener_results
 
 # Import common utilities
 try:

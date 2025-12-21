@@ -136,7 +136,7 @@ Control the engine's physics:
 
 *   **Partial Data Mode**: If the market data provider fails to return Option Chains (IV) but returns Price/HV, the system gracefully downgrades. It will calculate P/L and Delta but flag the Volatility metrics as `0.0` (missing) to prevent false positives in the screener.
 *   **Data Quality Safeguards (⚠️)**: Extreme IV readings (e.g. < 5% on a volatile stock) are flagged with a warning icon in the TUI. Portfolio-level metrics are **clamped** (Default: -50% to +100%) to prevent a single bad data point from skewing your total Alpha-Theta accounting.
-*   **Nightly Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET is automatically cached until 10:00 AM the next morning. This allows you to run analysis late at night or pre-market without hitting API errors or seeing blank dashboards.
+*   **Weekend-Aware Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET (M-Th) is automatically cached until 10:00 AM the next morning. Friday afternoon and weekend data is persisted until Monday at 10:00 AM, ensuring a stable environment for research without hitting API rate limits or processing unstable after-hours quotes.
 
 ```bash
 # 1. Clone the repository
