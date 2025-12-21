@@ -58,6 +58,21 @@ fi
 JSON_FILE="reports/variance_analysis.json"
 TUI_FILE="reports/variance_tui_output.txt"
 
+# Spinner function for long-running analysis
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps -p $pid -o state=)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
 # Execution Logic
 case "$MODE" in
     tui)
@@ -65,11 +80,15 @@ case "$MODE" in
         echo "║  VARIANCE: TUI MODE                                            ║" >&2
         echo "║  Portfolio: $(basename $LATEST_CSV)                            " >&2
         echo "╚════════════════════════════════════════════════════════════════╝" >&2
+        printf "Analyzing... " >&2
+        
+        # Run analysis pipe directly in background for spinner
+        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE") &
+        spinner $!
+        echo "Done." >&2
         echo "" >&2
         
-        # Run analysis pipe directly
-        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null |
-        ./venv/bin/python3 scripts/tui_renderer.py
+        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
         ;;
 
     hybrid)
@@ -77,10 +96,12 @@ case "$MODE" in
         echo "║  VARIANCE: STRATEGY MODE                                       ║" >&2
         echo "║  Portfolio: $(basename $LATEST_CSV)                            " >&2
         echo "╚════════════════════════════════════════════════════════════════╝" >&2
-        echo "Generating analysis..." >&2
+        printf "Generating analysis... " >&2
 
-        # 1. Generate Data
-        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE"
+        # 1. Generate Data in background
+        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE" &
+        spinner $!
+        echo "Done." >&2
 
         # 2. Render TUI to console AND file
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2

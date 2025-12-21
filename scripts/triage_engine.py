@@ -537,7 +537,8 @@ def triage_cluster(
     # Triggered if Tactical VRP is surging above Structural (Fresh Opportunity)
     # AND we aren't already oversized or in trouble.
     if not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        if vrp_tactical is not None and vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > 1.5:
+        scale_threshold = rules.get('vrp_scalable_threshold', 1.5)
+        if vrp_tactical is not None and vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > scale_threshold:
             # Safety check: Only suggest scaling if current Tail Risk is low (< 2% of Net Liq)
             # This prevents over-sizing already significant positions.
             if abs(loss_at_2sd) < (0.02 * net_liquidity) and (pl_pct or 0) < 0.25:
