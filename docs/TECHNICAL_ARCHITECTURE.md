@@ -99,9 +99,9 @@ The screener synthesizes raw metrics into actionable "Signals" and a composite "
 | Metric | Threshold | Signal | Recommended Strat |
 | :--- | :--- | :--- | :--- |
 | **Earnings** | < 5 Days | `EVENT` | Avoid / Speculative |
-| **NVRP** | < -10% | `DISCOUNT` | Calendars / Diagonals |
+| **VRP Tactical Markup** | < -10% | `DISCOUNT` | Calendars / Diagonals |
 | **Compression** | < 0.75 | `BOUND` | Iron Condors |
-| **NVRP** | > +20% | `RICH` | Strangles / Naked Puts |
+| **VRP Tactical Markup** | > +20% | `RICH` | Strangles / Naked Puts |
 | **Default** | - | `FAIR` | Pass |
 
 *   **BATS Efficiency (🦇):** A special flag for "Retail Optimal" candidates.
@@ -113,7 +113,7 @@ A weighted composite score using **Absolute Dislocation**:
 *   **Math:** `Score = |VRP - 1.0| * 200`
 *   **Logic:** Significant dislocation in **either direction** (Rich or Cheap) resulting in a high score.
 *   **Weights:** 50% Structural Dislocation / 50% Tactical Dislocation.
-*   **Stability:** Tactical NVRP calculation uses a **5.0 HV Floor** and **3.0 Cap** to prevent "Infinity %" markup artifacts on flat tape.
+*   **Stability:** VRP Tactical Markup calculation uses a **5.0 HV Floor** and **3.0 Cap** to prevent "Infinity %" markup artifacts on flat tape.
 *   **Penalty:** Score halving (-50%) if `HV_Rank < 15` (Short Vol Trap).
 
 ---
