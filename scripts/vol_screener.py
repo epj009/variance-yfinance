@@ -239,6 +239,13 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     
     if bias and bias > rich_threshold and hv_rank is not None and hv_rank < trap_threshold:
         score *= 0.50 # Slash score by half for traps
+
+    # 4. Regime Penalties (Dev Mode)
+    # Coiled Penalty: Recent movement is unsustainably low. 
+    # High markup may be an artifact of a shrinking denominator.
+    # Apply a 20% haircut to Coiled signals to favor Normal/Expanding regimes.
+    if metrics.get('regime_type') == 'COILED' or metrics.get('is_coiled'):
+        score *= 0.80
         
     return round(score, 1)
 
@@ -451,6 +458,10 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         # Determine Recommended Environment
         env_idea = _get_recommended_environment(signal_type)
         
+        # Inject regime into metrics for scoring penalty
+        metrics['is_coiled'] = flags['is_coiled']
+        metrics['regime_type'] = regime_type
+
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, RULES)
         
