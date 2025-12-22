@@ -659,6 +659,16 @@ def get_proxy_iv_and_hv(raw_symbol: str) -> Tuple[Optional[float], Optional[floa
             iv = etf_data.get('iv')
             hv = etf_data.get('hv252')
             note = f"IV via {etf_sym}"
+        elif ptype == 'hv_only':
+            # Fetch HV from the symbol itself or a specified hv_symbol
+            hv_sym = proxy.get('hv_symbol') or raw_symbol
+            hv_sym_yf = map_symbol(hv_sym)
+            if hv_sym_yf:
+                hv_t = yf.Ticker(hv_sym_yf)
+                hv_data = calculate_hv(hv_t, hv_sym_yf)
+                if hv_data:
+                    hv = hv_data.get('hv252')
+                    note = "HV Only"
     except Exception:
         return None, None, None
     return iv, hv, note
