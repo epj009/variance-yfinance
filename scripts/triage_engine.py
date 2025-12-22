@@ -397,6 +397,7 @@ def triage_cluster(
     # Check if a 2SD move (-95% confidence) causes a loss > 5% of Net Liq
     is_size_threat = False
     size_logic = ""
+    loss_at_2sd = 0.0 # Initialize
     
     # Need Beta IV for Expected Move calculation
     beta_rules = rules.get('beta_rules', {})
@@ -420,6 +421,9 @@ def triage_cluster(
             is_size_threat = True
             usage_pct = abs(loss_at_2sd) / net_liquidity
             size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
+    else:
+        # Fail Safe: If beta data missing, assume high risk to prevent SCALABLE trigger
+        loss_at_2sd = -999999999.0
 
 
     # --- 0. Expiration Day Check (Highest Priority) ---
