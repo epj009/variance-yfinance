@@ -15,6 +15,10 @@ while [[ $# -gt 0 ]]; do
             MODE="tui"
             shift
             ;;
+        --demo)
+            MODE="demo"
+            shift
+            ;;
         --chat|--gemini)
             MODE="chat"
             shift
@@ -84,6 +88,23 @@ case "$MODE" in
         
         # Run analysis pipe directly in background for spinner
         (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE") &
+        spinner $!
+        echo "Done." >&2
+        echo "" >&2
+        
+        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+        ;;
+
+    demo)
+        DEMO_CSV="util/showcase_portfolio.csv"
+        echo "╔════════════════════════════════════════════════════════════════╗" >&2
+        echo "║  VARIANCE: SHOWCASE DEMO MODE                                  ║" >&2
+        echo "║  Testing institutional logic gates...                          ║" >&2
+        echo "╚════════════════════════════════════════════════════════════════╝" >&2
+        printf "Initializing Showcase Engine... " >&2
+        
+        # Run analysis on showcase file
+        (./venv/bin/python3 scripts/analyze_portfolio.py "$DEMO_CSV" 2>/dev/null > "$JSON_FILE") &
         spinner $!
         echo "Done." >&2
         echo "" >&2
