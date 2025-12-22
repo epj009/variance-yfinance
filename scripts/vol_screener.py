@@ -508,17 +508,17 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
-    # 4. Sort by signal quality: Tactical Markup (Desc), then Variance Score (Desc), then Proxy bias last
+    # 4. Sort by signal quality: Variance Score (Desc), then Tactical Markup (Desc), then Proxy bias last
     def _signal_key(c):
-        # Sorting Logic:
-        # 1. Primary Key: VRP_Tactical_Markup (Descending). Fattest premium markup over movement.
-        # 2. Secondary Key: Variance Score (Descending). Structural edge.
+        # Sorting Logic (RFC 007 Alignment):
+        # 1. Primary Key: Variance Score (Descending). The "Conviction" metric.
+        # 2. Secondary Key: VRP_Tactical_Markup (Descending). Immediate opportunity size.
         # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
         score = c['Score']
-        vtm = c.get('VRP_Tactical_Markup') if c.get('VRP_Tactical_Markup') is not None else -9.9 # Handle 0.0 correctly
+        vtm = c.get('VRP_Tactical_Markup') if c.get('VRP_Tactical_Markup') is not None else -9.9
         proxy = c.get('Proxy')
         quality = 1 if proxy else 0
-        return (vtm, score, -quality) # Sort by VTM DESC, then Score DESC, then Quality ASC
+        return (score, vtm, -quality) # Sort by Score DESC, then VTM DESC, then Quality ASC
         
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
