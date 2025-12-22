@@ -21,6 +21,11 @@ class TestParseCurrency:
     def test_parse_currency_handles_negative(self):
         assert parse_currency("-$500.00") == -500.0
 
+    def test_parse_currency_handles_parentheses_negative(self):
+        assert parse_currency("($1,234.56)") == -1234.56
+        assert parse_currency("(500.00)") == -500.0
+        assert parse_currency("(100)") == -100.0
+
     def test_parse_currency_handles_percent(self):
         assert parse_currency("50%") == 50.0
 
@@ -39,6 +44,14 @@ class TestParseDTE:
 
     def test_parse_dte_strips_suffix(self):
         assert parse_dte("45d") == 45
+
+    def test_parse_dte_handles_uppercase_suffix(self):
+        assert parse_dte("45D") == 45
+
+    def test_parse_dte_handles_variant_suffixes(self):
+        assert parse_dte("30 DTE") == 30
+        assert parse_dte("60 Days") == 60
+        assert parse_dte("10 days") == 10
 
     def test_parse_dte_handles_plain_number(self):
         assert parse_dte("30") == 30
