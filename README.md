@@ -129,7 +129,8 @@ You can define your own "nightmare scenarios" for the Tail Risk engine. The syst
 ### Trading Rules
 Control the engine's physics:
 *   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
-*   `net_liquidity`: Your account size (used for risk sizing).
+*   `vrp_tactical_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
+*   `net_liquidity`: Your account size (used for risk sizing and Alpha calculations).
 *   `profit_harvest_pct`: Target profit to trigger "HARVEST" (Default: 0.50).
 
 ## 🛡️ System Resilience
@@ -137,6 +138,10 @@ Control the engine's physics:
 *   **Partial Data Mode**: If the market data provider fails to return Option Chains (IV) but returns Price/HV, the system gracefully downgrades. It will calculate P/L and Delta but flag the Volatility metrics as `0.0` (missing) to prevent false positives in the screener.
 *   **Data Quality Safeguards (⚠️)**: Extreme IV readings (e.g. < 5% on a volatile stock) are flagged with a warning icon in the TUI. Portfolio-level metrics are **clamped** (Default: -50% to +100%) to prevent a single bad data point from skewing your total Alpha-Theta accounting.
 *   **Weekend-Aware Caching (Dynamic TTL)**: Data fetched after 4:00 PM ET (M-Th) is automatically cached until 10:00 AM the next morning. Friday afternoon and weekend data is persisted until Monday at 10:00 AM, ensuring a stable environment for research without hitting API rate limits or processing unstable after-hours quotes.
+
+## 🏁 Getting Started
+
+### 🛠️ Installation
 
 ```bash
 # 1. Clone the repository
@@ -192,7 +197,7 @@ To see this live on your machine, run:
 ./variance --demo
 ```
 
-## 🛠️ Installation & Usage
+## 🚀 Usage
 
 ### 1. Portfolio Triage (Daily Routine)
 ```bash
@@ -211,14 +216,6 @@ To see this live on your machine, run:
 python3 util/research_lab.py
 ```
 *Deep-dive utility for Sector Z-Scores and Portfolio Alpha-Theta quality audit.*
-
-## ⚙️ Configuration
-
-Control the engine's physics in `config/trading_rules.json`:
-
-*   `vrp_structural_threshold`: Level to trigger "Neutral" (Default: 0.85)
-*   `vrp_tactical_cheap_threshold`: Level to trigger "Discount" (Default: -0.10)
-*   `net_liquidity`: Your account size (used for risk sizing and Alpha calculations).
 
 ## ⚠️ Disclaimer
 Variance is a research tool for quantitative analysis. It does not provide financial advice. Trading options involves significant risk.
