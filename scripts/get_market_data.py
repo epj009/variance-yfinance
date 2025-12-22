@@ -600,10 +600,23 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
 
         if calls.empty or puts.empty: return None
 
-        atm_call = calls.nsmallest(1, 'dist').iloc[0]
-        atm_put = puts.nsmallest(1, 'dist').iloc[0]
+        # --- LIQUID-ATM SELECTION (Dev Mode) ---
+        # Instead of just the closest strike, look at the top 3 candidates and pick the one 
+        # with the highest Open Interest that has a valid (non-zero) bid.
+        def _get_best_liquid_leg(df):
+            candidates = df.nsmallest(3, 'dist')
+            # Filter for non-zero bid
+            live_candidates = candidates[candidates['bid'] > 0]
+            if live_candidates.empty:
+                # Fallback to absolute closest if all are dead, but this will likely fail later
+                return candidates.iloc[0]
+            # Pick highest Open Interest among live candidates
+            return live_candidates.sort_values('openInterest', ascending=False).iloc[0]
 
-        # Zero Liquidity Check
+        atm_call = _get_best_liquid_leg(calls)
+        atm_put = _get_best_liquid_leg(puts)
+
+        # Zero Liquidity Check (Final Guard)
         c_bid, c_ask = atm_call.get('bid', 0), atm_call.get('ask', 0)
         p_bid, p_ask = atm_put.get('bid', 0), atm_put.get('ask', 0)
         if (c_bid == 0 and c_ask == 0) or (p_bid == 0 and p_ask == 0): return None
