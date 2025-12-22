@@ -55,3 +55,20 @@ Variance separates **Valuation** (is it expensive?) from **Regime** (is it about
     *   **Wide Spreads:** Rejects if slippage (spread/price) > 5%.
     *   **Lean Data:** Rejects if HV20 or IV30 are missing.
 *   **Goal:** Ensure every trade recommended in the "Opportunities" list is executable at a fair price.
+
+---
+
+## 6. Scoring & Penalties (The "Institutional Brake")
+The Variance Score (0-100) is not just a measure of richness; it is a measure of **Quality-Adjusted Opportunity**. To prevent the system from chasing dangerous "mirage" signals, two specific mechanical penalties are applied:
+
+### The Volatility Trap Penalty (-50% Score)
+*   **Metric:** `HV Rank < 15`.
+*   **Definition:** Triggered when realized volatility is at its extreme bottom (bottom 15th percentile of the year).
+*   **Logic:** When a stock is "dead quiet," even a tiny amount of implied volatility makes it look "Rich" (The Numerator/Denominator Artifact). 
+*   **Philosophy:** Selling premium in a trap is "picking up pennies in front of a steamroller." The penalty forces the trade to the bottom of the list until realized movement returns to a normal range.
+
+### The Compression Penalty (-20% Score)
+*   **Metric:** `Regime = COILED`.
+*   **Definition:** Triggered when recent movement (HV20) is significantly lower than historical averages.
+*   **Logic:** A coil represents a consolidatory spring. While the VRP may look high, the risk of a gap-opening breakout is elevated.
+*   **Philosophy:** Favor "Honest Vol" (Normal or Expanding regimes) where you are being paid for real, active movement, rather than just waiting for a breakout. The penalty acts as a tie-breaker, prioritizing liquid, active markets over consolidating ones.
