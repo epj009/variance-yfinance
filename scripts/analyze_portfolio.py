@@ -11,7 +11,7 @@ from get_market_data import get_market_data
 # Import common utilities
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
-    from .config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
+    from .config_loader import load_config_bundle
     from .portfolio_parser import (
         PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
     )
@@ -20,23 +20,23 @@ try:
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
-    from config_loader import load_trading_rules, load_market_config, load_strategies, DEFAULT_TRADING_RULES
+    from config_loader import load_config_bundle
     from portfolio_parser import (
         PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
     )
     from strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
     from triage_engine import triage_portfolio, get_position_aware_opportunities
 
-# Load Configurations
-RULES = load_trading_rules()
-MARKET_CONFIG = load_market_config()
-STRATEGIES = load_strategies()
-
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
 
-
-def analyze_portfolio(file_path: str) -> Dict[str, Any]:
+def analyze_portfolio(
+    file_path: str,
+    *,
+    config: Optional[Dict[str, Any]] = None,
+    config_dir: Optional[str] = None,
+    strict: Optional[bool] = None,
+) -> Dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
 
@@ -45,6 +45,13 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     - strategy_detector: Strategy identification
     - triage_engine: Position analysis and action detection
     """
+    if config is None:
+        config = load_config_bundle(config_dir=config_dir, strict=strict)
+
+    rules = config.get('trading_rules', {})
+    market_config = config.get('market_config', {})
+    strategies = config.get('strategies', {})
+
     # Step 1: Parse CSV
     positions = PortfolioParser.parse(file_path)
     if not positions:
@@ -58,7 +65,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     unique_roots = [r for r in unique_roots if r]  # Filter empty roots
     
     # Ensure Beta Symbol is included in the fetch
-    beta_sym = RULES.get('beta_weighted_symbol', 'SPY')
+    beta_sym = rules.get('beta_weighted_symbol', 'SPY')
     if beta_sym not in unique_roots:
         unique_roots.append(beta_sym)
         
@@ -71,32 +78,28 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "details": "Check internet connection or data provider status."
         }
 
-    # Step 4: Data Freshness Check
     now = datetime.now()
-    stale_count = sum(1 for d in market_data.values() if d.get('is_stale', False))
-    widespread_staleness = len(market_data) > 0 and (stale_count / len(market_data)) > RULES['global_staleness_threshold']
-
     # Step 5a: First pass - Calculate portfolio-level metrics
     preliminary_context = {
         'market_data': market_data,
-        'rules': RULES,
-        'market_config': MARKET_CONFIG,
-        'strategies': STRATEGIES,
+        'rules': rules,
+        'market_config': market_config,
+        'strategies': strategies,
         'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
         'portfolio_beta_delta': 0.0,  # Placeholder for first pass
-        'net_liquidity': RULES.get('net_liquidity', 50000.0) # Default
+        'net_liquidity': rules.get('net_liquidity', 50000.0) # Default
     }
     _, preliminary_metrics = triage_portfolio(clusters, preliminary_context)
 
     # Step 5b: Second pass - Use portfolio context for hedge detection
     triage_context = {
         'market_data': market_data,
-        'rules': RULES,
-        'market_config': MARKET_CONFIG,
-        'strategies': STRATEGIES,
+        'rules': rules,
+        'market_config': market_config,
+        'strategies': strategies,
         'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
         'portfolio_beta_delta': preliminary_metrics['total_beta_delta'],
-        'net_liquidity': RULES.get('net_liquidity', 50000.0)
+        'net_liquidity': rules.get('net_liquidity', 50000.0)
     }
     all_position_reports, metrics = triage_portfolio(clusters, triage_context)
 
@@ -106,13 +109,11 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     total_portfolio_theta = metrics['total_portfolio_theta']
     total_portfolio_theta_vrp_adj = metrics['total_portfolio_theta_vrp_adj']
     friction_horizon_days = metrics['friction_horizon_days']
-    total_option_legs = metrics['total_option_legs']
     total_capital_at_risk = metrics['total_capital_at_risk']
     
     # --- Generate Structured Report Data ---
     report = {
         "analysis_time": now.strftime('%Y-%m-%d %H:%M:%S'),
-        "data_freshness_warning": widespread_staleness,
         "market_data_symbols_count": len(unique_roots),
         "triage_actions": [],
         "portfolio_overview": [],
@@ -127,9 +128,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "theta_vrp_net_liquidity_pct": 0.0,
             "delta_theta_ratio": 0.0,
             "bp_usage_pct": 0.0,
-            "data_quality_score": 1.0  # Default perfect score
         },
-        "data_integrity_warning": {"risk": False, "details": ""},
         "delta_spectrograph": [],
         "sector_balance": [],
         "sector_concentration_warning": {"risk": False},
@@ -138,8 +137,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         "caution_items": [],
         "stress_box": None,
         "health_check": {
-            "liquidity_warnings": [],
-            "data_quality_breakdown": []
+            "liquidity_warnings": []
         }
     }
 
@@ -157,8 +155,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "dte": r['dte'],
             "logic": r['logic'],
             "sector": r['sector'],
-            "is_hedge": r.get('is_hedge', False),
-            "data_quality_warning": r.get('data_quality_warning', False)
+            "is_hedge": r.get('is_hedge', False)
         }
         
         # HEDGE PRIORITY: Always force hedges into the Action Required list
@@ -173,27 +170,8 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             entry["action_code"] = None
             report['portfolio_overview'].append(entry)
 
-    # --- Data Quality Score Calculation ---
-    dq_score = 100.0
-    dq_log = []
-
-    # 1. Staleness Penalty
-    if stale_count > 0:
-        total_syms = len(market_data)
-        stale_pct = stale_count / total_syms if total_syms > 0 else 0
-        penalty = stale_pct * 20.0  # Max 20 points for 100% staleness
-        dq_score -= penalty
-        dq_log.append(f"Staleness: -{penalty:.1f} ({stale_count}/{total_syms} symbols)")
-
-    if widespread_staleness:
-        dq_score -= 30.0 # Major penalty for system-wide staleness
-        dq_log.append("Widespread Staleness: -30.0")
-
-    # 2. Integrity Penalty (Unit Errors)
-    # Calculated later after integrity check...
-    
     # Step 7: Finalize Portfolio Summary and Report
-    net_liq = RULES['net_liquidity']
+    net_liq = rules['net_liquidity']
     report['portfolio_summary']['net_liquidity'] = net_liq
     
     if net_liq > 0:
@@ -211,35 +189,6 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         report['portfolio_summary']['delta_theta_ratio'] = total_beta_delta / total_portfolio_theta_vrp_adj
     else:
         report['portfolio_summary']['delta_theta_ratio'] = 0.0
-
-    # Data Integrity Guardrail
-    # Check if average theta per leg is suspiciously low (< 0.5), which indicates per-share Greeks bug
-    # Threshold of 0.5 catches per-share bugs (0.02-0.15) while avoiding false positives on calendars/butterflies (0.75+)
-    avg_theta_per_leg = abs(total_portfolio_theta) / total_option_legs if total_option_legs > 0 else 0
-    if total_option_legs > 0 and avg_theta_per_leg < RULES['data_integrity_min_theta']:
-        report['data_integrity_warning']['risk'] = True
-        report['data_integrity_warning']['details'] = f"Average theta per leg ({avg_theta_per_leg:.2f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Risk metrics (Stress Box) may be understated by 100x."
-        dq_score -= 50.0 # Critical integrity failure
-        dq_log.append("Integrity Error (Theta): -50.0")
-
-    # Gamma Integrity Check (detect per-share vs per-contract units)
-    total_portfolio_gamma = metrics.get('total_portfolio_gamma', 0.0)
-    avg_gamma_per_leg = abs(total_portfolio_gamma) / total_option_legs if total_option_legs > 0 else 0
-
-    if total_option_legs > 0 and avg_gamma_per_leg < RULES.get('data_integrity_min_gamma', 0.001):
-        report['data_integrity_warning']['risk'] = True
-        # Append to existing details (may already have theta warning)
-        gamma_warning = f"Average gamma per leg ({avg_gamma_per_leg:.4f}) is suspiciously low. Ensure your CSV contains TOTAL position values (Contract Qty * 100), not per-share Greeks. Tail risk (Stress Box) may be understated by 100x."
-        if report['data_integrity_warning']['details']:
-            report['data_integrity_warning']['details'] += f" | {gamma_warning}"
-        else:
-            report['data_integrity_warning']['details'] = gamma_warning
-            dq_score -= 50.0 # Critical integrity failure (if not already penalized)
-            dq_log.append("Integrity Error (Gamma): -50.0")
-
-    # Finalize DQ Score
-    report['portfolio_summary']['data_quality_score'] = max(0.0, dq_score / 100.0)
-    report['health_check']['data_quality_breakdown'] = dq_log
 
     # Populate Delta Spectrograph
     root_deltas = defaultdict(float)
@@ -269,7 +218,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     concentrations = []
     for sec, count in sorted_sectors:
         pct = count / total_positions if total_positions > 0 else 0
-        if pct > RULES['concentration_risk_pct']:
+        if pct > rules['concentration_risk_pct']:
             concentrations.append(f"{sec} ({count} pos, {pct:.0%})")
     if concentrations:
         report['sector_concentration_warning'] = {
@@ -304,7 +253,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             equity_pct = item['percentage']
             break
 
-    if equity_pct > RULES['asset_mix_equity_threshold']:
+    if equity_pct > rules['asset_mix_equity_threshold']:
         report['asset_mix_warning'] = {
             "risk": True,
             "details": f"Equity exposure is {equity_pct:.0%}. Portfolio is correlation-heavy. Consider adding Commodities, FX, or Fixed Income."
@@ -320,7 +269,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             report['caution_items'].append(f"{r['root']}: earnings soon (see action/logic)")
 
     # Stress Box (Scenario Simulator)
-    beta_sym = RULES.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
+    beta_sym = rules.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
     beta_price = 0.0
     if beta_sym in market_data:
         beta_price = market_data[beta_sym].get('price', 0.0)
@@ -332,9 +281,6 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             pass
             
     if beta_price > 0:
-        total_portfolio_vega = metrics.get('total_portfolio_vega', 0.0)
-        total_portfolio_gamma = metrics.get('total_portfolio_gamma', 0.0)
-        
         # Get Beta (SPY) IV for Expected Move calculation
         beta_iv = market_data.get(beta_sym, {}).get('iv', 15.0) # Default to 15% if missing
         
@@ -342,7 +288,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
         em_1sd = beta_price * (beta_iv / 100.0 / math.sqrt(252))
         
         # Dynamic Stress Scenarios from Config
-        stress_config = RULES.get('stress_scenarios', [])
+        stress_config = rules.get('stress_scenarios', [])
         
         # Fallback if config is missing scenarios
         if not stress_config:
@@ -357,41 +303,54 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             label = s.get('label', 'Scenario')
             vol_move = s.get('vol_point_move', 0.0)
             
-            # Calculate Beta Move (Price Change)
-            # Priority 1: Percentage Move (e.g. -0.05 for -5%)
+            # Calculate Beta Move (Price Change in SPY-equivalent terms)
             if s.get('move_pct') is not None:
-                move_pct = s['move_pct']
-                move_points = beta_price * move_pct
-                # Infer sigma for reporting if not provided
+                move_points = beta_price * s['move_pct']
                 sigma = move_points / em_1sd if em_1sd != 0 else 0.0
-            
-            # Priority 2: Sigma Move (e.g. -2.0 SD)
             elif s.get('sigma') is not None:
                 sigma = s['sigma']
                 move_points = em_1sd * sigma
-            
             else:
                 move_points = 0.0
                 sigma = 0.0
             
-            # Non-Linear P/L calculation
-            delta_pl = total_beta_delta * move_points
-            gamma_pl = 0.5 * total_portfolio_gamma * (move_points ** 2)
-            vega_pl = total_portfolio_vega * vol_move
+            # --- Per-Position P/L Calculation ---
+            total_est_pl = 0.0
+            total_drift = 0.0
             
-            est_pl = delta_pl + gamma_pl + vega_pl
+            for pos_report in all_position_reports:
+                # Get required values from the report, with safe defaults
+                pos_beta_delta = pos_report.get('delta', 0.0)
+                # FIX: Use 'gamma' (beta-weighted) directly, as 'raw_gamma' is not passed by triage_engine
+                pos_beta_gamma = pos_report.get('gamma', 0.0)
+                
+                pos_raw_vega = pos_report.get('raw_vega', 0.0)
+                pos_beta = pos_report.get('beta', 1.0)
+
+                # 1. Delta P/L: Uses beta-weighted delta against the SPY move
+                delta_pl = pos_beta_delta * move_points
+                
+                # 2. Gamma P/L: Uses beta-weighted gamma and SPY move
+                #    P/L = 0.5 * Gamma_BW * (Move_SPY)^2
+                gamma_pl = 0.5 * pos_beta_gamma * (move_points ** 2)
+
+                # 3. Vega P/L: Uses raw vega and a beta-scaled volatility move
+                #    This is an approximation, assuming vol-beta is similar to price-beta.
+                vega_pl = (pos_raw_vega * pos_beta) * vol_move
+                
+                total_est_pl += (delta_pl + gamma_pl + vega_pl)
+                
+                # Delta Drift = Gamma_BW * Move_SPY
+                total_drift += pos_beta_gamma * move_points
             
-            # Delta Drift calculation: How much does delta change?
-            # Drift = Gamma * Move
-            drift = total_portfolio_gamma * move_points
-            new_delta = total_beta_delta + drift
+            new_delta = total_beta_delta + total_drift
             
             stress_box_scenarios.append({
                 "label": label,
                 "beta_move": move_points,
-                "est_pl": est_pl,
+                "est_pl": total_est_pl,
                 "sigma": sigma,
-                "drift": drift,
+                "drift": total_drift,
                 "new_delta": new_delta
             })
             
@@ -400,8 +359,6 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "beta_price": beta_price,
             "beta_iv": beta_iv,
             "em_1sd": em_1sd,
-            "total_portfolio_vega": total_portfolio_vega,
-            "total_portfolio_gamma": total_portfolio_gamma,
             "scenarios": stress_box_scenarios
         }
 
@@ -424,7 +381,7 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             positions=positions,
             clusters=clusters,
             net_liquidity=net_liq,
-            rules=RULES
+            rules=rules
         )
         report['opportunities'] = opportunities_data
     except Exception as e:
