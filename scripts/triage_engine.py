@@ -224,7 +224,7 @@ def _beta_weight_gamma(leg: Dict[str, Any]) -> float:
 def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
     """
     Calculate the number of days the position has been held.
-    Supports standard date formats or "Xd" strings (e.g. "12d").
+    Supports standard date formats, "Xd" strings (e.g. "12d"), or raw numeric days.
     Returns the maximum days held (earliest entry) found in the legs.
     """
     max_days = 0
@@ -235,15 +235,13 @@ def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
         if not open_date_str:
             continue
             
-        # Case 1: "12d" format
-        if open_date_str.lower().endswith('d'):
-            try:
-                days = int(open_date_str.lower().replace('d', '').strip())
-                if days > max_days:
-                    max_days = days
-                continue
-            except ValueError:
-                pass
+        # Case 1: Raw numeric days (e.g. "12") or "12d" format
+        clean_val = open_date_str.lower().replace('d', '').strip()
+        if clean_val.isdigit():
+            days = int(clean_val)
+            if days > max_days:
+                max_days = days
+            continue
 
         # Case 2: Date string
         try:
@@ -327,9 +325,18 @@ def triage_cluster(
     cluster_theta_raw = 0.0
     cluster_gamma_raw = 0.0
     futures_delta_warnings = []
+    uses_raw_delta = False
 
     for l in legs:
-        b_delta = parse_currency(l['beta_delta'])
+        b_delta = parse_currency(l.get('beta_delta', '0'))
+        
+        # Fallback: If beta_delta is missing or zero but raw Delta exists
+        if b_delta == 0:
+            raw_delta = parse_currency(l.get('Delta', '0'))
+            if raw_delta != 0:
+                b_delta = raw_delta
+                uses_raw_delta = True
+        
         strategy_delta += b_delta
 
         # Validate futures delta looks reasonable (not raw/unmultiplied)
@@ -377,6 +384,10 @@ def triage_cluster(
     earnings_date = m_data.get('earnings_date')
     sector = m_data.get('sector', 'Unknown')
     proxy_note = m_data.get('proxy')
+
+    # Add Raw Delta warning to logic if applicable
+    if uses_raw_delta:
+        logic = "Using unweighted Delta (Beta Delta missing)"
 
     # --- 0. Probabilistic Size Threat Check (VaR Contribution) ---
     # Check if a 2SD move (-95% confidence) causes a loss > 5% of Net Liq
