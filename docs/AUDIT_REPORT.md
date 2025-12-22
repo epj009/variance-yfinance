@@ -3,7 +3,7 @@
 Target user: retail quant trader using tastylive mechanics; focus is on tradeable signal accuracy and portfolio triage integrity.
 
 ## Data Access (market data + CSV parsing)
-- High: Liquidity gating relies on same-day ATM volume and averaged call/put bid/ask, with no Open Interest capture; after-hours volume often zero, which can misclassify tradeable names. `scripts/get_market_data.py:584` `scripts/get_market_data.py:588`
+- Fixed: Liquidity gating now captures Open Interest (OI) and supports `open_interest` mode (RFC 004) to resolve after-hours volume zeroing. `scripts/get_market_data.py:616` `scripts/vol_screener.py:93`
 - Medium: IV sampling is ATM by strike distance, not delta-targeted; this can drift from tastylive-style 30-delta/45-DTE mechanics for VRP/edge calculations. `scripts/get_market_data.py:554` `scripts/get_market_data.py:569`
 - Fixed: Futures root parsing now preserves micro futures (e.g., /MES, /MNQ, /M2K, /SR3) and avoids truncation. `scripts/portfolio_parser.py:191`
 - Medium: `parse_currency` does not handle parentheses negatives (e.g., "(123.45)"), so P/L or cost can parse to 0. `scripts/portfolio_parser.py:141`
@@ -19,7 +19,7 @@ Target user: retail quant trader using tastylive mechanics; focus is on tradeabl
 
 ## Screener Layer (signal synthesis + filters + ranking)
 - High: Signal type ignores structural VRP flags; high structural VRP can still be labeled `FAIR` when HV20/NVRP is missing or flat, which diverges from tastylive bias mechanics. `scripts/vol_screener.py:115` `scripts/vol_screener.py:134`
-- High: Liquidity filter uses aggregated ATM volume and averaged bid/ask, and futures are exempt; this can mark tradeable when one side is illiquid or volume is after-hours zero. `scripts/vol_screener.py:86` `scripts/vol_screener.py:90` `scripts/get_market_data.py:584`
+- Fixed: Liquidity filter now supports Open Interest (OI) mode (RFC 004), resolving false rejections during after-hours/low-volume windows. `scripts/vol_screener.py:93` `scripts/get_market_data.py:616`
 - Medium: `_calculate_variance_score` takes a `rules` arg but uses global `RULES`, so profile overrides do not apply to scoring. `scripts/vol_screener.py:193`
 - Medium: Sorting treats `NVRP=0.0` as missing because of `or -9.9`, pushing neutral names to the bottom. `scripts/vol_screener.py:454`
 - Medium: Data quality warnings and `is_data_lean` are not used in gating or ranking, so partial/stale data can still be promoted. `scripts/vol_screener.py:369` `scripts/vol_screener.py:436` `scripts/get_market_data.py:743`
@@ -39,13 +39,13 @@ Target user: retail quant trader using tastylive mechanics; focus is on tradeabl
 - Low: Parser tests do not cover uppercase/variant DTE formats or parentheses negatives; current gaps allow regressions in tastylive CSV parsing. `tests/test_portfolio_parser.py:37`
 
 ## Cross-Module Risk Summary (tastylive tradeability)
-- Highest risk to tradeable accuracy: DTE fallback missing in triage (false EXPIRING/GAMMA), liquidity gating without OI/per-leg checks, and concentration/BP based on `Cost` rather than buying power.
+- Highest risk to tradeable accuracy: DTE fallback missing in triage (false EXPIRING/GAMMA) and concentration/BP based on `Cost` rather than buying power.
 - Secondary risk: PMCC/PMCP classification lacks short-leg DTE/delta constraints, and data quality warnings are computed but not surfaced to the user.
 - Operational risk: micro futures config gaps and proxy types not supported cause silent data failures for popular retail instruments.
 
 ## Prioritized Remediation List
 - 1) Fix triage DTE fallback to `Exp Date` when `DTE` missing; add tests for uppercase/variant DTE formats.
-- 2) Replace ATM volume filter with OI-first or OI+volume per-leg checks; remove futures liquidity exemption or enforce proxy-based liquidity.
+- 2) Completed: Replace ATM volume filter with OI-first or OI+volume per-leg checks (RFC 004).
 - 3) Replace `Cost`-based exposure with BPR/maintenance margin proxy for credit trades; align BP usage and concentration with tasty mechanics.
 - 4) Surface `data_freshness_warning`, `data_integrity_warning`, and per-position `data_quality_warning` in the TUI and JSON outputs.
 - 5) Enforce PMCC/PMCP short-leg DTE window (e.g., 30-60) and delta window to match tastylive mechanics.
