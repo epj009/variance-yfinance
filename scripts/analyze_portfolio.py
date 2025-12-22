@@ -160,7 +160,13 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
             "is_hedge": r.get('is_hedge', False),
             "data_quality_warning": r.get('data_quality_warning', False)
         }
-        if r['action_code']:
+        
+        # HEDGE PRIORITY: Always force hedges into the Action Required list
+        # to ensure they are audited for utility regularly.
+        if r.get('is_hedge') and not r.get('action_code'):
+            entry["action_code"] = "HEDGE_CHECK"
+            report['triage_actions'].append(entry)
+        elif r.get('action_code'):
             entry["action_code"] = r['action_code']
             report['triage_actions'].append(entry)
         else:
