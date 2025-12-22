@@ -421,9 +421,6 @@ def triage_cluster(
             is_size_threat = True
             usage_pct = abs(loss_at_2sd) / net_liquidity
             size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
-    else:
-        # Fail Safe: If beta data missing, assume high risk to prevent SCALABLE trigger
-        loss_at_2sd = -999999999.0
 
 
     # --- 0. Expiration Day Check (Highest Priority) ---

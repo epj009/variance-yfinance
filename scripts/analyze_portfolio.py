@@ -56,7 +56,20 @@ def analyze_portfolio(file_path: str) -> Dict[str, Any]:
     # Step 3: Fetch Market Data
     unique_roots = list(set(get_root_symbol(l['Symbol']) for l in positions))
     unique_roots = [r for r in unique_roots if r]  # Filter empty roots
+    
+    # Ensure Beta Symbol is included in the fetch
+    beta_sym = RULES.get('beta_weighted_symbol', 'SPY')
+    if beta_sym not in unique_roots:
+        unique_roots.append(beta_sym)
+        
     market_data = get_market_data(unique_roots)
+
+    # Step 3b: Beta Data Hard Gate
+    if beta_sym not in market_data or market_data[beta_sym].get('price', 0) <= 0:
+        return {
+            "error": f"CRITICAL: Beta weighting source ({beta_sym}) unavailable. Risk analysis halted.",
+            "details": "Check internet connection or data provider status."
+        }
 
     # Step 4: Data Freshness Check
     now = datetime.now()
