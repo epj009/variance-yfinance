@@ -36,6 +36,7 @@ FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
 class ScreenerConfig:
     limit: Optional[int] = None
     min_vrp_structural: Optional[float] = None
+    min_variance_score: Optional[float] = None
     allow_illiquid: bool = False
     exclude_sectors: List[str] = field(default_factory=list)
     include_asset_classes: List[str] = field(default_factory=list)
@@ -55,6 +56,7 @@ def load_profile_config(profile_name: str) -> ScreenerConfig:
     return ScreenerConfig(
         limit=None,
         min_vrp_structural=profile_data.get("min_vrp_structural"),
+        min_variance_score=profile_data.get("min_variance_score", RULES.get("min_variance_score", 10.0)),
         allow_illiquid=profile_data.get("allow_illiquid", False),
         exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
         include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),
@@ -296,6 +298,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     # 3. Process & Filter
     candidates_with_status = []
     low_bias_skipped = 0
+    low_score_skipped = 0
     missing_bias = 0
     sector_skipped = 0
     asset_class_skipped = 0
@@ -465,6 +468,12 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, RULES)
         
+        # --- FILTER: CONVICTION FLOOR (Dev Mode) ---
+        score_floor = config.min_variance_score if config.min_variance_score is not None else 10.0
+        if variance_score < score_floor and not show_all:
+            low_score_skipped += 1
+            continue
+
         # Prepare candidate data for return
         candidate_data = {
             'Symbol': sym,
@@ -526,6 +535,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     summary = {
         "scanned_symbols_count": len(symbols),
         "low_bias_skipped_count": low_bias_skipped,
+        "low_score_skipped_count": low_score_skipped,
         "sector_skipped_count": sector_skipped,
         "asset_class_skipped_count": asset_class_skipped,
         "missing_bias_count": missing_bias,
