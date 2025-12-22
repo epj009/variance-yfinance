@@ -328,14 +328,18 @@ def triage_cluster(
     uses_raw_delta = False
 
     for l in legs:
-        b_delta = parse_currency(l.get('beta_delta', '0'))
-        
-        # Fallback: If beta_delta is missing or zero but raw Delta exists
-        if b_delta == 0:
-            raw_delta = parse_currency(l.get('Delta', '0'))
-            if raw_delta != 0:
-                b_delta = raw_delta
+        # Check for missing beta_delta key or empty string
+        b_delta_str = l.get('beta_delta')
+        if b_delta_str is None or str(b_delta_str).strip() == '':
+            # Fallback: If beta_delta is missing/empty but raw Delta exists
+            raw_delta_str = l.get('Delta')
+            if raw_delta_str and str(raw_delta_str).strip() != '':
+                b_delta = parse_currency(raw_delta_str)
                 uses_raw_delta = True
+            else:
+                b_delta = 0.0
+        else:
+            b_delta = parse_currency(b_delta_str)
         
         strategy_delta += b_delta
 
