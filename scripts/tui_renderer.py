@@ -101,8 +101,15 @@ class TUIRenderer:
 
         tilt_style = "loss" if abs(beta_delta) > 100 else "neutral"
         tilt_name = "Bearish" if beta_delta < -50 else "Bullish" if beta_delta > 50 else "Neutral"
-        stab_style = "profit" if -0.5 <= stability <= 0.5 else "warning"
-        stab_status = "Stable" if -0.5 <= stability <= 0.5 else "Unstable"
+        
+        # Stability Logic (Delta/Theta Ratio)
+        # If Theta is negative, the portfolio is inherently unstable for a premium seller.
+        if theta_vrp <= 0:
+            stab_style = "loss"
+            stab_status = "Unstable (Paying)"
+        else:
+            stab_style = "profit" if -0.5 <= stability <= 0.5 else "warning"
+            stab_status = "Stable" if -0.5 <= stability <= 0.5 else "Unstable"
 
         # Gyro (Left)
         gyro_grid = Table.grid(padding=(0, 4))
