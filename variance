@@ -77,6 +77,28 @@ spinner() {
     printf "    \b\b\b\b"
 }
 
+# Wait for JSON file to be fully written before rendering.
+wait_for_json() {
+    local file="$1"
+    local attempts=20
+    local delay=0.1
+    while [ $attempts -gt 0 ]; do
+        if [ -s "$file" ]; then
+            if ./venv/bin/python3 - <<PY >/dev/null 2>&1
+import json
+with open("$file", "r") as f:
+    json.load(f)
+PY
+            then
+                return 0
+            fi
+        fi
+        attempts=$((attempts - 1))
+        sleep $delay
+    done
+    return 1
+}
+
 # Execution Logic
 case "$MODE" in
     tui)
@@ -92,7 +114,12 @@ case "$MODE" in
         echo "Done." >&2
         echo "" >&2
         
-        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+        if wait_for_json "$JSON_FILE"; then
+            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+        else
+            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            exit 1
+        fi
         ;;
 
     demo)
@@ -109,7 +136,12 @@ case "$MODE" in
         echo "Done." >&2
         echo "" >&2
         
-        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+        if wait_for_json "$JSON_FILE"; then
+            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+        else
+            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            exit 1
+        fi
         ;;
 
     hybrid)
@@ -128,7 +160,12 @@ case "$MODE" in
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         echo " PORTFOLIO DASHBOARD" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-        ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
+        if wait_for_json "$JSON_FILE"; then
+            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
+        else
+            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            exit 1
+        fi
 
         # 3. Launch Gemini
         echo "" >&2

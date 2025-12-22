@@ -34,7 +34,6 @@ class TriageResult(TypedDict, total=False):
     delta: float
     gamma: float # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
-    data_quality_warning: bool # NEW: True if NVRP is suspicious
     futures_multiplier_warning: Optional[str]
 
 
@@ -579,19 +578,6 @@ def triage_cluster(
         note = "Price stale/absent; tested status uncertain"
         logic = f"{logic} | {note}" if logic else note
 
-    # --- Data Quality Warning ---
-    # Tactical Markup check
-    quality_warning = False
-    warning_threshold = rules.get('vrp_tactical_quality_warning_threshold', 0.50)
-    
-    # Calculate VRP Tactical Markup for check
-    hv20 = m_data.get('hv20')
-    iv30 = m_data.get('iv')
-    if hv20 and hv20 > 0 and iv30:
-        markup = (iv30 - hv20) / hv20
-        if abs(markup) > warning_threshold:
-            quality_warning = True
-
     return {
         'root': root,
         'strategy_name': strategy_name,
@@ -608,7 +594,6 @@ def triage_cluster(
         'delta': strategy_delta,
         'gamma': strategy_gamma,
         'is_hedge': is_hedge,
-        'data_quality_warning': quality_warning,
         'futures_multiplier_warning': futures_delta_warnings[0] if futures_delta_warnings else None
     }
 

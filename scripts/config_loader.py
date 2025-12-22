@@ -1,128 +1,167 @@
 """
 Centralized configuration loading for Variance.
-Handles all config files with graceful fallbacks.
 """
 
+import copy
 import json
+import os
 import sys
-from typing import Dict, Any
+from pathlib import Path
+from typing import Dict, Any, Optional, TypedDict
 
-# Consolidated defaults (Union of analyze_portfolio and vol_screener defaults)
-DEFAULT_TRADING_RULES: Dict[str, Any] = {
-    # Triage / Analyzer Defaults
-    "vrp_structural_threshold": 0.85,
-    "dead_money_vrp_structural_threshold": 0.80,
-    "dead_money_pl_pct_low": -0.10,
-    "dead_money_pl_pct_high": 0.10,
-    "gamma_dte_threshold": 21,
-    "profit_harvest_pct": 0.50,
-    "earnings_days_threshold": 5,
-    "portfolio_delta_long_threshold": 75,
-    "portfolio_delta_short_threshold": -50,
-    "concentration_risk_pct": 0.25,
-    "net_liquidity": 50000,
-    "theta_efficiency_low": 0.1,
-    "theta_efficiency_high": 0.5,
-    "beta_weighted_symbol": "SPY",
-    "global_staleness_threshold": 0.50,
-    "data_integrity_min_theta": 0.50,
-    "asset_mix_equity_threshold": 0.80,
-    "stress_scenarios": [
-        {"label": "Crash (-5%)", "move_pct": -0.05},
-        {"label": "Dip (-3%)", "move_pct": -0.03},
-        {"label": "Flat", "move_pct": 0.0},
-        {"label": "Rally (+3%)", "move_pct": 0.03},
-        {"label": "Rally (+5%)", "move_pct": 0.05}
-    ],
-    # Screener Defaults
-    "min_atm_volume": 500,
-    "min_atm_open_interest": 500,
-    "liquidity_mode": "open_interest",
-    "min_variance_score": 25.0,
-    "max_slippage_pct": 0.05,
-    "bats_efficiency_min_price": 15,
-    "bats_efficiency_max_price": 75,
-    "bats_efficiency_vrp_structural": 1.0,
-}
-
-DEFAULT_SCREENER_PROFILES: Dict[str, Dict[str, Any]] = {
-    "balanced": {"min_vrp_structural": 0.85, "allow_illiquid": False},
-    "broad": {"min_vrp_structural": 0.0, "allow_illiquid": True},
-    "high_quality": {"min_vrp_structural": 1.0, "allow_illiquid": False},
-}
+CONFIG_DIR_ENV = "VARIANCE_CONFIG_DIR"
+STRICT_ENV = "VARIANCE_STRICT_CONFIG"
+DEFAULT_CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+RUNTIME_CONFIG_FILE = "runtime_config.json"
 
 
-def load_trading_rules() -> Dict[str, Any]:
-    """
-    Loads 'config/trading_rules.json' and merges it with DEFAULT_TRADING_RULES.
-    Returns the merged dictionary. Handles FileNotFoundError by returning defaults + warning.
-    """
+class ConfigBundle(TypedDict):
+    trading_rules: Dict[str, Any]
+    market_config: Dict[str, Any]
+    system_config: Dict[str, Any]
+    screener_profiles: Dict[str, Any]
+    strategies: Dict[str, Dict[str, Any]]
+
+
+_BUNDLE_CACHE: Dict[tuple[str, bool], ConfigBundle] = {}
+
+
+def _resolve_config_dir(config_dir: Optional[str]) -> Path:
+    if config_dir:
+        return Path(config_dir)
+    env_dir = os.getenv(CONFIG_DIR_ENV)
+    if env_dir:
+        return Path(env_dir)
+    return DEFAULT_CONFIG_DIR
+
+
+def _resolve_strict(strict: Optional[bool]) -> bool:
+    if strict is not None:
+        return strict
+    env = os.getenv(STRICT_ENV, "")
+    return env.lower() in {"1", "true", "yes", "on"}
+
+
+def _load_json(path: Path, *, strict: bool) -> Any:
     try:
-        with open('config/trading_rules.json', 'r') as f:
-            return {**DEFAULT_TRADING_RULES, **json.load(f)}
-    except FileNotFoundError:
-        print("Warning: config/trading_rules.json not found. Using defaults.", file=sys.stderr)
-        return DEFAULT_TRADING_RULES.copy()
-    except json.JSONDecodeError as e:
-        print(f"Warning: config/trading_rules.json is malformed ({e}). Using defaults.", file=sys.stderr)
-        return DEFAULT_TRADING_RULES.copy()
-
-
-def load_screener_profiles() -> Dict[str, Dict[str, Any]]:
-    """
-    Loads 'config/screener_profiles.json'.
-    Returns the dictionary or defaults if not found (with warning).
-    """
-    try:
-        with open('config/screener_profiles.json', 'r') as f:
+        with path.open("r", encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
-        print("Warning: config/screener_profiles.json not found. Using defaults.", file=sys.stderr)
-        return DEFAULT_SCREENER_PROFILES.copy()
-    except json.JSONDecodeError as e:
-        print(f"Warning: config/screener_profiles.json is malformed ({e}). Using defaults.", file=sys.stderr)
-        return DEFAULT_SCREENER_PROFILES.copy()
-
-def load_market_config() -> Dict[str, Any]:
-    """
-    Loads 'config/market_config.json'.
-    Returns the dictionary or empty dict if not found (with warning).
-    """
-    try:
-        with open('config/market_config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print("Warning: config/market_config.json not found.", file=sys.stderr)
+    except FileNotFoundError as exc:
+        if strict:
+            raise FileNotFoundError(f"Missing config file: {path}") from exc
+        print(f"Warning: {path} not found.", file=sys.stderr)
         return {}
-    except json.JSONDecodeError as e:
-        print(f"Warning: config/market_config.json is malformed ({e}).", file=sys.stderr)
+    except json.JSONDecodeError as exc:
+        if strict:
+            raise ValueError(f"Malformed config file: {path} ({exc})") from exc
+        print(f"Warning: {path} is malformed ({exc}).", file=sys.stderr)
         return {}
 
 
-def load_system_config() -> Dict[str, Any]:
-    """
-    Loads 'config/system_config.json'.
-    Returns the dictionary or empty dict if not found (with warning).
-    """
-    try:
-        with open('config/system_config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print("Warning: config/system_config.json not found. Using defaults.", file=sys.stderr)
-        return {}
-    except json.JSONDecodeError as e:
-        print(f"Warning: config/system_config.json is malformed ({e}). Using defaults.", file=sys.stderr)
-        return {}
+def _ensure_dict(payload: Any, *, name: str, strict: bool) -> Dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    msg = f"Expected {name} to be an object."
+    if strict:
+        raise ValueError(msg)
+    print(f"Warning: {msg}", file=sys.stderr)
+    return {}
 
 
-def load_strategies() -> Dict[str, Dict[str, Any]]:
-    """
-    Unified entry point for strategies.
-    Delegates to scripts.strategy_loader.load_strategies().
-    """
+def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    merged = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def load_runtime_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+    config_path = _resolve_config_dir(config_dir) / RUNTIME_CONFIG_FILE
+    payload = _load_json(config_path, strict=_resolve_strict(strict))
+    return _ensure_dict(payload, name=RUNTIME_CONFIG_FILE, strict=_resolve_strict(strict))
+
+
+def _extract_section(runtime_config: Dict[str, Any], key: str, *, strict: bool) -> Dict[str, Any]:
+    if not runtime_config:
+        return {}
+    if key not in runtime_config:
+        msg = f"Missing '{key}' section in {RUNTIME_CONFIG_FILE}."
+        if strict:
+            raise ValueError(msg)
+        print(f"Warning: {msg}", file=sys.stderr)
+        return {}
+    section = runtime_config.get(key)
+    if isinstance(section, dict):
+        return section
+    msg = f"Expected {RUNTIME_CONFIG_FILE}.{key} to be an object."
+    if strict:
+        raise ValueError(msg)
+    print(f"Warning: {msg}", file=sys.stderr)
+    return {}
+
+
+def load_trading_rules(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+    config_path = _resolve_config_dir(config_dir) / "trading_rules.json"
+    payload = _load_json(config_path, strict=_resolve_strict(strict))
+    return _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
+
+
+def load_screener_profiles(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+    strict_flag = _resolve_strict(strict)
+    runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
+    return _extract_section(runtime_config, "screener_profiles", strict=strict_flag)
+
+
+def load_market_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+    strict_flag = _resolve_strict(strict)
+    runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
+    return _extract_section(runtime_config, "market", strict=strict_flag)
+
+
+def load_system_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+    strict_flag = _resolve_strict(strict)
+    runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
+    return _extract_section(runtime_config, "system", strict=strict_flag)
+
+
+def load_strategies(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Dict[str, Any]]:
     try:
         from .strategy_loader import load_strategies as _load_strategies
     except ImportError:
         from strategy_loader import load_strategies as _load_strategies
+    config_path = _resolve_config_dir(config_dir) / "strategies.json"
+    return _load_strategies(str(config_path), strict=_resolve_strict(strict))
 
-    return _load_strategies()
+
+def load_config_bundle(
+    *,
+    config_dir: Optional[str] = None,
+    strict: Optional[bool] = None,
+    overrides: Optional[Dict[str, Any]] = None,
+) -> ConfigBundle:
+    strict_flag = _resolve_strict(strict)
+    config_path = _resolve_config_dir(config_dir)
+    cache_key = (str(config_path), strict_flag)
+    if overrides is None and cache_key in _BUNDLE_CACHE:
+        return copy.deepcopy(_BUNDLE_CACHE[cache_key])
+
+    runtime_config = load_runtime_config(config_dir=str(config_path), strict=strict_flag)
+
+    bundle: ConfigBundle = {
+        "trading_rules": load_trading_rules(config_dir=str(config_path), strict=strict_flag),
+        "market_config": _extract_section(runtime_config, "market", strict=strict_flag),
+        "system_config": _extract_section(runtime_config, "system", strict=strict_flag),
+        "screener_profiles": _extract_section(runtime_config, "screener_profiles", strict=strict_flag),
+        "strategies": load_strategies(config_dir=str(config_path), strict=strict_flag),
+    }
+
+    if overrides:
+        bundle = _deep_merge(bundle, overrides)  # type: ignore[assignment]
+
+    if overrides is None:
+        _BUNDLE_CACHE[cache_key] = copy.deepcopy(bundle)
+
+    return bundle

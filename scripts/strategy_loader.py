@@ -39,7 +39,7 @@ def validate_strategy(strategy: Dict[str, Any]) -> bool:
 
     return True
 
-def load_strategies(filepath: str = 'config/strategies.json') -> Dict[str, Dict[str, Any]]:
+def load_strategies(filepath: str = 'config/strategies.json', *, strict: bool = False) -> Dict[str, Dict[str, Any]]:
     """
     Load strategy configurations from config/strategies.json.
     Returns a dict keyed by strategy_id for fast lookup.
@@ -57,10 +57,18 @@ def load_strategies(filepath: str = 'config/strategies.json') -> Dict[str, Dict[
                 print(f"Warning: Skipping invalid strategy config: {strat.get('id', 'unknown')}", file=sys.stderr)
 
     except FileNotFoundError:
-        print(f"Warning: {filepath} not found. Strategy specific parameters will be unavailable.", file=sys.stderr)
+        message = f"{filepath} not found. Strategy specific parameters will be unavailable."
+        if strict:
+            raise FileNotFoundError(message)
+        print(f"Warning: {message}", file=sys.stderr)
     except json.JSONDecodeError:
-        print(f"Error: Failed to parse {filepath}. Check JSON format.", file=sys.stderr)
+        message = f"Failed to parse {filepath}. Check JSON format."
+        if strict:
+            raise ValueError(message)
+        print(f"Error: {message}", file=sys.stderr)
     except Exception as e:
+        if strict:
+            raise
         print(f"Error loading strategies: {e}", file=sys.stderr)
 
     return strategies

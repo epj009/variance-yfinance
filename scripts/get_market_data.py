@@ -43,45 +43,29 @@ DEFAULT_TTL = {
 }
 
 try:
-    with open('config/system_config.json', 'r') as f:
-        SYS_CONFIG = json.load(f)
-    DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
-    TTL = SYS_CONFIG.get('cache_ttl_seconds', DEFAULT_TTL)
-    HV_MIN_HISTORY_DAYS = SYS_CONFIG.get('hv_min_history_days', 200)
-except FileNotFoundError:
-    DB_PATH = '.market_cache.db'
-    TTL = DEFAULT_TTL
-    HV_MIN_HISTORY_DAYS = 200
+    from .config_loader import load_system_config, load_market_config
+except ImportError:
+    from config_loader import load_system_config, load_market_config
 
-try:
-    with open('config/market_config.json', 'r') as f:
-        _config = json.load(f)
-    SKIP_EARNINGS = set(_config.get('SKIP_EARNINGS', []))
-    SKIP_SYMBOLS = set(_config.get('SKIP_SYMBOLS', []))
-    SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
-    SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
-    ETF_SYMBOLS = set(_config.get('ETF_SYMBOLS', []))
-    FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
-    DATA_FETCHING = _config.get('DATA_FETCHING', {})
-    DTE_MIN = DATA_FETCHING.get('dte_window_min', 25)
-    DTE_MAX = DATA_FETCHING.get('dte_window_max', 50)
-    TARGET_DTE = DATA_FETCHING.get('target_dte', 30)
-    STRIKE_LOWER = DATA_FETCHING.get('strike_limit_lower', 0.8)
-    STRIKE_UPPER = DATA_FETCHING.get('strike_limit_upper', 1.2)
-    OPTION_CHAIN_LIMIT = DATA_FETCHING.get('option_chain_limit', 50)
-except FileNotFoundError:
-    SKIP_EARNINGS = set()
-    SKIP_SYMBOLS = set()
-    SYMBOL_MAP = {}
-    SECTOR_OVERRIDES = {}
-    ETF_SYMBOLS = set()
-    FUTURES_PROXY = {}
-    DTE_MIN = 25
-    DTE_MAX = 50
-    TARGET_DTE = 30
-    STRIKE_LOWER = 0.8
-    STRIKE_UPPER = 1.2
-    OPTION_CHAIN_LIMIT = 50
+SYS_CONFIG = load_system_config()
+DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
+TTL = SYS_CONFIG.get('cache_ttl_seconds', DEFAULT_TTL)
+HV_MIN_HISTORY_DAYS = SYS_CONFIG.get('hv_min_history_days', 200)
+
+_config = load_market_config()
+SKIP_EARNINGS = set(_config.get('SKIP_EARNINGS', []))
+SKIP_SYMBOLS = set(_config.get('SKIP_SYMBOLS', []))
+SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
+SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
+ETF_SYMBOLS = set(_config.get('ETF_SYMBOLS', []))
+FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
+DATA_FETCHING = _config.get('DATA_FETCHING', {})
+DTE_MIN = DATA_FETCHING.get('dte_window_min', 25)
+DTE_MAX = DATA_FETCHING.get('dte_window_max', 50)
+TARGET_DTE = DATA_FETCHING.get('target_dte', 30)
+STRIKE_LOWER = DATA_FETCHING.get('strike_limit_lower', 0.8)
+STRIKE_UPPER = DATA_FETCHING.get('strike_limit_upper', 1.2)
+OPTION_CHAIN_LIMIT = DATA_FETCHING.get('option_chain_limit', 50)
 
 # --- TRADING RULES (Optional) ---
 try:
@@ -260,14 +244,18 @@ class MarketDataService:
 # --- HELPER FUNCTIONS ---
 def get_dynamic_ttl(category: str, default_seconds: int) -> int:
     """
-    Calculates a dynamic TTL based on time of day and day of week.
-    
-    Strategy:
-    - Market Hours (M-F 09:30 - 16:00): Use default short TTL (e.g. 15m).
-    - Weeknights (M-Th > 16:00): Extend to 10:00 AM next day.
-    - Weekends (Fri > 16:00, Sat, Sun): Extend to Monday 10:00 AM.
+    Calculates a dynamic TTL based on New York time.
     """
-    now = datetime.now()
+    # Force US/Eastern Time (Market Time)
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("America/New_York")
+    except ImportError:
+        # Fallback for very old Python versions
+        from datetime import timezone as _timezone
+        tz = _timezone(timedelta(hours=-5))
+    
+    now = datetime.now(tz).replace(tzinfo=None)
     weekday = now.weekday() # 0=Mon, 4=Fri, 5=Sat, 6=Sun
     
     # 1. Weekend Handling

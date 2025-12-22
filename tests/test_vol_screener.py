@@ -9,6 +9,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../scripts'))
 import vol_screener
 
 
+def make_config_bundle(trading_rules, system_config, market_config=None):
+    return {
+        "trading_rules": trading_rules,
+        "system_config": system_config,
+        "market_config": market_config or {},
+        "screener_profiles": {},
+        "strategies": {}
+    }
+
+
 def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
     # Prepare a fake watchlist
     watchlist = tmp_path / "watchlist.csv"
@@ -16,29 +26,35 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
 
     # Stub market data to avoid network calls
     fake_data = {
-        "ABC": {"price": 50, "iv30": 30, "hv252": 20, "vrp_structural": 1.5, "earnings_date": None, "sector": "Tech"},
-        "DEF": {"price": 40, "iv30": 25, "hv252": 15, "vrp_structural": 1.2, "earnings_date": None, "sector": "Energy"},
-        "GHI": {"price": 30, "iv30": 10, "hv252": 20, "vrp_structural": 0.5, "earnings_date": None, "sector": "Finance"},
+        "ABC": {"price": 50, "iv": 30, "hv252": 20, "hv20": 18, "vrp_structural": 1.5, "earnings_date": None, "sector": "Tech", "atm_volume": 600},
+        "DEF": {"price": 40, "iv": 25, "hv252": 15, "hv20": 14, "vrp_structural": 1.2, "earnings_date": None, "sector": "Energy", "atm_volume": 600},
+        "GHI": {"price": 30, "iv": 10, "hv252": 20, "hv20": 19, "vrp_structural": 0.5, "earnings_date": None, "sector": "Finance", "atm_volume": 600},
     }
 
     def fake_get_market_data(symbols):
         return {sym: fake_data[sym] for sym in symbols}
 
     monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
-    monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
-    monkeypatch.setattr(vol_screener, "RULES", {
-        "vrp_structural_threshold": 0.8,
-        "vrp_structural_rich_threshold": 1.0,
-        "earnings_days_threshold": 5,
-        "bats_efficiency_min_price": 15,
-        "bats_efficiency_max_price": 75,
-        "bats_efficiency_vrp_structural": 1.0,
-        "min_atm_volume": 500,
-        "max_slippage_pct": 0.05
-    })
+    config_bundle = make_config_bundle(
+        trading_rules={
+            "vrp_structural_threshold": 0.8,
+            "vrp_structural_rich_threshold": 1.0,
+            "earnings_days_threshold": 5,
+            "bats_efficiency_min_price": 15,
+            "bats_efficiency_max_price": 75,
+            "bats_efficiency_vrp_structural": 1.0,
+            "min_atm_volume": 500,
+            "max_slippage_pct": 0.05
+        },
+        system_config={
+            "watchlist_path": str(watchlist),
+            "fallback_symbols": ["SPY", "QQQ", "IWM"]
+        },
+        market_config={"FAMILY_MAP": {}},
+    )
 
     config = vol_screener.ScreenerConfig(exclude_sectors=["Energy"])
-    report = vol_screener.screen_volatility(config)
+    report = vol_screener.screen_volatility(config, config_bundle=config_bundle)
     candidates = report["candidates"]
     summary = report["summary"]
 
@@ -57,34 +73,40 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
 
     # Stub market data with different sectors -> asset classes
     fake_data = {
-        "AAPL": {"price": 150, "iv30": 30, "hv252": 40, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology"},  # Equity
-        "GLD": {"price": 180, "iv30": 20, "hv252": 15, "vrp_structural": 1.33, "earnings_date": None, "sector": "Metals"},  # Commodity
-        "/CL": {"price": 70, "iv30": 40, "hv252": 35, "vrp_structural": 1.14, "earnings_date": None, "sector": "Energy"},  # Commodity
-        "/6E": {"price": 1.1, "iv30": 10, "hv252": 8, "vrp_structural": 1.25, "earnings_date": None, "sector": "Currencies"},  # FX
+        "AAPL": {"price": 150, "iv": 30, "hv252": 40, "hv20": 35, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology", "atm_volume": 600},  # Equity
+        "GLD": {"price": 180, "iv": 20, "hv252": 15, "hv20": 14, "vrp_structural": 1.33, "earnings_date": None, "sector": "Metals", "atm_volume": 600},  # Commodity
+        "/CL": {"price": 70, "iv": 40, "hv252": 35, "hv20": 30, "vrp_structural": 1.14, "earnings_date": None, "sector": "Energy", "atm_volume": 600},  # Commodity
+        "/6E": {"price": 1.1, "iv": 10, "hv252": 8, "hv20": 7.5, "vrp_structural": 1.25, "earnings_date": None, "sector": "Currencies", "atm_volume": 600},  # FX
     }
 
     def fake_get_market_data(symbols):
         return {sym: fake_data[sym] for sym in symbols}
 
     monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
-    monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
-    monkeypatch.setattr(vol_screener, "RULES", {
-        "vrp_structural_threshold": 0.85,
-        "vol_bias_rich_threshold": 1.0,
-        "earnings_days_threshold": 5,
-        "bats_efficiency_min_price": 15,
-        "bats_efficiency_max_price": 75,
-        "bats_efficiency_vrp_structural": 1.0,
-        "min_atm_volume": 500,
-        "max_slippage_pct": 0.05
-    })
+    config_bundle = make_config_bundle(
+        trading_rules={
+            "vrp_structural_threshold": 0.85,
+            "vrp_structural_rich_threshold": 1.0,
+            "earnings_days_threshold": 5,
+            "bats_efficiency_min_price": 15,
+            "bats_efficiency_max_price": 75,
+            "bats_efficiency_vrp_structural": 1.0,
+            "min_atm_volume": 500,
+            "max_slippage_pct": 0.05
+        },
+        system_config={
+            "watchlist_path": str(watchlist),
+            "fallback_symbols": ["SPY", "QQQ", "IWM"]
+        },
+        market_config={"FAMILY_MAP": {}},
+    )
 
     # Test: Include only Commodity and FX
     config = vol_screener.ScreenerConfig(
         min_vrp_structural=0.0,
         include_asset_classes=["Commodity", "FX"]
     )
-    report = vol_screener.screen_volatility(config)
+    report = vol_screener.screen_volatility(config, config_bundle=config_bundle)
     candidates = report["candidates"]
     summary = report["summary"]
 
@@ -110,34 +132,40 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path):
     watchlist.write_text("Symbol\nAAPL\nTSLA\nGLD\n/CL\n")
 
     fake_data = {
-        "AAPL": {"price": 150, "iv30": 30, "hv252": 40, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology"},  # Equity
-        "TSLA": {"price": 200, "iv30": 50, "hv252": 60, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology"},  # Equity
-        "GLD": {"price": 180, "iv30": 20, "hv252": 15, "vrp_structural": 1.33, "earnings_date": None, "sector": "Metals"},  # Commodity
-        "/CL": {"price": 70, "iv30": 40, "hv252": 35, "vrp_structural": 1.14, "earnings_date": None, "sector": "Energy"},  # Commodity
+        "AAPL": {"price": 150, "iv": 30, "hv252": 40, "hv20": 35, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology", "atm_volume": 600},  # Equity
+        "TSLA": {"price": 200, "iv": 50, "hv252": 60, "hv20": 55, "vrp_structural": 0.90, "earnings_date": None, "sector": "Technology", "atm_volume": 600},  # Equity
+        "GLD": {"price": 180, "iv": 20, "hv252": 15, "hv20": 14, "vrp_structural": 1.33, "earnings_date": None, "sector": "Metals", "atm_volume": 600},  # Commodity
+        "/CL": {"price": 70, "iv": 40, "hv252": 35, "hv20": 30, "vrp_structural": 1.14, "earnings_date": None, "sector": "Energy", "atm_volume": 600},  # Commodity
     }
 
     def fake_get_market_data(symbols):
         return {sym: fake_data[sym] for sym in symbols}
 
     monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
-    monkeypatch.setattr(vol_screener, "WATCHLIST_PATH", str(watchlist))
-    monkeypatch.setattr(vol_screener, "RULES", {
-        "vrp_structural_threshold": 0.85,
-        "vol_bias_rich_threshold": 1.0,
-        "earnings_days_threshold": 5,
-        "bats_efficiency_min_price": 15,
-        "bats_efficiency_max_price": 75,
-        "bats_efficiency_vrp_structural": 1.0,
-        "min_atm_volume": 500,
-        "max_slippage_pct": 0.05
-    })
+    config_bundle = make_config_bundle(
+        trading_rules={
+            "vrp_structural_threshold": 0.85,
+            "vrp_structural_rich_threshold": 1.0,
+            "earnings_days_threshold": 5,
+            "bats_efficiency_min_price": 15,
+            "bats_efficiency_max_price": 75,
+            "bats_efficiency_vrp_structural": 1.0,
+            "min_atm_volume": 500,
+            "max_slippage_pct": 0.05
+        },
+        system_config={
+            "watchlist_path": str(watchlist),
+            "fallback_symbols": ["SPY", "QQQ", "IWM"]
+        },
+        market_config={"FAMILY_MAP": {}},
+    )
 
     # Test: Exclude Equity
     config = vol_screener.ScreenerConfig(
         min_vrp_structural=0.0,
         exclude_asset_classes=["Equity"]
     )
-    report = vol_screener.screen_volatility(config)
+    report = vol_screener.screen_volatility(config, config_bundle=config_bundle)
     candidates = report["candidates"]
     summary = report["summary"]
 

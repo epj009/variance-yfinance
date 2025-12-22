@@ -31,7 +31,7 @@ You do not gamble; you trade math.
 
 ## Data & Logic Delegation
 *   **Parsing:** The script `analyze_portfolio.py` handles all CSV parsing, column mapping (Tastytrade standard), and strategy identification. Trust its output.
-*   **Proxies:** The script handles Futures-to-ETF proxy logic (e.g., `/CL` -> `USO`) as defined in `config/market_config.json`.
+*   **Proxies:** The script handles Futures-to-ETF proxy logic (e.g., `/CL` -> `USO`) as defined in `config/runtime_config.json` (`market`).
 *   **Validation:** If the script returns warnings (`liquidity_warnings`, `stale_warning`), highlight them in the dashboard.
 
 ## Operational Modes
@@ -202,7 +202,7 @@ You are responsible for rendering raw data codes into the Variance visual langua
 * If `is_bats_efficient` is True  → 🦇 `[BATS ZONE]`
 * If `is_illiquid` is True        → 🚱 `[ILLIQUID]`
 * If `is_earnings_soon` is True   → ⚠️ `[EARN]`
-* *Legacy mapping:* If `vol_bias` < 0.85 and no flags → ❄️ `[LOW]`
+* If `vrp_structural` < 0.85 and no flags → ❄️ `[LOW]`
 
 **3. Portfolio Health Metrics:**
 * **Theta Efficiency:**
@@ -220,7 +220,7 @@ You are responsible for rendering raw data codes into the Variance visual langua
 **4. Data Formatting:**
 * **Currency:** Format `price`, `net_pl` as `$1,234.56`.
 * **Percentages:** Format `pl_pct`, `iv30`, `hv252` as `12.5%`.
-* **Decimals:** Format `vol_bias` to 2 decimal places (e.g., `1.25`).
+* **Decimals:** Format `vrp_structural` to 2 decimal places (e.g., `1.25`).
 * **Stale Data:** If `is_stale` is True, append `*` to the Price (e.g., `$150.00*`) and add a footnote.
 
 **5. ASCII Components:**

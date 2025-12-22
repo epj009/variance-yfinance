@@ -11,25 +11,11 @@ from get_market_data import get_market_data
 # Import common utilities
 try:
     from .common import map_sector_to_asset_class, warn_if_not_venv
-    from .config_loader import load_trading_rules, load_system_config, load_screener_profiles
+    from .config_loader import load_config_bundle
 except ImportError:
     # Fallback for direct script execution
     from common import map_sector_to_asset_class, warn_if_not_venv
-    from config_loader import load_trading_rules, load_system_config, load_screener_profiles
-
-# Load Configurations
-RULES = load_trading_rules()
-SYS_CONFIG = load_system_config()
-
-try:
-    with open('config/market_config.json', 'r') as f:
-        MARKET_CONFIG = json.load(f)
-        FAMILY_MAP = MARKET_CONFIG.get('FAMILY_MAP', {})
-except Exception:
-    FAMILY_MAP = {}
-
-WATCHLIST_PATH = SYS_CONFIG.get('watchlist_path', 'watchlists/default-watchlist.csv')
-FALLBACK_SYMBOLS = SYS_CONFIG.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
+    from config_loader import load_config_bundle
 
 
 @dataclass
@@ -45,8 +31,17 @@ class ScreenerConfig:
     held_symbols: List[str] = field(default_factory=list)
 
 
-def load_profile_config(profile_name: str) -> ScreenerConfig:
-    profiles = load_screener_profiles()
+def load_profile_config(
+    profile_name: str,
+    *,
+    config_bundle: Optional[Dict[str, Any]] = None,
+    config_dir: Optional[str] = None,
+    strict: Optional[bool] = None,
+) -> ScreenerConfig:
+    if config_bundle is None:
+        config_bundle = load_config_bundle(config_dir=config_dir, strict=strict)
+    profiles = config_bundle.get("screener_profiles", {})
+    rules = config_bundle.get("trading_rules", {})
     profile_key = profile_name.lower()
     profile_data = profiles.get(profile_key)
     if profile_data is None:
@@ -56,7 +51,7 @@ def load_profile_config(profile_name: str) -> ScreenerConfig:
     return ScreenerConfig(
         limit=None,
         min_vrp_structural=profile_data.get("min_vrp_structural"),
-        min_variance_score=profile_data.get("min_variance_score", RULES.get("min_variance_score", 10.0)),
+        min_variance_score=profile_data.get("min_variance_score", rules.get("min_variance_score", 10.0)),
         allow_illiquid=profile_data.get("allow_illiquid", False),
         exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
         include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),
@@ -227,7 +222,7 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     # 2. VRP Tactical Component (Absolute Dislocation)
     bias20 = metrics.get('vrp_tactical')
     if bias20:
-        bias20_dislocation = abs(bias20 - 1.0) * 200
+        bias20_dislocation = abs(bias20 - 1.0) * rules.get('variance_score_dislocation_multiplier', 200)
         bias20_score = max(0, min(100, bias20_dislocation))
         score += bias20_score * 0.50
     elif bias: # Fallback
@@ -251,7 +246,13 @@ def _calculate_variance_score(metrics: Dict[str, Any], rules: Dict[str, Any]) ->
         
     return round(score, 1)
 
-def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
+def screen_volatility(
+    config: ScreenerConfig,
+    *,
+    config_bundle: Optional[Dict[str, Any]] = None,
+    config_dir: Optional[str] = None,
+    strict: Optional[bool] = None,
+) -> Dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities.
 
@@ -265,6 +266,17 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     Returns:
         A dictionary containing 'candidates' (list of dicts) and 'summary' (dict).
     """
+    if config_bundle is None:
+        config_bundle = load_config_bundle(config_dir=config_dir, strict=strict)
+
+    rules = config_bundle.get("trading_rules", {})
+    system_config = config_bundle.get("system_config", {})
+    market_config = config_bundle.get("market_config", {})
+    family_map = market_config.get("FAMILY_MAP", {})
+
+    watchlist_path = system_config.get('watchlist_path', 'watchlists/default-watchlist.csv')
+    fallback_symbols = system_config.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
+
     limit = config.limit
     exclude_sectors = config.exclude_sectors or []
     include_asset_classes = config.include_asset_classes or []
@@ -278,14 +290,14 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     # 1. Read Watchlist
     symbols = []
     try:
-        with open(WATCHLIST_PATH, 'r') as f:
+        with open(watchlist_path, 'r') as f:
             # Simple parsing: Skip header if exists, read first column
             reader = csv.reader(f)
             for row in reader:
                 if row and row[0] != 'Symbol':
                     symbols.append(row[0])
     except FileNotFoundError:
-        symbols = FALLBACK_SYMBOLS
+        symbols = fallback_symbols
     except Exception as e:
         return {"error": f"Error reading watchlist: {e}"}
 
@@ -319,7 +331,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     held_symbols_set = set(raw_held_set)
     
     # "Lineage Check": If we hold one member of a family, we effectively hold them all for screening purposes
-    for family_name, siblings in FAMILY_MAP.items():
+    for family_name, siblings in family_map.items():
         siblings_upper = [s.upper() for s in siblings]
         # If any sibling is in our raw held list
         if not raw_held_set.isdisjoint(siblings_upper):
@@ -327,11 +339,11 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             held_symbols_set.update(siblings_upper)
 
     # Threshold Logic
-    structural_threshold = RULES['vrp_structural_threshold'] if min_vrp_structural is None else min_vrp_structural
+    structural_threshold = rules['vrp_structural_threshold'] if min_vrp_structural is None else min_vrp_structural
     
     # Absolute Vol Floor: Filter out dead assets where Ratio is high only because HV is near zero
     # Example: /ZT (HV=1.5, IV=3.5 -> Ratio 2.3). Untradable noise.
-    hv_floor_absolute = RULES.get('hv_floor_percent', 5.0)
+    hv_floor_absolute = rules.get('hv_floor_percent', 5.0)
 
     for sym, metrics in data.items():
         if 'error' in metrics:
@@ -364,7 +376,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             continue
 
         # --- FILTER: LIQUIDITY ---
-        is_illiquid = _is_illiquid(sym, metrics, RULES)
+        is_illiquid = _is_illiquid(sym, metrics, rules)
         if is_illiquid and not allow_illiquid:
             illiquid_skipped += 1
             continue
@@ -390,8 +402,8 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         # --- FILTER: HV RANK TRAP (Relative) ---
         # High Ratio but Low Rank (e.g. TSLA going sideways)
         hv_rank = metrics.get('hv_rank')
-        rich_threshold = RULES.get('vrp_structural_rich_threshold', 1.0)
-        trap_threshold = RULES.get('hv_rank_trap_threshold', 15.0)
+        rich_threshold = rules.get('vrp_structural_rich_threshold', 1.0)
+        trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
 
         is_hv_rank_trap = (
             vrp_structural is not None and
@@ -443,17 +455,17 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         is_bats_efficient = bool(
             price
             and vrp_structural is not None
-            and RULES['bats_efficiency_min_price'] <= price <= RULES['bats_efficiency_max_price']
-            and vrp_structural > RULES['bats_efficiency_vrp_structural']
+            and rules['bats_efficiency_min_price'] <= price <= rules['bats_efficiency_max_price']
+            and vrp_structural > rules['bats_efficiency_vrp_structural']
         )
         if is_bats_efficient:
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, RULES)
+        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, rules)
         
         # Determine Signal Type
-        signal_type = _determine_signal_type(flags, vrp_t_markup, RULES)
+        signal_type = _determine_signal_type(flags, vrp_t_markup, rules)
         
         # Determine Regime Type
         regime_type = _determine_regime_type(flags)
@@ -466,7 +478,7 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
         metrics['regime_type'] = regime_type
 
         # Calculate Variance Score
-        variance_score = _calculate_variance_score(metrics, RULES)
+        variance_score = _calculate_variance_score(metrics, rules)
         
         # --- FILTER: CONVICTION FLOOR (Dev Mode) ---
         score_floor = config.min_variance_score if config.min_variance_score is not None else 10.0
@@ -500,11 +512,6 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
             'is_data_lean': is_data_lean
         }
 
-        # Data quality warning for extreme negative markup (FINDING-006)
-        if vrp_t_markup is not None and vrp_t_markup < -0.30:
-            candidate_data['data_quality_warning'] = True
-            candidate_data['nvrp_warning'] = "Unusual: IV significantly below HV"
-
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
     
@@ -524,13 +531,13 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     
     bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
     
-    liq_mode = RULES.get('liquidity_mode', 'volume')
+    liq_mode = rules.get('liquidity_mode', 'volume')
     if allow_illiquid:
         liquidity_note = "Illiquid included"
     elif liq_mode == 'open_interest':
-        liquidity_note = f"Illiquid filtered (ATM OI < {RULES.get('min_atm_open_interest', 500)}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
+        liquidity_note = f"Illiquid filtered (ATM OI < {rules.get('min_atm_open_interest', 500)}, slippage > {rules['max_slippage_pct']*100:.1f}%)"
     else:
-        liquidity_note = f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
+        liquidity_note = f"Illiquid filtered (ATM vol < {rules['min_atm_volume']}, slippage > {rules['max_slippage_pct']*100:.1f}%)"
 
     summary = {
         "scanned_symbols_count": len(symbols),
@@ -556,7 +563,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
     parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
-    parser.add_argument('--profile', type=str, default='balanced', help='Profile name from config/screener_profiles.json')
+    parser.add_argument('--profile', type=str, default='balanced', help='Profile name from config/runtime_config.json (screener_profiles)')
     parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
     parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
     parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
@@ -564,8 +571,9 @@ if __name__ == "__main__":
     parser.add_argument('--held-symbols', type=str, help='Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)')
 
     args = parser.parse_args()
+    config_bundle = load_config_bundle()
     try:
-        config = load_profile_config(args.profile)
+        config = load_profile_config(args.profile, config_bundle=config_bundle)
     except ValueError as exc:
         print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
         sys.exit(2)
@@ -604,7 +612,7 @@ if __name__ == "__main__":
     if held_symbols_list:
         config.held_symbols = held_symbols_list
 
-    report_data = screen_volatility(config)
+    report_data = screen_volatility(config, config_bundle=config_bundle)
     
     if "error" in report_data:
         print(json.dumps(report_data, indent=2))

@@ -30,6 +30,15 @@ def make_stock_leg(qty):
         'DTE': ''
     }
 
+def make_config_bundle(trading_rules):
+    return {
+        "trading_rules": trading_rules,
+        "market_config": {},
+        "system_config": {},
+        "screener_profiles": {},
+        "strategies": {}
+    }
+
 # --- Strategy Identification Tests ---
 
 def test_identify_short_strangle():
@@ -37,7 +46,7 @@ def test_identify_short_strangle():
         make_leg('Call', -1, 110),
         make_leg('Put', -1, 90)
     ]
-    assert identify_strategy(legs) == "Strangle"
+    assert identify_strategy(legs) == "Short Strangle"
 
 def test_identify_iron_condor():
     legs = [
@@ -55,7 +64,7 @@ def test_identify_iron_butterfly():
         make_leg('Call', 1, 110),
         make_leg('Put', 1, 90)
     ]
-    assert identify_strategy(legs) == "Iron Butterfly"
+    assert identify_strategy(legs) == "Iron Fly"
 
 def test_identify_vertical_call_spread():
     legs = [
@@ -139,19 +148,28 @@ def test_normalize_row_put_lowercase():
 def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
     # Stub market data to avoid network calls
     def fake_get_market_data(symbols):
-        return {
+        data = {
             "ABC": {
                 "price": 100.0,
                 "is_stale": False,
                 "vrp_structural": 1.2,
                 "earnings_date": None,
                 "sector": "Technology"
+            },
+            "SPY": {
+                "price": 450.0,
+                "is_stale": False,
+                "vrp_structural": 1.1,
+                "iv": 15.0,
+                "earnings_date": None,
+                "sector": "Index"
             }
         }
+        return {sym: data[sym] for sym in symbols if sym in data}
     monkeypatch.setattr(analyze_portfolio, "get_market_data", fake_get_market_data)
 
     # Deterministic rules for testing
-    monkeypatch.setattr(analyze_portfolio, "RULES", {
+    config_bundle = make_config_bundle({
         "vrp_structural_threshold": 0.85,
         "dead_money_vrp_structural_threshold": 0.80,
         "dead_money_pl_pct_low": -0.10,
@@ -186,7 +204,7 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
         "ABC,Option,-1,2025-01-17,30,90,Put,100,50,-100,10,2\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
     assert not report.get("error")
     assert len(report["triage_actions"]) == 1
     assert report["triage_actions"][0]["action_code"] == "HARVEST"
@@ -197,14 +215,43 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
     """Test that asset mix correctly identifies equity-heavy portfolios."""
     # Stub market data: AAPL, TSLA, NVDA (Technology = Equity), GLD (Metals = Commodity)
     def mock_get_market_data(symbols):
-        return {
+        data = {
             "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
             "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
             "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
             "AMZN": {"price": 140.0, "sector": "Consumer Cyclical", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
             "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
         }
+        return {sym: data[sym] for sym in symbols if sym in data}
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    config_bundle = make_config_bundle({
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25,
+        "net_liquidity": 100000,
+        "beta_weighted_symbol": "SPY",
+        "global_staleness_threshold": 0.50,
+        "data_integrity_min_theta": 0.50,
+        "asset_mix_equity_threshold": 0.80,
+        "concentration_limit_pct": 0.05,
+        "max_strategies_per_symbol": 3,
+        "theta_efficiency_low": 0.1,
+        "theta_efficiency_high": 0.5,
+        "stress_scenarios": [
+            {"label": "Crash (-5%)", "move_pct": -0.05},
+            {"label": "Flat", "move_pct": 0.0},
+            {"label": "Rally (+5%)", "move_pct": 0.05}
+        ],
+        "hedge_rules": {"enabled": False}
+    })
 
     csv_path = tmp_path / "positions.csv"
     csv_path.write_text(
@@ -216,7 +263,7 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
         "GLD,Option,-1,2025-01-17,30,180,Put,180,10,-50,5,1\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
     assert not report.get("error")
 
     # Check asset mix exists
@@ -235,15 +282,44 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
 def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
     """Test that asset mix warning triggers when equity > 80%."""
     def mock_get_market_data(symbols):
-        return {
+        data = {
             "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
             "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
             "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
             "AMZN": {"price": 140.0, "sector": "Healthcare", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
             "MSFT": {"price": 380.0, "sector": "Technology", "iv30": 32.0, "hv252": 38.0, "vrp_structural": 0.84},
             "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
         }
+        return {sym: data[sym] for sym in symbols if sym in data}
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    config_bundle = make_config_bundle({
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25,
+        "net_liquidity": 100000,
+        "beta_weighted_symbol": "SPY",
+        "global_staleness_threshold": 0.50,
+        "data_integrity_min_theta": 0.50,
+        "asset_mix_equity_threshold": 0.80,
+        "concentration_limit_pct": 0.05,
+        "max_strategies_per_symbol": 3,
+        "theta_efficiency_low": 0.1,
+        "theta_efficiency_high": 0.5,
+        "stress_scenarios": [
+            {"label": "Crash (-5%)", "move_pct": -0.05},
+            {"label": "Flat", "move_pct": 0.0},
+            {"label": "Rally (+5%)", "move_pct": 0.05}
+        ],
+        "hedge_rules": {"enabled": False}
+    })
 
     csv_path = tmp_path / "positions.csv"
     csv_path.write_text(
@@ -256,7 +332,7 @@ def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
         "GLD,Option,-1,2025-01-17,30,180,Put,180,10,-50,5,1\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
     assert not report.get("error")
 
     # 5 Equity out of 6 = 83.33% > 80%
@@ -272,14 +348,43 @@ def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
 def test_asset_mix_diversified(tmp_path, monkeypatch):
     """Test that diversified portfolios don't trigger warnings."""
     def mock_get_market_data(symbols):
-        return {
+        data = {
             "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
             "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
             "/CL": {"price": 70.0, "sector": "Energy", "iv30": 40.0, "hv252": 35.0, "vrp_structural": 1.14},
             "/6E": {"price": 1.1, "sector": "Currencies", "iv30": 10.0, "hv252": 8.0, "vrp_structural": 1.25},
             "TLT": {"price": 95.0, "sector": "Fixed Income", "iv30": 12.0, "hv252": 10.0, "vrp_structural": 1.20},
+            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
         }
+        return {sym: data[sym] for sym in symbols if sym in data}
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    config_bundle = make_config_bundle({
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25,
+        "net_liquidity": 100000,
+        "beta_weighted_symbol": "SPY",
+        "global_staleness_threshold": 0.50,
+        "data_integrity_min_theta": 0.50,
+        "asset_mix_equity_threshold": 0.80,
+        "concentration_limit_pct": 0.05,
+        "max_strategies_per_symbol": 3,
+        "theta_efficiency_low": 0.1,
+        "theta_efficiency_high": 0.5,
+        "stress_scenarios": [
+            {"label": "Crash (-5%)", "move_pct": -0.05},
+            {"label": "Flat", "move_pct": 0.0},
+            {"label": "Rally (+5%)", "move_pct": 0.05}
+        ],
+        "hedge_rules": {"enabled": False}
+    })
 
     csv_path = tmp_path / "positions.csv"
     csv_path.write_text(
@@ -291,7 +396,7 @@ def test_asset_mix_diversified(tmp_path, monkeypatch):
         "TLT,Option,-1,2025-01-17,30,95,Put,95,10,-50,5,1\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
     assert not report.get("error")
 
     # Should have 4 asset classes (Equity, Commodity x2, FX, Fixed Income)
@@ -322,8 +427,38 @@ def test_friction_horizon_calculation(tmp_path, monkeypatch):
     """Test Friction Horizon (Phi) calculation with standard multiplier."""
     # Stub market data
     def mock_get_market_data(symbols):
-        return {}
+        data = {
+            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07}
+        }
+        return {sym: data[sym] for sym in symbols if sym in data}
     monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    config_bundle = make_config_bundle({
+        "vrp_structural_threshold": 0.85,
+        "dead_money_vrp_structural_threshold": 0.80,
+        "dead_money_pl_pct_low": -0.10,
+        "dead_money_pl_pct_high": 0.10,
+        "gamma_dte_threshold": 21,
+        "profit_harvest_pct": 0.50,
+        "earnings_days_threshold": 5,
+        "portfolio_delta_long_threshold": 75,
+        "portfolio_delta_short_threshold": -50,
+        "concentration_risk_pct": 0.25,
+        "net_liquidity": 100000,
+        "beta_weighted_symbol": "SPY",
+        "global_staleness_threshold": 0.50,
+        "data_integrity_min_theta": 0.50,
+        "asset_mix_equity_threshold": 0.80,
+        "concentration_limit_pct": 0.05,
+        "max_strategies_per_symbol": 3,
+        "theta_efficiency_low": 0.1,
+        "theta_efficiency_high": 0.5,
+        "stress_scenarios": [
+            {"label": "Crash (-5%)", "move_pct": -0.05},
+            {"label": "Flat", "move_pct": 0.0},
+            {"label": "Rally (+5%)", "move_pct": 0.05}
+        ],
+        "hedge_rules": {"enabled": False}
+    })
 
     csv_path = tmp_path / "positions.csv"
     # Pos A: Spread 0.10, Qty 1 -> Cost $10. Theta 5.
@@ -335,7 +470,7 @@ def test_friction_horizon_calculation(tmp_path, monkeypatch):
         "ABC,Option,-1,2025-01-17,30,100,Call,100,0,-100,0,10,2.00,2.20\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path))
+    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
     assert not report.get("error")
 
     summary = report["portfolio_summary"]

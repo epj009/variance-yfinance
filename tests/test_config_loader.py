@@ -6,7 +6,7 @@ Runtime target: <2 seconds
 Network: NO (all file I/O mocked via tmp_path)
 
 Priority:
-1. Config loading with defaults - CRITICAL
+1. Config loading from config directory - CRITICAL
 2. Error handling (FileNotFoundError, JSONDecodeError) - CRITICAL
 3. Strategy validation - HIGH
 """
@@ -56,141 +56,73 @@ def valid_strategy():
 
 
 # ============================================================================
-# TEST CLASS 1: DEFAULT_TRADING_RULES Validation
-# ============================================================================
-
-class TestDefaultTradingRules:
-    """Unit tests for DEFAULT_TRADING_RULES constant."""
-
-    def test_default_keys_exist(self):
-        """All expected default keys present."""
-        expected_keys = {
-            "vrp_structural_threshold", "dead_money_vrp_structural_threshold",
-            "dead_money_pl_pct_low", "dead_money_pl_pct_high",
-            "low_ivr_threshold", "gamma_dte_threshold",
-            "profit_harvest_pct", "earnings_days_threshold",
-            "portfolio_delta_long_threshold", "portfolio_delta_short_threshold",
-            "concentration_risk_pct", "net_liquidity",
-            "theta_efficiency_low", "theta_efficiency_high",
-            "beta_weighted_symbol", "global_staleness_threshold",
-            "data_integrity_min_theta", "asset_mix_equity_threshold",
-            "stress_scenarios", "min_atm_volume", "max_slippage_pct",
-            "bats_efficiency_min_price", "bats_efficiency_max_price",
-            "bats_efficiency_vrp_structural"
-        }
-
-        assert set(config_loader.DEFAULT_TRADING_RULES.keys()) == expected_keys
-
-    def test_default_types_correct(self):
-        """Type validation for complex defaults."""
-        defaults = config_loader.DEFAULT_TRADING_RULES
-
-        # Numeric types
-        assert isinstance(defaults["vrp_structural_threshold"], float)
-        assert isinstance(defaults["gamma_dte_threshold"], int)
-        assert isinstance(defaults["net_liquidity"], int)
-
-        # String types
-        assert isinstance(defaults["beta_weighted_symbol"], str)
-
-        # List of dicts
-        assert isinstance(defaults["stress_scenarios"], list)
-        assert len(defaults["stress_scenarios"]) == 5
-        assert all("label" in s and "move_pct" in s for s in defaults["stress_scenarios"])
-
-
-# ============================================================================
-# TEST CLASS 2: load_trading_rules()
+# TEST CLASS 1: load_trading_rules()
 # ============================================================================
 
 class TestLoadTradingRules:
     """Unit tests for load_trading_rules() function."""
 
     def test_load_valid_config(self, config_dir):
-        """Load valid JSON file and verify merge with defaults."""
+        """Load valid JSON file."""
         # Arrange
         config_file = config_dir / "trading_rules.json"
         config_file.write_text('{"vrp_structural_threshold": 0.95, "net_liquidity": 75000}')
 
         # Act
-        result = config_loader.load_trading_rules()
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
         # Assert
         assert result["vrp_structural_threshold"] == 0.95  # Overridden
         assert result["net_liquidity"] == 75000       # Overridden
-        assert result["gamma_dte_threshold"] == 21    # Default preserved
+        assert set(result.keys()) == {"vrp_structural_threshold", "net_liquidity"}
 
-    def test_merge_with_defaults(self, config_dir):
-        """User config overrides defaults."""
-        config_file = config_dir / "trading_rules.json"
-        config_file.write_text('{"gamma_dte_threshold": 14, "profit_harvest_pct": 0.60}')
-
-        result = config_loader.load_trading_rules()
-
-        assert result["gamma_dte_threshold"] == 14
-        assert result["profit_harvest_pct"] == 0.60
-        assert result["vrp_structural_threshold"] == 0.85  # Default
-
-    def test_missing_file_returns_defaults(self, config_dir):
+    def test_missing_file_returns_empty_dict(self, config_dir):
         """Graceful fallback when file doesn't exist."""
-        # config_dir exists but trading_rules.json does not
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
-        result = config_loader.load_trading_rules()
-
-        assert result == config_loader.DEFAULT_TRADING_RULES
+        assert result == {}
 
     def test_missing_file_warns_to_stderr(self, config_dir, capsys):
         """Verify warning message when config file missing."""
-        result = config_loader.load_trading_rules()
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "trading_rules.json not found" in captured.err
-        assert result == config_loader.DEFAULT_TRADING_RULES
+        assert result == {}
 
-    def test_malformed_json_returns_defaults(self, config_dir):
+    def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
         config_file = config_dir / "trading_rules.json"
         config_file.write_text('{ invalid json syntax')
 
-        result = config_loader.load_trading_rules()
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
-        assert result == config_loader.DEFAULT_TRADING_RULES
+        assert result == {}
 
     def test_malformed_json_warns_to_stderr(self, config_dir, capsys):
         """Verify warning message for malformed JSON."""
         config_file = config_dir / "trading_rules.json"
         config_file.write_text('{ "incomplete": ')
 
-        result = config_loader.load_trading_rules()
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "malformed" in captured.err
-        assert result == config_loader.DEFAULT_TRADING_RULES
-
-    def test_partial_config_merged_with_defaults(self, config_dir):
-        """Sparse config works - only one key overridden."""
-        config_file = config_dir / "trading_rules.json"
-        config_file.write_text('{"net_liquidity": 100000}')
-
-        result = config_loader.load_trading_rules()
-
-        assert result["net_liquidity"] == 100000
-        # All other defaults preserved
-        assert len(result) == len(config_loader.DEFAULT_TRADING_RULES)
+        assert result == {}
 
     def test_extra_keys_preserved(self, config_dir):
         """Unknown keys not stripped (future extensibility)."""
         config_file = config_dir / "trading_rules.json"
         config_file.write_text('{"custom_key": 123, "another_key": "test"}')
 
-        result = config_loader.load_trading_rules()
+        result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
         assert result["custom_key"] == 123
         assert result["another_key"] == "test"
 
 
 # ============================================================================
-# TEST CLASS 3: load_market_config()
+# TEST CLASS 2: load_market_config()
 # ============================================================================
 
 class TestLoadMarketConfig:
@@ -198,52 +130,54 @@ class TestLoadMarketConfig:
 
     def test_load_valid_config(self, config_dir):
         """Load valid market config JSON."""
-        config_file = config_dir / "market_config.json"
+        config_file = config_dir / "runtime_config.json"
         config_data = {
-            "FUTURES_MULTIPLIERS": {"/ES": 50, "/CL": 1000},
-            "SECTOR_OVERRIDES": {"SPY": "Index"}
+            "market": {
+                "FUTURES_MULTIPLIERS": {"/ES": 50, "/CL": 1000},
+                "SECTOR_OVERRIDES": {"SPY": "Index"}
+            }
         }
         config_file.write_text(json.dumps(config_data))
 
-        result = config_loader.load_market_config()
+        result = config_loader.load_market_config(config_dir=str(config_dir))
 
-        assert result == config_data
+        assert result == config_data["market"]
 
     def test_missing_file_returns_empty_dict(self, config_dir):
-        """No defaults for market config - returns empty dict."""
-        result = config_loader.load_market_config()
+        """Missing file returns empty dict."""
+        result = config_loader.load_market_config(config_dir=str(config_dir))
 
         assert result == {}
 
     def test_missing_file_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for missing file."""
-        result = config_loader.load_market_config()
+        result = config_loader.load_market_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
-        assert "market_config.json not found" in captured.err
+        assert "runtime_config.json not found" in captured.err
 
     def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
-        config_file = config_dir / "market_config.json"
+        config_file = config_dir / "runtime_config.json"
         config_file.write_text('[invalid')
 
-        result = config_loader.load_market_config()
+        result = config_loader.load_market_config(config_dir=str(config_dir))
 
         assert result == {}
 
     def test_malformed_json_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for malformed JSON."""
-        config_file = config_dir / "market_config.json"
+        config_file = config_dir / "runtime_config.json"
         config_file.write_text('{"broken": ')
 
-        result = config_loader.load_market_config()
+        result = config_loader.load_market_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "malformed" in captured.err
 
 
 # ============================================================================
-# TEST CLASS 4: load_system_config()
+# TEST CLASS 3: load_system_config()
 # ============================================================================
 
 class TestLoadSystemConfig:
@@ -251,49 +185,49 @@ class TestLoadSystemConfig:
 
     def test_load_valid_config(self, config_dir):
         """Load valid system config JSON."""
-        config_file = config_dir / "system_config.json"
-        config_data = {"cache_ttl": 3600, "watchlist_path": "watchlist.csv"}
+        config_file = config_dir / "runtime_config.json"
+        config_data = {"system": {"cache_ttl": 3600, "watchlist_path": "watchlist.csv"}}
         config_file.write_text(json.dumps(config_data))
 
-        result = config_loader.load_system_config()
+        result = config_loader.load_system_config(config_dir=str(config_dir))
 
-        assert result == config_data
+        assert result == config_data["system"]
 
     def test_missing_file_returns_empty_dict(self, config_dir):
-        """No defaults for system config - returns empty dict."""
-        result = config_loader.load_system_config()
+        """Missing file returns empty dict."""
+        result = config_loader.load_system_config(config_dir=str(config_dir))
 
         assert result == {}
 
     def test_missing_file_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for missing file."""
-        result = config_loader.load_system_config()
+        result = config_loader.load_system_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
-        assert "system_config.json not found" in captured.err
+        assert "runtime_config.json not found" in captured.err
 
     def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
-        config_file = config_dir / "system_config.json"
+        config_file = config_dir / "runtime_config.json"
         config_file.write_text('{')
 
-        result = config_loader.load_system_config()
+        result = config_loader.load_system_config(config_dir=str(config_dir))
 
         assert result == {}
 
     def test_malformed_json_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for malformed JSON."""
-        config_file = config_dir / "system_config.json"
+        config_file = config_dir / "runtime_config.json"
         config_file.write_text('{"incomplete"')
 
-        result = config_loader.load_system_config()
+        result = config_loader.load_system_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "malformed" in captured.err
 
 
 # ============================================================================
-# TEST CLASS 5: load_strategies()
+# TEST CLASS 4: load_strategies()
 # ============================================================================
 
 class TestLoadStrategies:
@@ -314,7 +248,7 @@ class TestLoadStrategies:
         ]
         config_file.write_text(json.dumps(strategies_data))
 
-        result = config_loader.load_strategies()
+        result = config_loader.load_strategies(config_dir=str(config_dir))
 
         assert "short_strangle" in result
         assert result["short_strangle"]["name"] == "Short Strangle"
@@ -342,12 +276,38 @@ class TestLoadStrategies:
         ]
         config_file.write_text(json.dumps(strategies_data))
 
-        result = config_loader.load_strategies()
+        result = config_loader.load_strategies(config_dir=str(config_dir))
 
         assert isinstance(result, dict)
         assert "strat1" in result
         assert "strat2" in result
         assert len(result) == 2
+
+
+# ============================================================================
+# TEST CLASS 5: load_config_bundle()
+# ============================================================================
+
+class TestLoadConfigBundle:
+    """Unit tests for load_config_bundle() function."""
+
+    def test_load_bundle_and_override(self, config_dir):
+        (config_dir / "trading_rules.json").write_text('{"net_liquidity": 50000}')
+        runtime_config = {
+            "system": {"watchlist_path": "watchlists/default.csv"},
+            "market": {},
+            "screener_profiles": {}
+        }
+        (config_dir / "runtime_config.json").write_text(json.dumps(runtime_config))
+        (config_dir / "strategies.json").write_text('[]')
+
+        bundle = config_loader.load_config_bundle(config_dir=str(config_dir))
+        assert "trading_rules" in bundle
+        assert bundle["trading_rules"]["net_liquidity"] == 50000
+
+        override = {"trading_rules": {"net_liquidity": 75000}}
+        bundle_override = config_loader.load_config_bundle(config_dir=str(config_dir), overrides=override)
+        assert bundle_override["trading_rules"]["net_liquidity"] == 75000
 
 
 # ============================================================================

@@ -33,8 +33,8 @@ Target user: retail quant trader using tastylive mechanics; focus is on tradeabl
 - Low: `health_check.liquidity_warnings` exists in the report schema but is never populated or rendered. `scripts/analyze_portfolio.py:126`
 
 ## Config + Tests (rules consistency + coverage gaps)
-- High: Micro futures appear in `FAMILY_MAP` and multipliers but are missing in `SYMBOL_MAP`, so market data fetches for /MES, /MNQ, /M2K, /MGC will fail or proxy incorrectly. `config/market_config.json:17` `config/market_config.json:52`
-- Medium: `FUTURES_PROXY` contains `hv_only` entries that are never handled in the proxy fetcher, so config implies support that does not exist. `config/market_config.json:143` `scripts/get_market_data.py:635`
+- High: Micro futures appear in `FAMILY_MAP` and multipliers but are missing in `SYMBOL_MAP`, so market data fetches for /MES, /MNQ, /M2K, /MGC will fail or proxy incorrectly. `config/runtime_config.json`
+- Medium: `FUTURES_PROXY` contains `hv_only` entries that are never handled in the proxy fetcher, so config implies support that does not exist. `config/runtime_config.json` `scripts/get_market_data.py:635`
 - Medium: Portfolio delta thresholds exist in config but are not consumed anywhere, which creates false confidence in tuning. `config/trading_rules.json:15`
 - Low: Parser tests do not cover uppercase/variant DTE formats or parentheses negatives; current gaps allow regressions in tastylive CSV parsing. `tests/test_portfolio_parser.py:37`
 

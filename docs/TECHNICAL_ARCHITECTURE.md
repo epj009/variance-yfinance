@@ -108,4 +108,4 @@ Maps Market Archetypes to Strategy Menus.
 
 *   `config/trading_rules.json`: Physics constants (Net Liq, Thresholds).
 *   `config/strategies.json`: Strategy metadata (Profit Targets, Mechanics).
-*   `config/market_config.json`: Futures multipliers, ETF mappings.
+*   `config/runtime_config.json` (`market`): Futures multipliers, ETF mappings.

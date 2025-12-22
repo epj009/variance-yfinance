@@ -209,7 +209,7 @@ Position Display:  Show "NVRP: -99% ⚠️ Data Quality Issue"
 The following architectural adjustments are proposed to improve the engine's precision and eliminate statistical noise.
 
 ### 1. Screener Gate Logic (`get_screener_results`)
-*   **Problem:** The `min_vol_bias` parameter is functionally inert, as the internal filter is hardcoded to `RULES['vrp_structural_threshold']`.
+*   **Problem:** The `min_vrp_structural` parameter is functionally inert, as the internal filter is hardcoded to `RULES['vrp_structural_threshold']`.
 *   **Proposed Fix:** Modify `screen_volatility` to accept a `min_vrp_override: Optional[float]` argument. Prioritize the override if provided, falling back to `RULES` otherwise.
 
 ### 2. Tactical Markup Explosion (`NVRP` Math)

@@ -6,17 +6,16 @@ This module provides shared functionality to avoid code duplication:
 - Sector/Asset class mapping
 - Environment warnings
 """
-import json
 import sys
 from typing import Any, Dict, Optional, Set
 
 # Load Market Config (for Asset Class Map)
-MARKET_CONFIG: Dict[str, Any] = {}
 try:
-    with open('config/market_config.json', 'r') as f:
-        MARKET_CONFIG = json.load(f)
-except FileNotFoundError:
-    print("Warning: config/market_config.json not found. Asset class mapping will be limited.", file=sys.stderr)
+    from .config_loader import load_market_config
+except ImportError:
+    from config_loader import load_market_config
+
+MARKET_CONFIG: Dict[str, Any] = load_market_config()
 
 # Build reverse lookup: sector -> asset class
 SECTOR_TO_ASSET_CLASS: Dict[str, str] = {}
@@ -85,4 +84,3 @@ def get_equivalent_exposures(symbol: str) -> Set[str]:
                 result.add(fut_symbol)
 
     return result
-

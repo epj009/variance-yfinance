@@ -148,11 +148,6 @@ class TUIRenderer:
         risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
         mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
         
-        # Data Quality Gauge
-        dq_score = self.portfolio_summary.get('data_quality_score', 1.0)
-        dq_style = "profit" if dq_score > 0.9 else "warning" if dq_score > 0.7 else "loss"
-        dq_text = "Excellent" if dq_score > 0.9 else "Degraded" if dq_score > 0.7 else "Critical"
-
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
         gyro_right.append("• Downside:  ", style="label")
@@ -163,9 +158,6 @@ class TUIRenderer:
         gyro_right.append(f"({upside_label})\n", style="dim")
         gyro_right.append("• Mix:       ", style="label")
         gyro_right.append("⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n", style="warning" if mix_warning else "profit")
-        gyro_right.append("• Data Qual: ", style="label")
-        gyro_right.append(f"{dq_score:.0%} ", style=dq_style)
-        gyro_right.append(f"({dq_text})", style="dim")
 
         gyro_grid.add_row(gyro_left, gyro_right)
 
@@ -183,17 +175,6 @@ class TUIRenderer:
         triage_actions = self.data.get('triage_actions', [])
         portfolio_overview = self.data.get('portfolio_overview', [])
         
-        # Global Warnings Display
-        integrity = self.data.get('data_integrity_warning', {})
-        freshness = self.data.get('data_freshness_warning', False)
-        
-        if integrity.get('risk') or freshness:
-            self.console.print("\n[bold red on white]🚨 DATA ADVISORY[/bold red on white]")
-            if integrity.get('risk'):
-                self.console.print(f"[bold red]INTEGRITY ERROR:[/bold red] {integrity.get('details')}")
-            if freshness:
-                self.console.print("[bold yellow]STALE DATA:[/bold yellow] >50% of portfolio pricing is outdated.")
-
         self.console.print("\n") # Spacer
 
         # Root Tree
@@ -233,8 +214,14 @@ class TUIRenderer:
             if code == "HARVEST": 
                 icon = "💰 "
                 style = "profit"
-            elif code in ["DEFENSE", "GAMMA", "TOXIC"]: 
+            elif code == "GAMMA":
+                icon = "☢️ "
+                style = "loss"
+            elif code == "DEFENSE":
                 icon = "🛡️ "
+                style = "loss"
+            elif code == "TOXIC":
+                icon = "💀 "
                 style = "loss"
             elif code == "EXPIRING":
                 icon = "⏳ "
@@ -253,10 +240,6 @@ class TUIRenderer:
         if code:
             text.append(f"[{code}] ", style=style)
             
-        # Data Warning
-        if item.get('data_quality_warning'):
-            text.append("⚠️ Data ", style="warning")
-
         # Add Node
         node = parent_branch.add(text)
         

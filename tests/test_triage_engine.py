@@ -369,7 +369,7 @@ class TestTriageClusterToxic:
             pl_open=5.0,  # 5% profit
             theta=0.05,
             gamma=1.0,
-            underlying_price=100.0,
+            underlying_price=200.0,
             dte=30
         )
         context = make_triage_context(
@@ -387,7 +387,7 @@ class TestTriageClusterToxic:
             pl_open=5.0,
             theta=0.01,
             gamma=1.0,
-            underlying_price=100.0,
+            underlying_price=200.0,
             dte=30
         )
         base_rules = make_triage_context()["rules"]
