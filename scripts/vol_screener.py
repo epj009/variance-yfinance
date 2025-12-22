@@ -90,10 +90,23 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     if symbol.startswith('/'):
         return False
 
-    # 1. Check Total Volume
-    atm_volume = metrics.get('atm_volume', 0)
-    if atm_volume is not None and atm_volume < rules['min_atm_volume']:
-        return True
+    mode = rules.get('liquidity_mode', 'volume')
+
+    # 1. Check Activity (Volume or OI)
+    if mode == 'open_interest':
+        atm_oi = metrics.get('atm_open_interest', 0)
+        # Fallback to volume if OI is missing (e.g. data error)
+        if atm_oi is None:
+             atm_volume = metrics.get('atm_volume', 0)
+             if atm_volume is not None and atm_volume < rules['min_atm_volume']:
+                 return True
+        elif atm_oi < rules.get('min_atm_open_interest', 500):
+            return True
+    else:
+        # Default: Volume Mode
+        atm_volume = metrics.get('atm_volume', 0)
+        if atm_volume is not None and atm_volume < rules['min_atm_volume']:
+            return True
 
     # 2. Per-Leg Liquidity Check (FINDING-002)
     # Ensure NEITHER the call nor the put is "dead" (zero volume or excessive spread)
@@ -103,9 +116,8 @@ def _is_illiquid(symbol: str, metrics: Dict[str, Any], rules: Dict[str, Any]) ->
     ]
     
     for side, bid, ask, vol in legs:
-        # If any side has zero volume (Dead leg)
-        if vol is not None and vol <= 0:
-            return True
+        # Note: In OI mode, we don't necessarily fail on 0 volume per leg
+        # BUT we still fail on broken spreads (slippage)
             
         # Check per-leg slippage
         if bid is not None and ask is not None:
@@ -491,7 +503,14 @@ def screen_volatility(config: ScreenerConfig) -> Dict[str, Any]:
     candidates_with_status.sort(key=_signal_key, reverse=True)
     
     bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
-    liquidity_note = "Illiquid included" if allow_illiquid else f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
+    
+    liq_mode = RULES.get('liquidity_mode', 'volume')
+    if allow_illiquid:
+        liquidity_note = "Illiquid included"
+    elif liq_mode == 'open_interest':
+        liquidity_note = f"Illiquid filtered (ATM OI < {RULES.get('min_atm_open_interest', 500)}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
+    else:
+        liquidity_note = f"Illiquid filtered (ATM vol < {RULES['min_atm_volume']}, slippage > {RULES['max_slippage_pct']*100:.1f}%)"
 
     summary = {
         "scanned_symbols_count": len(symbols),

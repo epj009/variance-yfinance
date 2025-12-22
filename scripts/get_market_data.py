@@ -616,17 +616,22 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
         if np.isnan(iv) or iv <= 0: return None
 
         atm_vol = np.nansum([atm_call.get('volume', 0), atm_put.get('volume', 0)])
+        atm_oi = np.nansum([atm_call.get('openInterest', 0), atm_put.get('openInterest', 0)])
+        
         result = {
             'iv': float(iv),
             'atm_vol': float(atm_vol) if not np.isnan(atm_vol) else 0,
+            'atm_open_interest': float(atm_oi) if not np.isnan(atm_oi) else 0,
             'atm_bid': float(c_bid + p_bid) / 2,
             'atm_ask': float(c_ask + p_ask) / 2,
             'call_bid': float(c_bid),
             'call_ask': float(c_ask),
             'call_vol': float(atm_call.get('volume', 0)),
+            'call_oi': float(atm_call.get('openInterest', 0)),
             'put_bid': float(p_bid),
             'put_ask': float(p_ask),
-            'put_vol': float(atm_put.get('volume', 0))
+            'put_vol': float(atm_put.get('volume', 0)),
+            'put_oi': float(atm_put.get('openInterest', 0))
         }
         if warning:
             result['warning'] = warning
@@ -768,6 +773,7 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
 
     iv_val = iv_payload.get('iv') if iv_payload else None
     atm_vol = iv_payload.get('atm_vol') if iv_payload else None
+    atm_oi = iv_payload.get('atm_open_interest') if iv_payload else None
     atm_bid = iv_payload.get('atm_bid') if iv_payload else None
     atm_ask = iv_payload.get('atm_ask') if iv_payload else None
     iv_warning = iv_payload.get('warning') if iv_payload else None
@@ -776,9 +782,11 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     call_bid = iv_payload.get('call_bid') if iv_payload else None
     call_ask = iv_payload.get('call_ask') if iv_payload else None
     call_vol = iv_payload.get('call_vol') if iv_payload else None
+    call_oi = iv_payload.get('call_oi') if iv_payload else None
     put_bid = iv_payload.get('put_bid') if iv_payload else None
     put_ask = iv_payload.get('put_ask') if iv_payload else None
     put_vol = iv_payload.get('put_vol') if iv_payload else None
+    put_oi = iv_payload.get('put_oi') if iv_payload else None
 
     proxy_note = None
     if iv_val is None or hv252_val is None:
@@ -818,14 +826,17 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
                 "vrp_structural": 0.0, # Default to 0 to fail downstream filters (Screener)
                 "vrp_tactical": 0.0,
                 "atm_volume": 0,
+                "atm_open_interest": 0,
                 "atm_bid": 0,
                 "atm_ask": 0,
                 "call_bid": None,
                 "call_ask": None,
                 "call_vol": None,
+                "call_oi": None,
                 "put_bid": None,
                 "put_ask": None,
                 "put_vol": None,
+                "put_oi": None,
                 "earnings_date": None,
                 "sector": safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=skip_fundamentals),
                 "proxy": proxy_note,
@@ -866,14 +877,17 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
         "vrp_structural": vrp_structural,
         "vrp_tactical": vrp_tactical,
         "atm_volume": atm_vol,
+        "atm_open_interest": atm_oi,
         "atm_bid": atm_bid,
         "atm_ask": atm_ask,
         "call_bid": call_bid,
         "call_ask": call_ask,
         "call_vol": call_vol,
+        "call_oi": call_oi,
         "put_bid": put_bid,
         "put_ask": put_ask,
         "put_vol": put_vol,
+        "put_oi": put_oi,
         "earnings_date": earnings_date,
         "sector": sector,
         "proxy": proxy_note
