@@ -440,9 +440,15 @@ def _cluster_expiration_options(
     used_indices: set[int] = set()
 
     # Split by Open Date to prevent merging different trades opened at different times.
+    # If Open Date is missing, we treat it as a single 'Unknown' bucket to allow 
+    # greedy matching, but we must ensure we don't merge distinct strategies.
     by_open_date: Dict[str, List[tuple[int, Dict[str, Any]]]] = defaultdict(list)
     for idx, leg in exp_legs_with_indices:
-        key = (leg.get('Open Date') or '').strip()
+        # If date is missing, use a unique-ish key per leg to avoid forced merging
+        # but ONLY if we want to be strict. Actually, for greedy matching to work 
+        # (e.g. matching a loose call and put into a strangle), they SHOULD be in the same bucket.
+        # The bug is likely that we are TOO greedy.
+        key = (leg.get('Open Date') or 'UNKNOWN').strip()
         by_open_date[key].append((idx, leg))
 
     for _, legs_with_idx in by_open_date.items():
