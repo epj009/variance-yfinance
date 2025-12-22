@@ -509,6 +509,20 @@ def calculate_hv_rank(ticker_obj: Any, symbol_key: str) -> Optional[float]:
     except Exception:
         return None
 
+def is_monthly_expiration(date_str: str) -> bool:
+    """
+    Check if an expiration date is a standard monthly (3rd Friday).
+    """
+    try:
+        dt = datetime.strptime(date_str, '%Y-%m-%d').date()
+        # Standard Monthly is a Friday (weekday 4)
+        if dt.weekday() != 4:
+            return False
+        # And occurs between the 15th and 21st of the month
+        return 15 <= dt.day <= 21
+    except ValueError:
+        return False
+
 def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_context: Optional[float] = None) -> Optional[Dict[str, Any]]:
     cache_key = f"iv_{symbol_key}"
     cached = cache.get(cache_key)
@@ -522,27 +536,48 @@ def get_current_iv(ticker_obj: Any, current_price: float, symbol_key: str, hv_co
         exps = ticker_obj.options
         if not exps: return None
 
-        target_date = None
         today = datetime.now().date()
-        min_diff = 999
-        best_exp = None
+        
+        # Priority 1: Monthlies within window
+        monthlies_in_window = []
+        # Priority 2: Weeklies within window
+        weeklies_in_window = []
+        # Fallback: Anything closest to target
+        all_others = []
 
-        # Select closest to target DTE within window; fallback to closest overall
-        best_window_diff = None
         for exp_str in exps:
-            exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
-            days_out = (exp_date - today).days
-            diff = abs(days_out - TARGET_DTE)
-            if diff < min_diff:
-                min_diff = diff
-                best_exp = exp_str
-            if DTE_MIN <= days_out <= DTE_MAX:
-                if best_window_diff is None or diff < best_window_diff:
-                    best_window_diff = diff
-                    target_date = exp_str
+            try:
+                exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
+                days_out = (exp_date - today).days
+                diff = abs(days_out - TARGET_DTE)
+                
+                is_monthly = is_monthly_expiration(exp_str)
+                
+                if DTE_MIN <= days_out <= DTE_MAX:
+                    if is_monthly:
+                        monthlies_in_window.append((diff, exp_str))
+                    else:
+                        weeklies_in_window.append((diff, exp_str))
+                else:
+                    all_others.append((diff, exp_str))
+            except ValueError:
+                continue
 
-        if target_date is None:
-            target_date = best_exp
+        # Selection Logic
+        target_date = None
+        if monthlies_in_window:
+            # Pick monthly closest to target DTE
+            monthlies_in_window.sort()
+            target_date = monthlies_in_window[0][1]
+        elif weeklies_in_window:
+            # Fallback to weekly closest to target
+            weeklies_in_window.sort()
+            target_date = weeklies_in_window[0][1]
+        elif all_others:
+            # Absolute fallback
+            all_others.sort()
+            target_date = all_others[0][1]
+
         if not target_date: return None
 
         chain = ticker_obj.option_chain(target_date)
