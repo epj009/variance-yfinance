@@ -290,7 +290,20 @@ def triage_cluster(
 
     # Calculate DTE only for option legs
     option_legs = [l for l in legs if not is_stock_type(l['Type'])]
-    dtes = [parse_dte(l['DTE']) for l in option_legs]
+    dtes = []
+    for l in option_legs:
+        val = parse_dte(l.get('DTE'))
+        if val <= 0:
+            # Fallback to Exp Date
+            exp_str = l.get('Exp Date')
+            if exp_str:
+                try:
+                    exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
+                    val = (exp_date - datetime.now().date()).days
+                except ValueError:
+                    val = 0
+        dtes.append(val)
+    
     dte = min(dtes) if dtes else 0
 
     strategy_name = identify_strategy(legs)
