@@ -154,7 +154,45 @@ mkdir -p .gemini
 cp variance-system-prompt.md .gemini/GEMINI.md
 ```
 
-## 🚦 Usage
+## 📊 Dashboard Preview
+
+Variance provides a high-fidelity terminal interface (TUI) for real-time portfolio triage and opportunity scanning.
+
+```text
+╭──────────────── THE CAPITAL CONSOLE ─────────────────╮
+│ • Net Liq:  $50,000.00        • Open P/L: $1,110.00  │
+│ • BP Usage: 38.1% (Deploy)    • Status:   Harvesting │
+╰──────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────╮
+│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)                 │
+│ • Tilt:      Neutral (0 Δ)                   • Downside:  $-3,541.08 (Crash (-5%)) │
+│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally (+5%))  │
+│ • Stability: 0.00 (Stable)                   • Mix:       🌍 Diversified           │
+│                                              • Data Qual: 100% (Excellent)         │
+╰────────────────────────────────────────────────────────────────────────────────────╯
+                                                                                    
+📊 DELTA SPECTROGRAPH (Portfolio Drag)                                              
+                                                                                    
+      1     SPY            ┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃                                +12.50 Δ   
+      2     /ES            ┃┃┃┃┃┃┃┃┃┃                                      -8.40 Δ   
+      3     IWM            ┃┃┃┃┃┃                                          +5.20 Δ   
+                                                                                    
+📂 PORTFOLIO OVERVIEW
+├── 🚨 ACTION REQUIRED (3)
+│   ├── 💰 SPY (Iron Condor) $200.00 [HARVEST] 
+│   │   └── 27 DTE: Profit 66.7% (Target: 50%)
+│   ├── 🛡️ /ES (Short Strangle) $-800.00 [DEFENSE] 
+│   │   └── 12 DTE: Tested & < 21 DTE
+│   └── 🛡️ IWM (Short Put) $250.00 [GAMMA] 
+│       └── 12 DTE: < 21 DTE Risk
+```
+
+To see this live on your machine, run:
+```bash
+./variance --demo
+```
+
+## 🛠️ Installation & Usage
 
 ### 1. Portfolio Triage (Daily Routine)
 ```bash

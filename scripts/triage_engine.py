@@ -807,12 +807,9 @@ def get_position_aware_opportunities(
     for pos in positions:
         root = get_root_symbol(pos.get('Symbol', ''))
         if root:
-            # Try to get Cost (margin requirement), fallback to 0
+            # Parse broker-formatted currency (e.g., $1,234 or (500)) safely.
             cost_str = pos.get('Cost', '0')
-            try:
-                cost = abs(float(cost_str)) if cost_str else 0.0
-            except (ValueError, TypeError):
-                cost = 0.0
+            cost = abs(parse_currency(cost_str))
             root_exposure[root] += cost
 
     # 3. Apply Stacking Rule to identify concentrated positions
