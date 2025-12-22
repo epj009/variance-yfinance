@@ -865,6 +865,7 @@ def get_position_aware_opportunities(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
         min_vrp_structural=rules.get('vrp_structural_threshold', 0.85),
+        min_variance_score=rules.get('min_variance_score', 10.0),
         limit=None,
         allow_illiquid=False
     )

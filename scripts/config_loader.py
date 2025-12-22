@@ -38,6 +38,7 @@ DEFAULT_TRADING_RULES: Dict[str, Any] = {
     "min_atm_volume": 500,
     "min_atm_open_interest": 500,
     "liquidity_mode": "open_interest",
+    "min_variance_score": 25.0,
     "max_slippage_pct": 0.05,
     "bats_efficiency_min_price": 15,
     "bats_efficiency_max_price": 75,

@@ -409,11 +409,13 @@ class TUIRenderer:
         table.add_column("VRP (S)", style="sigma")
         table.add_column("VRP (T)", style="profit")
         table.add_column("Signal")
+        table.add_column("Score", style="bold yellow")
         table.add_column("Regime", style="dim cyan")
         table.add_column("Asset Class", style="dim")
 
         for opp in candidates:
             vrp_t = opp.get('VRP_Tactical_Markup', 0.0)
+            score = opp.get('Score', 0.0)
             signal = opp.get('Signal', 'FAIR')
             regime = opp.get('Regime', 'NORMAL')
             
@@ -435,6 +437,7 @@ class TUIRenderer:
                 f"{opp.get('VRP Structural', 0.0):.2f}",
                 f"{vrp_t:+.0%}",
                 signal,
+                f"{score:.1f}",
                 regime_display,
                 opp.get('Asset Class', 'Equity')
             )
