@@ -131,38 +131,58 @@ class PortfolioParser:
 
 def parse_currency(value: Optional[str]) -> float:
     """
-    Clean and convert currency strings (e.g., '$1,234.56') to floats.
+    Clean and convert currency strings (e.g., '$1,234.56' or '(100.00)') to floats.
+    Handles standard negatives and parentheses-based accounting negatives.
 
     Args:
-        value: Currency string that may contain $, commas, or % symbols.
+        value: Currency string that may contain $, commas, %, or parentheses.
 
     Returns:
         Float value, or 0.0 if parsing fails.
     """
     if not value:
         return 0.0
-    clean = value.replace(',', '').replace('$', '').replace('%', '').strip()
-    if clean == '--':
+    
+    # 1. Initial cleanup
+    clean = value.strip()
+    if clean == '--' or not clean:
         return 0.0
+
+    # 2. Handle Parentheses Negatives: (123.45) -> -123.45
+    is_negative = False
+    if clean.startswith('(') and clean.endswith(')'):
+        is_negative = True
+        clean = clean[1:-1].strip()
+
+    # 3. Strip formatting characters
+    clean = clean.replace(',', '').replace('$', '').replace('%', '').strip()
+    
     try:
-        return float(clean)
+        val = float(clean)
+        return -val if is_negative else val
     except ValueError:
         return 0.0
 
 
 def parse_dte(value: Optional[str]) -> int:
     """
-    Clean and convert DTE strings (e.g., '45d') to integers.
+    Clean and convert DTE strings (e.g., '45d', '45D', '45 DTE') to integers.
 
     Args:
-        value: DTE string that may contain 'd' suffix.
+        value: DTE string that may contain 'd', 'D', or 'DTE' suffixes.
 
     Returns:
         Integer value, or 0 if parsing fails.
     """
     if not value:
         return 0
-    clean = value.replace('d', '').strip()
+    
+    # 1. Clean up and lowercase for easier matching
+    clean = value.strip().lower()
+    
+    # 2. Remove common suffixes
+    clean = clean.replace('dte', '').replace('days', '').replace('d', '').strip()
+    
     try:
         return int(clean)
     except ValueError:
