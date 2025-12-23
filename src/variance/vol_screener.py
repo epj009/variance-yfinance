@@ -6,16 +6,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 
-from get_market_data import get_market_data
+from .get_market_data import MarketDataFactory
 
 # Import common utilities
-try:
-    from .common import map_sector_to_asset_class, warn_if_not_venv
-    from .config_loader import load_config_bundle
-except ImportError:
-    # Fallback for direct script execution
-    from common import map_sector_to_asset_class, warn_if_not_venv
-    from config_loader import load_config_bundle
+from .common import map_sector_to_asset_class, warn_if_not_venv
+from .config_loader import load_config_bundle
 
 
 @dataclass
@@ -305,7 +300,8 @@ def screen_volatility(
         symbols = symbols[:limit]
     
     # 2. Get Market Data (Threaded)
-    data = get_market_data(symbols)
+    provider = MarketDataFactory.get_provider()
+    data = provider.get_market_data(symbols)
     
     # 3. Process & Filter
     candidates_with_status = []
@@ -558,7 +554,7 @@ def screen_volatility(
 
     return {"candidates": candidates_with_status, "summary": summary}
 
-if __name__ == "__main__":
+def main():
     warn_if_not_venv()
 
     parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
@@ -619,3 +615,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print(json.dumps(report_data, indent=2))
+
+if __name__ == "__main__":
+    main()

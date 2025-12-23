@@ -6,26 +6,16 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
-from get_market_data import get_market_data
+from .get_market_data import MarketDataFactory
 
 # Import common utilities
-try:
-    from .common import map_sector_to_asset_class, warn_if_not_venv
-    from .config_loader import load_config_bundle
-    from .portfolio_parser import (
-        PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
-    )
-    from .strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
-    from .triage_engine import triage_portfolio, get_position_aware_opportunities
-except ImportError:
-    # Fallback for direct script execution
-    from common import map_sector_to_asset_class, warn_if_not_venv
-    from config_loader import load_config_bundle
-    from portfolio_parser import (
-        PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
-    )
-    from strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
-    from triage_engine import triage_portfolio, get_position_aware_opportunities
+from .common import map_sector_to_asset_class, warn_if_not_venv
+from .config_loader import load_config_bundle
+from .portfolio_parser import (
+    PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
+)
+from .strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
+from .triage_engine import triage_portfolio, get_position_aware_opportunities
 
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
@@ -69,7 +59,9 @@ def analyze_portfolio(
     if beta_sym not in unique_roots:
         unique_roots.append(beta_sym)
         
-    market_data = get_market_data(unique_roots)
+    # Use Factory to get provider
+    provider = MarketDataFactory.get_provider()
+    market_data = provider.get_market_data(unique_roots)
 
     # Step 3b: Beta Data Hard Gate
     if beta_sym not in market_data or market_data[beta_sym].get('price', 0) <= 0:
@@ -79,26 +71,13 @@ def analyze_portfolio(
         }
 
     now = datetime.now()
-    # Step 5a: First pass - Calculate portfolio-level metrics
-    preliminary_context = {
-        'market_data': market_data,
-        'rules': rules,
-        'market_config': market_config,
-        'strategies': strategies,
-        'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
-        'portfolio_beta_delta': 0.0,  # Placeholder for first pass
-        'net_liquidity': rules.get('net_liquidity', 50000.0) # Default
-    }
-    _, preliminary_metrics = triage_portfolio(clusters, preliminary_context)
-
-    # Step 5b: Second pass - Use portfolio context for hedge detection
+    # Execute single-pass triage (internally optimizes hedge detection)
     triage_context = {
         'market_data': market_data,
         'rules': rules,
         'market_config': market_config,
         'strategies': strategies,
         'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
-        'portfolio_beta_delta': preliminary_metrics['total_beta_delta'],
         'net_liquidity': rules.get('net_liquidity', 50000.0)
     }
     all_position_reports, metrics = triage_portfolio(clusters, triage_context)
@@ -400,7 +379,7 @@ def analyze_portfolio(
     # Step 7: Return Complete Report
     return report
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='Analyze current portfolio positions and generate a triage report.')
     parser.add_argument('file_path', type=str, help='Path to the portfolio CSV file.')
     
@@ -414,3 +393,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print(json.dumps(report_data, indent=2))
+
+if __name__ == "__main__":
+    main()
