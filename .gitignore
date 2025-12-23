@@ -32,3 +32,4 @@ positions/
 .tmp/
 reports/
 logs/
+.coverage
