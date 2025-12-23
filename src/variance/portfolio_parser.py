@@ -206,6 +206,10 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
     # Normalize multi-space and single-space separated symbols
     token = raw_symbol.strip().split()[0] if raw_symbol else ""
 
+    # Handle underscore separators: MSFT_2025-01-17_400_P -> MSFT
+    if "_" in token:
+        token = token.split("_")[0]
+
     # Handle Futures: ./CLG6 LOG6 ... -> /CL
     if token.startswith("./"):
         token = token.replace("./", "/")

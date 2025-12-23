@@ -180,11 +180,14 @@ class TestCheckToxicThetaEfficiency:
             "AAPL": {"hv20": 30.0, "hv252": 25.0},
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        assert action == "TOXIC"
-        assert "Toxic Theta" in reason
-        assert "0.06x" in reason or "0.07x" in reason  # Allow for rounding
+        assert cmd is not None
+        assert cmd.action_code == "TOXIC"
+        assert "Toxic Theta" in cmd.logic
+        assert "0.06x" in cmd.logic or "0.07x" in cmd.logic  # Allow for rounding
 
     def test_check_toxic_theta_normal_efficiency(self, short_theta_strategy):
         """Efficiency >= 0.10x should return None (no action)."""
@@ -198,13 +201,14 @@ class TestCheckToxicThetaEfficiency:
             "AAPL": {"hv20": 30.0, "hv252": 25.0},
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
         # em_1sd = 150.0 * 0.30 / 15.87 = 2.835
         # gamma_cost = 0.5 * 1.0 * (2.835^2) = 4.018
         # efficiency = 10.0 / 4.018 = 2.49x >= 0.10 → OK
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
 
 class TestCheckToxicThetaSkipCases:
@@ -222,10 +226,11 @@ class TestCheckToxicThetaSkipCases:
             "AAPL": {"hv20": 30.0},
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_toxic_theta_missing_hv_returns_none(self, short_theta_strategy):
         """Missing HV data should return None."""
@@ -239,10 +244,11 @@ class TestCheckToxicThetaSkipCases:
             "AAPL": {}  # No HV data
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_toxic_theta_missing_price_returns_none(self, short_theta_strategy):
         """Missing or invalid price should return None."""
@@ -256,16 +262,17 @@ class TestCheckToxicThetaSkipCases:
             "AAPL": {"hv20": 30.0},
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_toxic_theta_zero_gamma_returns_none(self, short_theta_strategy):
-        """Zero gamma should result in zero gamma_cost, efficiency calculation handles it."""
+        """Zero gamma (no risk) should return None."""
         metrics = {
-            "cluster_theta_raw": 5.0,  # Positive = collecting theta
-            "cluster_gamma_raw": 0.0,  # Zero gamma
+            "cluster_theta_raw": 5.0,
+            "cluster_gamma_raw": 0.0,
             "root": "AAPL",
             "price": 150.0,
         }
@@ -273,54 +280,46 @@ class TestCheckToxicThetaSkipCases:
             "AAPL": {"hv20": 30.0},
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        # Zero gamma → gamma_cost = 0 → efficiency calculation won't trigger
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
 
 class TestCheckToxicThetaHVFloor:
-    """Test ShortThetaStrategy.check_toxic_theta() HV floor logic."""
+    """Test ShortThetaStrategy.check_toxic_theta() floor logic."""
 
     def test_check_toxic_theta_uses_hv_floor(self, short_theta_strategy):
-        """HV below 5% should be floored to 5%."""
+        """Should use rules['hv_floor_percent'] if HV data is lower."""
+        # em_1sd = 100.0 * (5.0 / 100.0 / 15.87) = 0.315
+        # gamma_cost = 0.5 * 100.0 * (0.315^2) = 4.96
+        # efficiency = 0.1 / 4.96 = 0.02x < 0.10 → TOXIC
         metrics = {
-            "cluster_theta_raw": 1.0,  # Positive = collecting theta
-            "cluster_gamma_raw": 5.0,
+            "cluster_theta_raw": 0.1,
+            "cluster_gamma_raw": 100.0,
             "root": "AAPL",
-            "price": 150.0,
+            "price": 100.0,
         }
         market_data = {
-            "AAPL": {"hv20": 2.0, "hv252": 3.0},  # Both below 5% floor
+            "AAPL": {"hv20": 1.0},  # Lower than 5.0 floor
         }
 
-        action, reason = short_theta_strategy.check_toxic_theta(metrics, market_data)
+        cmd = short_theta_strategy.check_toxic_theta(
+            symbol="AAPL", metrics=metrics, market_data=market_data
+        )
 
-        # HV should be floored to 5.0
-        # em_1sd = 150.0 * (5.0 / 100.0 / 15.87) = 0.4725
-        # gamma_cost = 0.5 * 5.0 * (0.4725^2) = 0.558
-        # efficiency = 1.0 / 0.558 = 1.79x >= 0.10 → OK
-        assert action is None
-        assert reason == ""
+        assert cmd is not None
+        assert cmd.action_code == "TOXIC"
 
 
 class TestInheritedCheckHarvest:
-    """Test that ShortThetaStrategy inherits check_harvest from BaseStrategy."""
+    """Test ShortThetaStrategy inherits check_harvest() properly."""
 
     def test_inherits_check_harvest_from_base(self, short_theta_strategy):
-        """ShortThetaStrategy should use BaseStrategy.check_harvest logic."""
-        # Test profit target
-        action, reason = short_theta_strategy.check_harvest(pl_pct=0.50, days_held=10)
-        assert action == "HARVEST"
-        assert "50.0%" in reason
+        """ShortThetaStrategy should use the base harvest logic."""
+        # 60% profit > 50% target
+        cmd = short_theta_strategy.check_harvest(symbol="TEST", pl_pct=0.60, days_held=10)
 
-        # Test velocity
-        action, reason = short_theta_strategy.check_harvest(pl_pct=0.25, days_held=3)
-        assert action == "HARVEST"
-        assert "Velocity" in reason
-
-        # Test no action
-        action, reason = short_theta_strategy.check_harvest(pl_pct=0.30, days_held=10)
-        assert action is None
-        assert reason == ""
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"

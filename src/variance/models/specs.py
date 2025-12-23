@@ -6,7 +6,7 @@ Used to decouple screening logic from the core execution loop.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 

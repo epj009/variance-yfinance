@@ -103,7 +103,7 @@ class MarketCache:
         row = cursor.fetchone()
         if row:
             try:
-                return cast(Any, json.loads(str(row[0])))
+                return cast(Any, json.loads(str(row[0])))  # type: ignore[no-any-return]
             except json.JSONDecodeError:
                 return None
         return None
@@ -507,7 +507,7 @@ class MarketDataService:
 
     @property
     def cache(self) -> MarketCache:
-        return self._cache
+        return cast(MarketCache, self._cache)
 
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         return self.provider.get_market_data(symbols)

@@ -62,15 +62,15 @@ class BaseStrategy(ABC):
         """Generic profit harvesting logic using Command Pattern."""
         if pl_pct >= self.profit_target_pct:
             return ActionFactory.create(
-                "HARVEST", 
-                symbol, 
+                "HARVEST",
+                symbol,
                 f"Profit {pl_pct:.1%} (Target: {self.profit_target_pct:.0%})"
             )
 
         if 0 < days_held < 5 and pl_pct >= 0.25:
             return ActionFactory.create(
-                "HARVEST", 
-                symbol, 
+                "HARVEST",
+                symbol,
                 f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
             )
 
@@ -82,6 +82,6 @@ class BaseStrategy(ABC):
         """Re-implementation of the institutional 'Toxic Theta' check."""
         # Generic implementation suitable for most short-theta strategies
         if self.type != "undefined":
-            return None, ""  # Only check undefined/high-risk strategies for now
+            return None  # Only check undefined/high-risk strategies for now
 
-        return None, ""
+        return None

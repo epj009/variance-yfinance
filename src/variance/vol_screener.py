@@ -9,7 +9,7 @@ from typing import Any, Optional, Union, cast
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
-from .get_market_data import MarketData, MarketDataFactory
+from .get_market_data import MarketDataFactory
 from .models.market_specs import (
     DataIntegritySpec,
     LiquiditySpec,
@@ -405,15 +405,16 @@ def screen_volatility(
 
     # --- COMPOSE SPECIFICATIONS ---
     # Compose the "Golden Gate" for candidates
-    main_spec = DataIntegritySpec()
-    
+    from .models.specs import Specification
+    main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
+
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
-    
+
     if exclude_sectors:
         main_spec &= SectorExclusionSpec(exclude_sectors)
-    
+
     if not allow_illiquid:
         main_spec &= LiquiditySpec(
             max_slippage=float(rules.get("max_slippage_pct", 0.05)),
@@ -431,15 +432,24 @@ def screen_volatility(
         # Inject symbol for specs
         metrics_dict = cast(dict[str, Any], metrics)
         metrics_dict["symbol"] = sym
-        
+
         # --- THE SPECIFICATION GATE ---
         if not main_spec.is_satisfied_by(metrics_dict):
-            # For summary counters, we still perform minor manual checks if failed
-            # This is a trade-off for reporting accuracy vs logic purity
+            # Check for specific skip reasons to maintain accurate summary counters
+            sector = str(metrics.get("sector", "Unknown"))
+            if exclude_sectors and sector in exclude_sectors:
+                sector_skipped += 1
+
+            # Use original _is_illiquid helper for counter accuracy
+            is_illiquid, _ = _is_illiquid(sym, metrics_dict, rules)
+            if is_illiquid and not allow_illiquid:
+                illiquid_skipped += 1
+
             if metrics.get("vrp_structural") is None:
                 missing_bias += 1
-            elif float(metrics.get("vrp_structural", 0)) <= structural_threshold:
+            elif float(cast(float, metrics.get("vrp_structural", 0))) <= structural_threshold:
                 low_bias_skipped += 1
+
             continue
 
         iv30 = metrics.get("iv")
@@ -514,13 +524,13 @@ def screen_volatility(
 
         # Refactored flag creation
         flags = _create_candidate_flags(
-            vrp_structural,
-            days_to_earnings,
-            compression_ratio,
-            vrp_t_markup,
-            float(hv20) if hv20 is not None else None,
-            float(hv60) if hv60 is not None else None,
-            rules,
+            vrp_structural, 
+            days_to_earnings, 
+            compression_ratio, 
+            vrp_t_markup, 
+            float(cast(float, hv20)) if hv20 is not None else None, 
+            float(cast(float, hv60)) if hv60 is not None else None, 
+            rules
         )
 
         # Determine Signal Type

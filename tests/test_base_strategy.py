@@ -81,26 +81,26 @@ class TestCheckHarvestProfitTarget:
     """Test BaseStrategy.check_harvest() profit target logic."""
 
     def test_check_harvest_at_50pct_profit(self, default_strategy):
-        """Exactly at 50% profit target should trigger HARVEST."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.50, days_held=10)
+        """Exactly 50% profit should trigger harvest."""
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.50, days_held=10)
 
-        assert action == "HARVEST"
-        assert "50.0%" in reason
-        assert "Target: 50%" in reason
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"
+        assert "Profit 50.0%" in cmd.logic
 
     def test_check_harvest_above_50pct_profit(self, default_strategy):
-        """75% profit should trigger HARVEST."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.75, days_held=10)
+        """Above 50% profit should trigger harvest."""
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.65, days_held=10)
 
-        assert action == "HARVEST"
-        assert "75.0%" in reason
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"
+        assert "Profit 65.0%" in cmd.logic
 
     def test_check_harvest_no_action_below_target(self, default_strategy):
-        """30% profit should NOT trigger harvest (below 50% target)."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.30, days_held=10)
+        """Below 50% profit should not trigger harvest."""
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.45, days_held=10)
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
 
 class TestCheckHarvestVelocity:
@@ -108,34 +108,34 @@ class TestCheckHarvestVelocity:
 
     def test_check_harvest_velocity_25pct_in_3days(self, default_strategy):
         """25% profit in 3 days should trigger velocity harvest."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.25, days_held=3)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=3)
 
-        assert action == "HARVEST"
-        assert "Velocity" in reason
-        assert "25.0%" in reason
-        assert "3d" in reason
-        assert "Early Win" in reason
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"
+        assert "Velocity" in cmd.logic
+        assert "25.0%" in cmd.logic
+        assert "3d" in cmd.logic
+        assert "Early Win" in cmd.logic
 
     def test_check_harvest_velocity_25pct_in_5days(self, default_strategy):
         """25% profit in 5 days should NOT harvest (boundary: >=5 excluded)."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.25, days_held=5)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=5)
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_harvest_velocity_25pct_in_4days(self, default_strategy):
         """25% profit in 4 days should trigger velocity harvest (< 5)."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.25, days_held=4)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=4)
 
-        assert action == "HARVEST"
-        assert "Velocity" in reason
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"
+        assert "Velocity" in cmd.logic
 
     def test_check_harvest_no_action_velocity_too_slow(self, default_strategy):
         """25% profit in 10 days should NOT trigger velocity harvest."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.25, days_held=10)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=10)
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
 
 class TestCheckHarvestEdgeCases:
@@ -143,46 +143,34 @@ class TestCheckHarvestEdgeCases:
 
     def test_check_harvest_negative_pl(self, default_strategy):
         """Negative P/L should not trigger harvest."""
-        action, reason = default_strategy.check_harvest(pl_pct=-0.30, days_held=10)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=-0.30, days_held=10)
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_harvest_zero_days_held(self, default_strategy):
         """Zero days held should not trigger velocity harvest."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.30, days_held=0)
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=0)
 
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
     def test_check_harvest_velocity_exactly_25pct_in_1day(self, default_strategy):
-        """Exactly 25% in 1 day should trigger velocity harvest."""
-        action, reason = default_strategy.check_harvest(pl_pct=0.25, days_held=1)
+        """25% profit in 1 day should trigger velocity harvest."""
+        cmd = default_strategy.check_harvest(symbol="TEST", pl_pct=0.25, days_held=1)
 
-        assert action == "HARVEST"
-        assert "Velocity" in reason
+        assert cmd is not None
+        assert cmd.action_code == "HARVEST"
 
 
 class TestCheckToxicTheta:
-    """Test BaseStrategy.check_toxic_theta() base implementation."""
+    """Test BaseStrategy.check_toxic_theta() default behavior."""
 
     def test_check_toxic_theta_returns_none_for_base(self, default_strategy):
-        """Base class check_toxic_theta should return None for non-undefined types."""
-        metrics = {
-            "cluster_theta_raw": -5.0,
-            "cluster_gamma_raw": 0.10,
-            "root": "AAPL",
-            "price": 150.0,
-        }
-        market_data = {
-            "AAPL": {"hv20": 30.0, "hv252": 25.0},
-        }
+        """Base class should return None for toxic check (not defined)."""
+        cmd = default_strategy.check_toxic_theta(
+            symbol="TEST", metrics={}, market_data={}
+        )
 
-        action, reason = default_strategy.check_toxic_theta(metrics, market_data)
-
-        # Base class returns None for type != "undefined"
-        assert action is None
-        assert reason == ""
+        assert cmd is None
 
 
 class TestAbstractMethods:

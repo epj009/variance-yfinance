@@ -8,7 +8,6 @@ from typing import Any
 
 from .base import BaseStrategy
 from .default import DefaultStrategy
-from .short_theta import ShortThetaStrategy
 
 
 class StrategyFactory:
@@ -35,7 +34,7 @@ class StrategyFactory:
 
         # 1. Look up class in registry by type
         strat_class = BaseStrategy.get_registered_class(strat_type)
-        
+
         # 2. Fallback to ID-based lookup if type registry fails (legacy support)
         if not strat_class:
             strat_class = BaseStrategy.get_registered_class(strategy_id)

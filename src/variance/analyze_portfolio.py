@@ -4,7 +4,7 @@ import math
 import sys
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv

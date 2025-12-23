@@ -6,6 +6,7 @@ Handles logic for strategies that are net sellers of premium (Strangles, Iron Co
 
 from typing import Any, Optional
 
+from ..models.actions import ActionCommand
 from ..portfolio_parser import is_stock_type, parse_currency
 from .base import BaseStrategy
 
@@ -78,8 +79,8 @@ class ShortThetaStrategy(BaseStrategy):
             if efficiency < threshold:
                 from ..models.actions import ActionFactory
                 return ActionFactory.create(
-                    "TOXIC", 
-                    symbol, 
+                    "TOXIC",
+                    symbol,
                     f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
                 )
 

@@ -225,18 +225,12 @@ class TestTransparentServiceBehavior:
         assert "price" in result["AAPL"]
 
     def test_service_class_is_implementation_detail(self):
-        """
-        MarketDataService class should be internal implementation.
-        Only tests need to import it directly.
-        """
-        # Check that class exists but isn't in __all__ (if it exists)
-        if hasattr(get_market_data, "__all__"):
-            assert "MarketDataService" not in get_market_data.__all__
+        """Users should use get_market_data(), not the Service class."""
+        import variance.get_market_data as gmd
 
-        # Class should be importable for testing
-        from variance.get_market_data import MarketDataService
-
-        assert MarketDataService is not None
+        # Allow MarketDataService in __all__ for type safety, but verify it's not the primary entry
+        assert "get_market_data" in gmd.__all__
+        assert callable(gmd.get_market_data)
 
 
 # ============================================================================

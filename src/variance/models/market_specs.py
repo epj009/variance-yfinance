@@ -3,12 +3,13 @@ Concrete Market Specifications
 
 Implementations of the Specification pattern for volatility filtering.
 """
+from typing import Any
 
-from typing import Any, List, Optional
 from .specs import Specification
 
 
 class LiquiditySpec(Specification[dict[str, Any]]):
+
     """Filters based on bid/ask spread and volume."""
     def __init__(self, max_slippage: float, min_vol: int, allow_illiquid: bool = False):
         self.max_slippage = max_slippage
@@ -18,7 +19,7 @@ class LiquiditySpec(Specification[dict[str, Any]]):
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         if self.allow_illiquid:
             return True
-        
+
         symbol = str(metrics.get("symbol", ""))
         if symbol.startswith("/"):
             return True # Futures exemption
@@ -71,7 +72,7 @@ class LowVolTrapSpec(Specification[dict[str, Any]]):
 
 class SectorExclusionSpec(Specification[dict[str, Any]]):
     """Excludes specific sectors."""
-    def __init__(self, excluded_sectors: List[str]):
+    def __init__(self, excluded_sectors: list[str]):
         self.excluded = [s.lower() for s in excluded_sectors]
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:

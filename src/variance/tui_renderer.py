@@ -34,7 +34,7 @@ class TUIRenderer:
         self.console = Console(theme=VARIANCE_THEME)
         self.portfolio_summary = self.data.get("portfolio_summary", {})
 
-    def render(self):
+    def render(self) -> None:
         """Orchestrates full TUI generation using Rich"""
         # 1. Header Panels
         self.render_header()
@@ -51,7 +51,7 @@ class TUIRenderer:
         # 5. Vol Screener Opportunities
         self.render_opportunities()
 
-    def render_header(self):
+    def render_header(self) -> None:
         """Renders the dashboard header panels using Rich Panels and Layout Tables"""
         net_liq = self.portfolio_summary.get("net_liquidity", 0.0)
         total_net_pl = self.portfolio_summary.get("total_net_pl", 0.0)
@@ -134,8 +134,8 @@ class TUIRenderer:
 
         # Engine (Right)
         stress_scenarios = self.data.get("stress_box", {}).get("scenarios", [])
-        
-        # Directional Mapping: 
+
+        # Directional Mapping:
         # Downside = Worst result of Bearish moves (beta_move < 0)
         # Upside   = Best result of Bullish moves (beta_move > 0)
         bearish_scenarios = [s for s in stress_scenarios if s.get("beta_move", 0) < 0]
@@ -155,7 +155,6 @@ class TUIRenderer:
             upside_pl = best_bull.get("est_pl", 0.0)
             upside_label = best_bull.get("label", "Bullish")
 
-        tail_risk_pct = self.portfolio_summary.get("tail_risk_pct", 0.0)
         # Style based on outcome: Red if losing, Green if making money
         downside_style = "loss" if downside_pl < 0 else "profit"
         upside_style = "profit" if upside_pl > 0 else "loss"
@@ -183,7 +182,7 @@ class TUIRenderer:
         self.console.print(cap_panel)
         self.console.print(gyro_panel)
 
-    def render_triage(self):
+    def render_triage(self) -> None:
         triage_actions = self.data.get("triage_actions", [])
         portfolio_overview = self.data.get("portfolio_overview", [])
 
@@ -212,7 +211,7 @@ class TUIRenderer:
 
         self.console.print(root)
 
-    def _add_position_node(self, parent_branch, item: dict[str, Any], is_action: bool):
+    def _add_position_node(self, parent_branch: Tree, item: dict[str, Any], is_action: bool) -> None:
         """Helper to format and add a position node to the tree."""
         sym = item.get("symbol", "???")
         strat = item.get("strategy", "Unknown")
@@ -267,7 +266,7 @@ class TUIRenderer:
 
         node.add(detail_text)
 
-    def render_spectrograph(self):
+    def render_spectrograph(self) -> None:
         deltas = self.data.get("delta_spectrograph", [])
         if not deltas:
             return
@@ -300,7 +299,7 @@ class TUIRenderer:
 
         self.console.print(table)
 
-    def render_composition(self):
+    def render_composition(self) -> None:
         """Renders Asset Class and Sector breakdown side-by-side"""
         asset_mix = self.data.get("asset_mix", [])
         sector_balance = self.data.get("sector_balance", [])
@@ -314,7 +313,7 @@ class TUIRenderer:
         grid.add_column()
 
         # Helper to build inner tables
-        def build_sub_table(title, items, label_key):
+        def build_sub_table(title: str, items: list[dict[str, Any]], label_key: str) -> Table:
             t = Table(
                 title=title,
                 title_style="bold white",
@@ -359,7 +358,7 @@ class TUIRenderer:
 
         self.console.print(panel)
 
-    def render_opportunities(self):
+    def render_opportunities(self) -> None:
         """Renders top vol screener opportunities using Rich Table"""
         opportunities = self.data.get("opportunities", {})
         candidates = opportunities.get("candidates", [])
@@ -480,7 +479,7 @@ def fmt_percent(val: Optional[float]) -> str:
     return f"{val:.1%}"
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Variance Rich TUI Renderer")
     parser.add_argument("input_file", nargs="?", help="Input JSON file path")
     args = parser.parse_args()

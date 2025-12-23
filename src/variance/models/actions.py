@@ -73,8 +73,8 @@ class HedgeCheckCommand(ActionCommand):
 
 class ActionFactory:
     """Factory to create ActionCommands from codes and logic."""
-    
-    _MAP = {
+
+    _MAP: dict[str, type[ActionCommand]] = {
         "HARVEST": HarvestCommand,
         "DEFENSE": DefenseCommand,
         "GAMMA": GammaCommand,
@@ -87,7 +87,7 @@ class ActionFactory:
     def create(code: Optional[str], symbol: str, logic: str) -> Optional[ActionCommand]:
         if not code:
             return None
-        
+
         cmd_class = ActionFactory._MAP.get(code.upper())
         if cmd_class:
             return cmd_class(symbol=symbol, logic=logic)

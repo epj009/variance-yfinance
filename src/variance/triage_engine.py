@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Any, Optional, TypedDict
 
 # Import common utilities
-from .models import Portfolio, Position, StrategyCluster
 from .models.actions import ActionCommand, ActionFactory
 from .portfolio_parser import (
     get_root_symbol,
@@ -371,12 +370,12 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     legs = metrics["legs"]
     price = metrics["price"]
 
-    # --- Phase 2: Strategy Pattern Delegation ---
     strategies_config = context.get("strategies", {})
     strategy_obj = StrategyFactory.get_strategy(strategy_id, strategies_config, rules)
 
     cmd: Optional[ActionCommand] = None
     is_winner = False
+    logic = ""
 
     # Retrieve live data
     m_data = market_data.get(root, {})
@@ -505,7 +504,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
                         cmd = ActionFactory.create("HARVEST", root, f"{cmd.logic} | Close before Earnings!")
                 elif strategy_obj.earnings_stance == "long_vol":
                     earnings_note = f"{earnings_note} (Play)"
-                
+
                 if cmd and "Earnings" not in cmd.logic:
                     cmd = ActionFactory.create(cmd.action_code, root, f"{cmd.logic} | {earnings_note}")
         except (ValueError, TypeError):
@@ -523,7 +522,9 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
 
     # Finalize action_code and logic for the report
     action_code = cmd.action_code if cmd else None
-    logic = cmd.logic if cmd else ""
+
+    # If we have a command, use its logic. Otherwise, use accumulated metadata warnings.
+    final_logic = cmd.logic if cmd else logic
 
     return {
         "root": root,
@@ -536,7 +537,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         "pl_pct": pl_pct,
         "dte": dte,
         "action_code": action_code,
-        "logic": logic,
+        "logic": final_logic,
         "sector": sector,
         "delta": strategy_delta,
         "gamma": strategy_gamma,
@@ -721,17 +722,15 @@ def get_position_aware_opportunities(
     processed_groups = set()
 
     if not rules.get("allow_proxy_stacking", False):
-        try:
-            from .common import get_equivalent_exposures
-        except ImportError:
-            from common import get_equivalent_exposures
+        from .common import get_equivalent_exposures as _get_equiv
+        get_equiv = _get_equiv
     else:
-
-        def get_equivalent_exposures(x):
-            return {x}
+        def _local_fallback(symbol: str) -> set[str]:
+            return {symbol}
+        get_equiv = _local_fallback
 
     for root in held_roots:
-        group_members = get_equivalent_exposures(root)
+        group_members = get_equiv(root)
         held_group_members = group_members & held_roots
         group_id = tuple(sorted(held_group_members))
 
