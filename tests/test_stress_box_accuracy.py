@@ -6,18 +6,13 @@ This addresses the audit finding regarding incorrect aggregation of Greeks for
 non-SPY-centric portfolios.
 """
 
-import pytest
 import math
-from unittest.mock import MagicMock
+
+import pytest
 
 # It's common to put imports at the top, but for this ad-hoc test file,
 # we need to add the script path first.
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scripts')))
-
-import analyze_portfolio
-from triage_engine import triage_cluster
+from variance.triage_engine import triage_cluster
 
 # --- Test Data Fixtures ---
 
@@ -71,7 +66,7 @@ def mock_market_data():
 def mock_portfolio_reports():
     """
     Provides a mock `all_position_reports` list.
-    Updated to reflect actual triage_engine output structure where 'gamma' is 
+    Updated to reflect actual triage_engine output structure where 'gamma' is
     already beta-weighted and 'raw_gamma'/'beta' are not typically passed.
     """
     return [
@@ -116,7 +111,7 @@ class TestStressBoxAccuracy:
             pos_beta_delta = pos_report.get('delta', 0.0)
             # FIX: Use 'gamma' (beta-weighted) directly, not raw_gamma reconstruction
             pos_beta_gamma = pos_report.get('gamma', 0.0)
-            
+
             pos_raw_vega = pos_report.get('raw_vega', 0.0)
             pos_beta = pos_report.get('beta', 1.0)
 
@@ -127,19 +122,19 @@ class TestStressBoxAccuracy:
             total_est_pl += (delta_pl + gamma_pl + vega_pl)
 
         # --- 2. Manual Calculation for Verification ---
-        
+
         # SPY Position
         spy_report = mock_portfolio_reports[0]
         spy_beta_delta = spy_report['delta']
         spy_beta_gamma = spy_report['gamma']
         spy_raw_vega = spy_report['raw_vega']
         spy_beta = spy_report['beta']
-        
+
         spy_delta_pl = spy_beta_delta * move_points
         spy_gamma_pl = 0.5 * spy_beta_gamma * (move_points ** 2)
         spy_vega_pl = (spy_raw_vega * spy_beta) * vol_move
         expected_spy_pl = spy_delta_pl + spy_gamma_pl + spy_vega_pl
-        
+
         # AAPL Position
         aapl_report = mock_portfolio_reports[1]
         aapl_beta_delta = aapl_report['delta']
@@ -156,11 +151,11 @@ class TestStressBoxAccuracy:
 
         # --- 3. Assertion ---
         assert total_est_pl == pytest.approx(expected_total_pl)
-        
+
         # Also check that the manual calculation is non-trivial
         assert abs(expected_spy_pl) > 0
         assert abs(expected_aapl_pl) > 0
-        
+
         # Check that P/L from non-SPY underlying is different
         assert expected_spy_pl != expected_aapl_pl
 
@@ -206,10 +201,10 @@ class TestSizeThreatAccuracy:
         mock_triage_cluster_context['market_data']['MSFT'] = {
             'price': 450.0, 'iv': 22.0, 'beta': 1.3
         }
-        
+
         # Lower net liquidity so that the mock position (~$360 risk) triggers the 5% threshold ($250)
         mock_triage_cluster_context['net_liquidity'] = 5000.0
-        
+
         # --- 2. Execute: Run triage_cluster ---
         result = triage_cluster(msft_cluster_legs, mock_triage_cluster_context)
 
@@ -217,11 +212,11 @@ class TestSizeThreatAccuracy:
         rules = mock_triage_cluster_context['rules']
         market_data = mock_triage_cluster_context['market_data']
         net_liq = mock_triage_cluster_context['net_liquidity']
-        
+
         beta_sym = rules['beta_weighted_symbol']
         beta_price = market_data[beta_sym]['price']
         beta_iv = market_data[beta_sym]['iv']
-        
+
         em_1sd_spy = beta_price * (beta_iv / 100.0 / 15.87) # approx sqrt(252)
         move_2sd_spy = em_1sd_spy * -2.0 # -2SD SPY move in points
 
@@ -232,7 +227,7 @@ class TestSizeThreatAccuracy:
         # This is the key formula from inside triage_cluster
         expected_loss = (strategy_delta_bw * move_2sd_spy) + (0.5 * strategy_gamma_bw * (move_2sd_spy ** 2))
         expected_loss_pct_of_nl = abs(expected_loss) / net_liq
-        
+
         # --- 4. Assertion ---
         assert 'logic' in result
         assert 'Tail Risk' in result['logic']

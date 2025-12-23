@@ -1,8 +1,9 @@
 import json
 import sys
-from typing import Dict, Any, Optional
+from typing import Any
 
-def validate_strategy(strategy: Dict[str, Any]) -> bool:
+
+def validate_strategy(strategy: dict[str, Any]) -> bool:
     """
     Validate a strategy object has required fields and correct types.
     Returns True if valid, False otherwise.
@@ -34,19 +35,16 @@ def validate_strategy(strategy: Dict[str, Any]) -> bool:
 
     gamma_dte = meta['gamma_trigger_dte']
     # Ensure gamma trigger is a positive integer
-    if not isinstance(gamma_dte, int) or gamma_dte <= 0:
-        return False
+    return not (not isinstance(gamma_dte, int) or gamma_dte <= 0)
 
-    return True
-
-def load_strategies(filepath: str = 'config/strategies.json', *, strict: bool = False) -> Dict[str, Dict[str, Any]]:
+def load_strategies(filepath: str = 'config/strategies.json', *, strict: bool = False) -> dict[str, dict[str, Any]]:
     """
     Load strategy configurations from config/strategies.json.
     Returns a dict keyed by strategy_id for fast lookup.
     """
     strategies = {}
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         for strat in data:

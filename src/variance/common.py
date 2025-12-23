@@ -7,18 +7,15 @@ This module provides shared functionality to avoid code duplication:
 - Environment warnings
 """
 import sys
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 # Load Market Config (for Asset Class Map)
-try:
-    from .config_loader import load_market_config
-except ImportError:
-    from config_loader import load_market_config
+from .config_loader import load_market_config
 
-MARKET_CONFIG: Dict[str, Any] = load_market_config()
+MARKET_CONFIG: dict[str, Any] = load_market_config()
 
 # Build reverse lookup: sector -> asset class
-SECTOR_TO_ASSET_CLASS: Dict[str, str] = {}
+SECTOR_TO_ASSET_CLASS: dict[str, str] = {}
 if 'ASSET_CLASS_MAP' in MARKET_CONFIG:
     for asset_class, sectors in MARKET_CONFIG['ASSET_CLASS_MAP'].items():
         for sector in sectors:
@@ -28,7 +25,7 @@ if 'ASSET_CLASS_MAP' in MARKET_CONFIG:
 def warn_if_not_venv() -> None:
     """
     Warn the user if not running in a virtual environment.
-    
+
     Checks if the current Python interpreter is running in a virtual environment
     and prints a warning message if not.
     """
@@ -49,7 +46,7 @@ def map_sector_to_asset_class(sector: str) -> str:
     return SECTOR_TO_ASSET_CLASS.get(sector, "Equity")  # Default to Equity if unknown
 
 
-def get_equivalent_exposures(symbol: str) -> Set[str]:
+def get_equivalent_exposures(symbol: str) -> set[str]:
     """
     Returns a set of symbols representing the same underlying exposure.
 

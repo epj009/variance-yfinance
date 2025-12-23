@@ -15,21 +15,16 @@ Test Strategy:
 4. Confirm no breaking changes to existing API
 """
 
-import pytest
-import sys
-import os
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from unittest.mock import Mock, patch
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
-
-import get_market_data
-from get_market_data import get_market_data as get_market_data_fn, _reset_default_service
-
+from variance import get_market_data
+from variance.get_market_data import _reset_default_service
+from variance.get_market_data import get_market_data as get_market_data_fn
 
 # ============================================================================
 # FIXTURES
@@ -101,7 +96,7 @@ def reset_singleton():
 class TestBackwardCompatibility:
     """Verify that existing code continues to work unchanged."""
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_module_function_works_without_service_parameter(self, mock_ticker_class, mock_yf_ticker):
         """Legacy code calling get_market_data(['AAPL']) still works."""
         mock_ticker_class.return_value = mock_yf_ticker
@@ -112,7 +107,7 @@ class TestBackwardCompatibility:
         assert isinstance(result, dict)
         assert 'AAPL' in result
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_existing_tests_using_temp_cache_db_still_work(self, mock_ticker_class, mock_yf_ticker, temp_cache_db, monkeypatch):
         """Tests using conftest.py temp_cache_db fixture continue to work."""
         mock_ticker_class.return_value = mock_yf_ticker
@@ -136,7 +131,7 @@ class TestBackwardCompatibility:
 class TestAnalyzePortfolioIntegration:
     """Test integration with the main portfolio analysis workflow."""
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_analyze_portfolio_can_call_get_market_data_transparently(self, mock_ticker_class, mock_yf_ticker):
         """
         Verify that analyze_portfolio.py can call get_market_data()
@@ -156,7 +151,7 @@ class TestAnalyzePortfolioIntegration:
         for symbol in symbols:
             assert symbol in result
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_caching_works_across_multiple_calls(self, mock_ticker_class, mock_yf_ticker):
         """
         Verify that calling get_market_data() multiple times uses cache.
@@ -199,7 +194,7 @@ class TestAnalyzePortfolioIntegration:
 class TestTransparentServiceBehavior:
     """Verify that MarketDataService is invisible to end users."""
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_users_never_need_to_instantiate_service(self, mock_ticker_class, mock_yf_ticker):
         """
         End users should never need to write:
@@ -227,7 +222,7 @@ class TestTransparentServiceBehavior:
             assert 'MarketDataService' not in get_market_data.__all__
 
         # Class should be importable for testing
-        from get_market_data import MarketDataService
+        from variance.get_market_data import MarketDataService
         assert MarketDataService is not None
 
 
@@ -247,7 +242,7 @@ class TestErrorHandlingCompatibility:
         assert '/XX' in result
         assert 'error' in result['/XX']
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_api_failure_returns_error_dict(self, mock_ticker_class):
         """API failures return error dicts, not exceptions (resilience)."""
         # Make yf.Ticker raise exception
@@ -267,7 +262,7 @@ class TestErrorHandlingCompatibility:
 class TestPerformanceCharacteristics:
     """Verify that performance characteristics haven't regressed."""
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_deduplication_reduces_api_calls(self, mock_ticker_class, mock_yf_ticker, temp_cache_db):
         """Duplicate symbols in input list only fetch once."""
         mock_ticker_class.return_value = mock_yf_ticker
@@ -285,7 +280,7 @@ class TestPerformanceCharacteristics:
         assert len(result) == 1
         assert 'AAPL' in result
 
-    @patch('get_market_data.yf.Ticker')
+    @patch('variance.get_market_data.yf.Ticker')
     def test_concurrent_fetching_for_multiple_symbols(self, mock_ticker_class, mock_yf_ticker, temp_cache_db):
         """Multiple unique symbols are fetched concurrently (thread pool)."""
         mock_ticker_class.return_value = mock_yf_ticker

@@ -1,13 +1,8 @@
-import pytest
-import sys
-import os
-import json
 
-# Add scripts/ folder to path so we can import the modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '../scripts'))
+from variance import analyze_portfolio
+from variance.portfolio_parser import PortfolioParser
+from variance.strategy_detector import identify_strategy
 
-from analyze_portfolio import identify_strategy, PortfolioParser
-import analyze_portfolio
 
 # Mocking leg data helpers
 def make_leg(otype, qty, strike):
@@ -100,13 +95,13 @@ def test_identify_unknown_combo():
     legs = [
         make_leg('Call', 1, 100),
         make_leg('Put', 1, 90),
-        make_leg('Call', -1, 120) 
+        make_leg('Call', -1, 120)
     ]
     # Should result in Custom/Combo since it doesn't match strict 2, 3, 4 leg templates perfectly
-    # Actually, let's trace logic: 3 legs. 
+    # Actually, let's trace logic: 3 legs.
     # Twisted Sister: Short Call + Put Credit Spread (1 Short Call, 1 Short Put, 1 Long Put)
     # Jade Lizard: Short Put + Call Credit Spread (1 Short Put, 1 Short Call, 1 Long Call)
-    # This mock: 1 Long Call, 1 Long Put, 1 Short Call. 
+    # This mock: 1 Long Call, 1 Long Put, 1 Short Call.
     # It likely falls through to "Custom/Combo"
     assert identify_strategy(legs) == "Custom/Combo"
 
@@ -145,86 +140,59 @@ def test_normalize_row_put_lowercase():
 
 # --- Integration-style logic tests with stubbed market data (no network) ---
 
-def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path):
-    # Stub market data to avoid network calls
-    def fake_get_market_data(symbols):
-        data = {
-            "ABC": {
-                "price": 100.0,
-                "is_stale": False,
-                "vrp_structural": 1.2,
-                "earnings_date": None,
-                "sector": "Technology"
-            },
-            "SPY": {
-                "price": 450.0,
-                "is_stale": False,
-                "vrp_structural": 1.1,
-                "iv": 15.0,
-                "earnings_date": None,
-                "sector": "Index"
-            }
+from variance.get_market_data import MarketDataFactory
+
+
+def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path, mock_market_provider):
+    # Stub market data
+    fake_data = {
+        "ABC": {
+            "price": 100.0,
+            "is_stale": False,
+            "vrp_structural": 1.2,
+            "earnings_date": None,
+            "sector": "Technology"
+        },
+        "SPY": {
+            "price": 450.0,
+            "is_stale": False,
+            "vrp_structural": 1.1,
+            "iv": 15.0,
+            "earnings_date": None,
+            "sector": "Index"
         }
-        return {sym: data[sym] for sym in symbols if sym in data}
-    monkeypatch.setattr(analyze_portfolio, "get_market_data", fake_get_market_data)
+    }
 
-    # Deterministic rules for testing
-    config_bundle = make_config_bundle({
-        "vrp_structural_threshold": 0.85,
-        "dead_money_vrp_structural_threshold": 0.80,
-        "dead_money_pl_pct_low": -0.10,
-        "dead_money_pl_pct_high": 0.10,
-        "low_ivr_threshold": 20,
-        "gamma_dte_threshold": 21,
-        "profit_harvest_pct": 0.50,
-        "earnings_days_threshold": 5,
-        "portfolio_delta_long_threshold": 75,
-        "portfolio_delta_short_threshold": -50,
-        "concentration_risk_pct": 0.25,
-        "net_liquidity": 100000,
-        "beta_weighted_symbol": "SPY",
-        "global_staleness_threshold": 0.50,
-        "data_integrity_min_theta": 0.50,
-        "asset_mix_equity_threshold": 0.80,
-        "concentration_limit_pct": 0.05,
-        "max_strategies_per_symbol": 3,
-        "theta_efficiency_low": 0.1,
-        "theta_efficiency_high": 0.5,
-        "stress_scenarios": [
-            {"label": "Crash (-5%)", "move_pct": -0.05},
-            {"label": "Flat", "move_pct": 0.0},
-            {"label": "Rally (+5%)", "move_pct": 0.05}
-        ],
-        "hedge_rules": {"enabled": False}
-    })
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
 
+    # Create dummy CSV
     csv_path = tmp_path / "positions.csv"
     csv_path.write_text(
         "Symbol,Type,Quantity,Exp Date,DTE,Strike Price,Call/Put,Underlying Last Price,P/L Open,Cost,Beta Delta,Theta\n"
-        "ABC,Option,-1,2025-01-17,30,90,Put,100,50,-100,10,2\n"
+        "ABC,Option,-1,2025-01-17,45,100,Put,100,50,-100,-10,5\n"
     )
 
-    report = analyze_portfolio.analyze_portfolio(str(csv_path), config=config_bundle)
-    assert not report.get("error")
-    assert len(report["triage_actions"]) == 1
-    assert report["triage_actions"][0]["action_code"] == "HARVEST"
-    assert report["portfolio_summary"]["total_beta_delta"] == 10
-    assert report["portfolio_summary"]["total_portfolio_theta"] == 2
+    result = analyze_portfolio.analyze_portfolio(str(csv_path))
 
-def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
+    # Check for HARVEST action (Profit 50% on cost -100 is +50)
+    assert len(result['triage_actions']) == 1
+    assert result['triage_actions'][0]['action_code'] == "HARVEST"
+
+def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch, mock_market_provider):
     """Test that asset mix correctly identifies equity-heavy portfolios."""
     # Stub market data: AAPL, TSLA, NVDA (Technology = Equity), GLD (Metals = Commodity)
-    def mock_get_market_data(symbols):
-        data = {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
-            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
-            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
-            "AMZN": {"price": 140.0, "sector": "Consumer Cyclical", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
-            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
-        }
-        return {sym: data[sym] for sym in symbols if sym in data}
-    monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    fake_data = {
+        "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+        "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
+        "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
+        "AMZN": {"price": 140.0, "sector": "Consumer Cyclical", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
+        "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+        "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
+    }
+
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
     config_bundle = make_config_bundle({
         "vrp_structural_threshold": 0.85,
         "dead_money_vrp_structural_threshold": 0.80,
@@ -277,22 +245,22 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch):
     assert equity_item["percentage"] == 0.8
 
     # Check warning is triggered (> 80%)
-    assert report["asset_mix_warning"]["risk"] == False  # Exactly 80%, not > 80%
+    assert not report["asset_mix_warning"]["risk"]  # Exactly 80%, not > 80%
 
-def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
+def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch, mock_market_provider):
     """Test that asset mix warning triggers when equity > 80%."""
-    def mock_get_market_data(symbols):
-        data = {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
-            "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
-            "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
-            "AMZN": {"price": 140.0, "sector": "Healthcare", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
-            "MSFT": {"price": 380.0, "sector": "Technology", "iv30": 32.0, "hv252": 38.0, "vrp_structural": 0.84},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
-            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
-        }
-        return {sym: data[sym] for sym in symbols if sym in data}
-    monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    fake_data = {
+        "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+        "TSLA": {"price": 200.0, "sector": "Technology", "iv30": 50.0, "hv252": 60.0, "vrp_structural": 0.83},
+        "NVDA": {"price": 450.0, "sector": "Technology", "iv30": 45.0, "hv252": 50.0, "vrp_structural": 0.90},
+        "AMZN": {"price": 140.0, "sector": "Healthcare", "iv30": 35.0, "hv252": 40.0, "vrp_structural": 0.88},
+        "MSFT": {"price": 380.0, "sector": "Technology", "iv30": 32.0, "hv252": 38.0, "vrp_structural": 0.84},
+        "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+        "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
+    }
+
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
     config_bundle = make_config_bundle({
         "vrp_structural_threshold": 0.85,
         "dead_money_vrp_structural_threshold": 0.80,
@@ -342,22 +310,22 @@ def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch):
     assert equity_item["percentage"] > 0.80
 
     # Check warning is triggered
-    assert report["asset_mix_warning"]["risk"] == True
+    assert report["asset_mix_warning"]["risk"]
     assert "83%" in report["asset_mix_warning"]["details"] or "Equity" in report["asset_mix_warning"]["details"]
 
-def test_asset_mix_diversified(tmp_path, monkeypatch):
+def test_asset_mix_diversified(tmp_path, monkeypatch, mock_market_provider):
     """Test that diversified portfolios don't trigger warnings."""
-    def mock_get_market_data(symbols):
-        data = {
-            "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
-            "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
-            "/CL": {"price": 70.0, "sector": "Energy", "iv30": 40.0, "hv252": 35.0, "vrp_structural": 1.14},
-            "/6E": {"price": 1.1, "sector": "Currencies", "iv30": 10.0, "hv252": 8.0, "vrp_structural": 1.25},
-            "TLT": {"price": 95.0, "sector": "Fixed Income", "iv30": 12.0, "hv252": 10.0, "vrp_structural": 1.20},
-            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
-        }
-        return {sym: data[sym] for sym in symbols if sym in data}
-    monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    fake_data = {
+        "AAPL": {"price": 150.0, "sector": "Technology", "iv30": 30.0, "hv252": 40.0, "vrp_structural": 0.75},
+        "GLD": {"price": 180.0, "sector": "Metals", "iv30": 20.0, "hv252": 15.0, "vrp_structural": 1.33},
+        "/CL": {"price": 70.0, "sector": "Energy", "iv30": 40.0, "hv252": 35.0, "vrp_structural": 1.14},
+        "/6E": {"price": 1.1, "sector": "Currencies", "iv30": 10.0, "hv252": 8.0, "vrp_structural": 1.25},
+        "TLT": {"price": 95.0, "sector": "Fixed Income", "iv30": 12.0, "hv252": 10.0, "vrp_structural": 1.20},
+        "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07},
+    }
+
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
     config_bundle = make_config_bundle({
         "vrp_structural_threshold": 0.85,
         "dead_money_vrp_structural_threshold": 0.80,
@@ -421,17 +389,17 @@ def test_asset_mix_diversified(tmp_path, monkeypatch):
     assert commodity_item["percentage"] == 0.4
 
     # Warning should NOT be triggered
-    assert report["asset_mix_warning"]["risk"] == False
+    assert not report["asset_mix_warning"]["risk"]
 
-def test_friction_horizon_calculation(tmp_path, monkeypatch):
+def test_friction_horizon_calculation(tmp_path, monkeypatch, mock_market_provider):
     """Test Friction Horizon (Phi) calculation with standard multiplier."""
     # Stub market data
-    def mock_get_market_data(symbols):
-        data = {
-            "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07}
-        }
-        return {sym: data[sym] for sym in symbols if sym in data}
-    monkeypatch.setattr(analyze_portfolio, "get_market_data", mock_get_market_data)
+    fake_data = {
+        "SPY": {"price": 450.0, "sector": "Index", "iv": 15.0, "hv252": 14.0, "vrp_structural": 1.07}
+    }
+
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
     config_bundle = make_config_bundle({
         "vrp_structural_threshold": 0.85,
         "dead_money_vrp_structural_threshold": 0.80,

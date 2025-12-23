@@ -1,7 +1,8 @@
+import json
+import os
 import subprocess
 import sys
-import os
-import json
+
 import pytest
 
 # Paths to scripts
@@ -24,7 +25,11 @@ def test_analyze_portfolio_cli_default_json(tmp_path):
         capture_output=True,
         text=True
     )
-    
+
+    if result.returncode != 0:
+        print(f"STDOUT: {result.stdout}")
+        print(f"STDERR: {result.stderr}")
+
     assert result.returncode == 0
     # Output should be parsable JSON
     try:
@@ -36,10 +41,10 @@ def test_analyze_portfolio_cli_default_json(tmp_path):
 
 def test_vol_screener_cli_default_json():
     """Test that vol_screener.py defaults to JSON output."""
-    # We use a small limit to speed it up and reduce network reliance logic (though it will mock network if we mock it, 
-    # but subprocess runs a new process so mocking is harder. 
+    # We use a small limit to speed it up and reduce network reliance logic (though it will mock network if we mock it,
+    # but subprocess runs a new process so mocking is harder.
     # For now, we assume the script handles network errors gracefully or has fallback.)
-    
+
     # We can pass a limit to avoid hitting the whole watchlist
     result = subprocess.run(
         [PYTHON_EXE, SCREENER_SCRIPT, "1", "--profile", "balanced"],

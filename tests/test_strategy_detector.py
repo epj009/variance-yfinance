@@ -2,14 +2,10 @@
 Unit tests for strategy_detector module.
 """
 
+
 import pytest
-import sys
-import os
 
-# Add scripts directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-
-from strategy_detector import identify_strategy, map_strategy_to_id, cluster_strategies
+from variance.strategy_detector import cluster_strategies, identify_strategy, map_strategy_to_id
 
 
 def make_leg(

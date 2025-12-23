@@ -1,0 +1,4 @@
+[console_scripts]
+variance-analyze = variance.analyze_portfolio:main
+variance-screener = variance.vol_screener:main
+variance-tui = variance.tui_renderer:main

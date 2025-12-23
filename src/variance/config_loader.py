@@ -7,23 +7,23 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 CONFIG_DIR_ENV = "VARIANCE_CONFIG_DIR"
 STRICT_ENV = "VARIANCE_STRICT_CONFIG"
-DEFAULT_CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+DEFAULT_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 RUNTIME_CONFIG_FILE = "runtime_config.json"
 
 
 class ConfigBundle(TypedDict):
-    trading_rules: Dict[str, Any]
-    market_config: Dict[str, Any]
-    system_config: Dict[str, Any]
-    screener_profiles: Dict[str, Any]
-    strategies: Dict[str, Dict[str, Any]]
+    trading_rules: dict[str, Any]
+    market_config: dict[str, Any]
+    system_config: dict[str, Any]
+    screener_profiles: dict[str, Any]
+    strategies: dict[str, dict[str, Any]]
 
 
-_BUNDLE_CACHE: Dict[tuple[str, bool], ConfigBundle] = {}
+_BUNDLE_CACHE: dict[tuple[str, bool], ConfigBundle] = {}
 
 
 def _resolve_config_dir(config_dir: Optional[str]) -> Path:
@@ -58,7 +58,7 @@ def _load_json(path: Path, *, strict: bool) -> Any:
         return {}
 
 
-def _ensure_dict(payload: Any, *, name: str, strict: bool) -> Dict[str, Any]:
+def _ensure_dict(payload: Any, *, name: str, strict: bool) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
     msg = f"Expected {name} to be an object."
@@ -68,7 +68,7 @@ def _ensure_dict(payload: Any, *, name: str, strict: bool) -> Dict[str, Any]:
     return {}
 
 
-def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(base)
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
@@ -78,13 +78,13 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
     return merged
 
 
-def load_runtime_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+def load_runtime_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
     config_path = _resolve_config_dir(config_dir) / RUNTIME_CONFIG_FILE
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     return _ensure_dict(payload, name=RUNTIME_CONFIG_FILE, strict=_resolve_strict(strict))
 
 
-def _extract_section(runtime_config: Dict[str, Any], key: str, *, strict: bool) -> Dict[str, Any]:
+def _extract_section(runtime_config: dict[str, Any], key: str, *, strict: bool) -> dict[str, Any]:
     if not runtime_config:
         return {}
     if key not in runtime_config:
@@ -103,31 +103,31 @@ def _extract_section(runtime_config: Dict[str, Any], key: str, *, strict: bool) 
     return {}
 
 
-def load_trading_rules(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+def load_trading_rules(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
     config_path = _resolve_config_dir(config_dir) / "trading_rules.json"
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     return _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
 
 
-def load_screener_profiles(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+def load_screener_profiles(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "screener_profiles", strict=strict_flag)
 
 
-def load_market_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+def load_market_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "market", strict=strict_flag)
 
 
-def load_system_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Any]:
+def load_system_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "system", strict=strict_flag)
 
 
-def load_strategies(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> Dict[str, Dict[str, Any]]:
+def load_strategies(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, dict[str, Any]]:
     try:
         from .strategy_loader import load_strategies as _load_strategies
     except ImportError:
@@ -140,7 +140,7 @@ def load_config_bundle(
     *,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
-    overrides: Optional[Dict[str, Any]] = None,
+    overrides: Optional[dict[str, Any]] = None,
 ) -> ConfigBundle:
     strict_flag = _resolve_strict(strict)
     config_path = _resolve_config_dir(config_dir)

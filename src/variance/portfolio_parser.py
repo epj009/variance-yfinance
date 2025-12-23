@@ -6,9 +6,9 @@ Extracted from analyze_portfolio.py to improve maintainability.
 """
 
 import csv
-import sys
 import re
-from typing import Dict, List, Optional, TypedDict
+import sys
+from typing import Optional, TypedDict
 
 
 class NormalizedPosition(TypedDict, total=False):
@@ -66,7 +66,7 @@ class PortfolioParser:
     }
 
     @staticmethod
-    def normalize_row(row: Dict[str, str]) -> Dict[str, str]:
+    def normalize_row(row: dict[str, str]) -> dict[str, str]:
         """
         Convert a raw CSV row into a normalized dictionary using MAPPING.
 
@@ -97,7 +97,7 @@ class PortfolioParser:
         return normalized
 
     @staticmethod
-    def parse(file_path: str) -> List[Dict[str, str]]:
+    def parse(file_path: str) -> list[dict[str, str]]:
         """
         Read and parse the CSV file at the given path.
 
@@ -113,7 +113,7 @@ class PortfolioParser:
         """
         positions = []
         try:
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
+            with open(file_path, encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     positions.append(PortfolioParser.normalize_row(row))
@@ -142,7 +142,7 @@ def parse_currency(value: Optional[str]) -> float:
     """
     if not value:
         return 0.0
-    
+
     # 1. Initial cleanup
     clean = value.strip()
     if clean == '--' or not clean:
@@ -156,7 +156,7 @@ def parse_currency(value: Optional[str]) -> float:
 
     # 3. Strip formatting characters
     clean = clean.replace(',', '').replace('$', '').replace('%', '').strip()
-    
+
     try:
         val = float(clean)
         return -val if is_negative else val
@@ -176,13 +176,13 @@ def parse_dte(value: Optional[str]) -> int:
     """
     if not value:
         return 0
-    
+
     # 1. Clean up and lowercase for easier matching
     clean = value.strip().lower()
-    
+
     # 2. Remove common suffixes
     clean = clean.replace('dte', '').replace('days', '').replace('d', '').strip()
-    
+
     try:
         return int(clean)
     except ValueError:

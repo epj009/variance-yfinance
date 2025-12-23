@@ -1,4 +1,5 @@
-from typing import Dict, List, Optional, Protocol, Any, TypedDict
+from typing import Optional, Protocol, TypedDict
+
 
 class MarketData(TypedDict, total=False):
     """Standardized Market Data Model"""
@@ -19,14 +20,14 @@ class IMarketDataProvider(Protocol):
     Interface for Market Data Providers.
     Decouples the application from specific data sources (yfinance, tasty, etc).
     """
-    
-    def get_market_data(self, symbols: List[str]) -> Dict[str, MarketData]:
+
+    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         """
         Fetch market data for a list of symbols.
-        
+
         Args:
             symbols: List of ticker symbols (e.g. ['AAPL', 'SPY'])
-            
+
         Returns:
             Dictionary mapping symbols to their MarketData
         """

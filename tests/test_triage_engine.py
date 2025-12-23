@@ -11,17 +11,12 @@ Priority:
 3. Portfolio metrics aggregation - HIGH
 """
 
-import pytest
-import sys
-import os
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
+import pytest
 
-import triage_engine
-
+from variance import triage_engine
 
 # ============================================================================
 # TEST CLASS 1: detect_hedge_tag() - CRITICAL PRIORITY
@@ -483,7 +478,7 @@ class TestTriageClusterHedgeCheck:
             portfolio_beta_delta=100.0
         )
 
-        with patch('triage_engine.identify_strategy', return_value="Long Put"):
+        with patch('variance.triage_engine.identify_strategy', return_value="Long Put"):
             result = triage_engine.triage_cluster([leg], context)
 
         # If is_hedge=True, should get HEDGE_CHECK instead of ZOMBIE
@@ -687,7 +682,7 @@ class TestTriagePortfolio:
 class TestGetPositionAwareOpportunities:
     """Unit tests for vol screener integration."""
 
-    @patch('vol_screener.screen_volatility')
+    @patch('variance.vol_screener.screen_volatility')
     def test_held_symbols_passed_to_screener(self, mock_screener, make_option_leg, mock_trading_rules):
         """All held roots passed to vol_screener."""
         mock_screener.return_value = {"candidates": [], "summary": {}}
@@ -700,7 +695,7 @@ class TestGetPositionAwareOpportunities:
         clusters = [[leg1], [leg2], [leg3]]
         net_liquidity = 100000.0
 
-        result = triage_engine.get_position_aware_opportunities(
+        triage_engine.get_position_aware_opportunities(
             positions, clusters, net_liquidity, mock_trading_rules
         )
 
@@ -716,7 +711,7 @@ class TestGetPositionAwareOpportunities:
         assert 'TSLA' in held_symbols
         assert 'SPY' in held_symbols
 
-    @patch('vol_screener.screen_volatility')
+    @patch('variance.vol_screener.screen_volatility')
     def test_screener_mock_integration(self, mock_screener, make_option_leg, mock_trading_rules):
         """Verifies screener is called with correct arguments."""
         mock_screener.return_value = {"candidates": [{"Symbol": "NVDA"}], "summary": {}}

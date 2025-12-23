@@ -1,10 +1,10 @@
 import logging
-import sys
 import os
+import sys
 from datetime import datetime
 
 # Ensure logs directory exists
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 
 def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.Logger:
@@ -13,11 +13,11 @@ def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.L
     Logs to console (stderr) and file (logs/variance.log).
     """
     logger = logging.getLogger(name)
-    
+
     # prevent adding multiple handlers if setup is called multiple times
     if logger.handlers:
         return logger
-        
+
     logger.setLevel(level)
 
     # Formatter

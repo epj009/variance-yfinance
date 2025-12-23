@@ -1,17 +1,15 @@
 import argparse
 import json
 import sys
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.text import Text
-from rich.tree import Tree
 from rich import box
-from rich.style import Style
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
+from rich.tree import Tree
 
 # Define professional theme
 VARIANCE_THEME = Theme({
@@ -28,7 +26,7 @@ VARIANCE_THEME = Theme({
 })
 
 class TUIRenderer:
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         self.data = data
         self.console = Console(theme=VARIANCE_THEME)
         self.portfolio_summary = self.data.get('portfolio_summary', {})
@@ -40,7 +38,7 @@ class TUIRenderer:
 
         # 2. Delta Spectrograph
         self.render_spectrograph()
-        
+
         # 3. Portfolio DNA (New)
         self.render_composition()
 
@@ -64,7 +62,7 @@ class TUIRenderer:
         # Left Column: Liquidity
         bp_style = "profit" if bp_usage_pct < 0.50 else "warning" if bp_usage_pct <= 0.75 else "loss"
         bp_status = "Deploy" if bp_usage_pct < 0.50 else "Optimal" if bp_usage_pct <= 0.75 else "⚠️ High"
-        
+
         liq_text = Text()
         liq_text.append("• Net Liq:  ", style="label")
         liq_text.append(f"{fmt_currency(net_liq)}\n", style="value")
@@ -75,7 +73,7 @@ class TUIRenderer:
         # Right Column: P/L
         pl_style = "profit" if total_net_pl >= 0 else "loss"
         pl_status = "Harvesting" if total_net_pl >= 0 else "Dragging"
-        
+
         pl_text = Text()
         pl_text.append("• Open P/L: ", style="label")
         pl_text.append(f"{fmt_currency(total_net_pl)}\n", style=pl_style)
@@ -101,7 +99,7 @@ class TUIRenderer:
 
         tilt_style = "loss" if abs(beta_delta) > 100 else "neutral"
         tilt_name = "Bearish" if beta_delta < -50 else "Bullish" if beta_delta > 50 else "Neutral"
-        
+
         # Stability Logic (Delta/Theta Ratio)
         # If Theta is negative, the portfolio is inherently unstable for a premium seller.
         if theta_vrp <= 0:
@@ -145,9 +143,8 @@ class TUIRenderer:
 
         tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
         risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
-        risk_status = "Safe" if tail_risk_pct < 0.05 else "Loaded" if tail_risk_pct < 0.15 else "Extreme"
         mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
-        
+
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
         gyro_right.append("• Downside:  ", style="label")
@@ -174,7 +171,7 @@ class TUIRenderer:
     def render_triage(self):
         triage_actions = self.data.get('triage_actions', [])
         portfolio_overview = self.data.get('portfolio_overview', [])
-        
+
         self.console.print("\n") # Spacer
 
         # Root Tree
@@ -196,7 +193,7 @@ class TUIRenderer:
 
         self.console.print(root)
 
-    def _add_position_node(self, parent_branch, item: Dict[str, Any], is_action: bool):
+    def _add_position_node(self, parent_branch, item: dict[str, Any], is_action: bool):
         """Helper to format and add a position node to the tree."""
         sym = item.get('symbol', '???')
         strat = item.get('strategy', 'Unknown')
@@ -204,14 +201,14 @@ class TUIRenderer:
         dte = item.get('dte', 0)
         code = item.get('action_code')
         logic = item.get('logic', '')
-        
+
         # Icon & Color Logic
         icon = ""
         style = "neutral"
-        
+
         if is_action:
             icon = "⚠️ "
-            if code == "HARVEST": 
+            if code == "HARVEST":
                 icon = "💰 "
                 style = "profit"
             elif code == "GAMMA":
@@ -226,29 +223,29 @@ class TUIRenderer:
             elif code == "EXPIRING":
                 icon = "⏳ "
                 style = "warning"
-        
+
         # Format Node Text
         text = Text()
         text.append(f"{icon}{sym} ", style="bold white")
         text.append(f"({strat}) ", style="dim")
-        
+
         # P/L
         pl_style = "profit" if net_pl >= 0 else "loss"
         text.append(f"{fmt_currency(net_pl)} ", style=pl_style)
-        
+
         # Action Code (if applicable)
         if code:
             text.append(f"[{code}] ", style=style)
-            
+
         # Add Node
         node = parent_branch.add(text)
-        
+
         # Add Detail Leaf
         detail_text = Text()
         detail_text.append(f"{dte} DTE", style="dim")
         if logic:
             detail_text.append(f": {logic}", style="dim")
-            
+
         node.add(detail_text)
 
     def render_spectrograph(self):
@@ -271,21 +268,21 @@ class TUIRenderer:
 
         max_val = max([abs(d.get('delta', 0.0)) for d in deltas]) if deltas else 1.0
         if max_val == 0: max_val = 1.0
-        
+
         for rank, item in enumerate(deltas[:10], start=1):
             delta = item.get('delta', 0.0)
             # Use fixed max bar length for functional visualization
             bar_len = int((abs(delta) / max_val) * 30)
             bar_style = "profit" if delta >= 0 else "loss"
             bar = Text("┃" * bar_len, style=bar_style)
-            
+
             table.add_row(
                 str(rank),
                 item.get('symbol', ''),
                 bar,
                 f"{delta:+.2f} Δ"
             )
-        
+
         self.console.print(table)
 
     def render_composition(self):
@@ -304,11 +301,11 @@ class TUIRenderer:
         # Helper to build inner tables
         def build_sub_table(title, items, label_key):
             t = Table(
-                title=title, 
+                title=title,
                 title_style="bold white",
                 title_justify="left",
-                box=box.SIMPLE, 
-                show_header=False, 
+                box=box.SIMPLE,
+                show_header=False,
                 padding=(0, 1),
                 collapse_padding=True
             )
@@ -316,19 +313,19 @@ class TUIRenderer:
             t.add_column("Label", style="dim cyan", width=18)
             t.add_column("Bar", width=6)
             t.add_column("Pct", justify="right", style="bold white", width=5)
-            
+
             # Sort and slice
             sorted_items = sorted(items, key=lambda x: x.get('percentage', 0), reverse=True)
-            
+
             for item in sorted_items[:6]:
                 label = item.get(label_key, 'Unknown')
                 pct = item.get('percentage', 0.0)
-                
+
                 # Bar - Slightly smaller
                 filled = int(pct * 6)
                 bar_str = "━" * filled
                 bar = Text(bar_str, style="blue")
-                
+
                 t.add_row(label, bar, f"{pct:.0%}")
             return t
 
@@ -336,7 +333,7 @@ class TUIRenderer:
         sector_table = build_sub_table("Sector Concentration", sector_balance, 'sector')
 
         grid.add_row(asset_table, sector_table)
-        
+
         panel = Panel(
             grid,
             title="[header]📊 EXPOSURE ANALYSIS[/header]",
@@ -344,7 +341,7 @@ class TUIRenderer:
             box=box.ROUNDED,
             expand=False
         )
-        
+
         self.console.print(panel)
 
     def render_opportunities(self):
@@ -370,14 +367,14 @@ class TUIRenderer:
         integrity_skips = summary.get('data_integrity_skipped_count', 0)
         lean_skips = summary.get('lean_data_skipped_count', 0)
         anomalous_skips = summary.get('anomalous_data_skipped_count', 0)
-        
+
         total_hidden = integrity_skips + lean_skips + anomalous_skips
         if total_hidden > 0:
             reasons = []
             if integrity_skips: reasons.append(f"{integrity_skips} bad data")
             if lean_skips: reasons.append(f"{lean_skips} lean data")
             if anomalous_skips: reasons.append(f"{anomalous_skips} anomalies")
-            
+
             self.console.print(f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]")
 
         table = Table(
@@ -401,14 +398,14 @@ class TUIRenderer:
             score = opp.get('Score', 0.0)
             signal = opp.get('Signal', 'FAIR')
             regime = opp.get('Regime', 'NORMAL')
-            
+
             # Icon mapping for Regime
             regime_icon = ""
             if regime == "COILED":
                 regime_icon = "🌀"
             elif regime == "EXPANDING":
                 regime_icon = "⚡"
-            
+
             regime_display = f"{regime} {regime_icon}".strip()
 
             if opp.get('is_bats_efficient'):
@@ -445,7 +442,7 @@ def main():
 
     data = {}
     if args.input_file:
-        with open(args.input_file, 'r') as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     elif not sys.stdin.isatty():
         data = json.load(sys.stdin)

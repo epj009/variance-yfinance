@@ -1,12 +1,6 @@
-import sys
-import os
-import json
-import pytest
 
-# Add scripts/ folder to path so we can import the modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '../scripts'))
-
-import vol_screener
+from variance import vol_screener
+from variance.get_market_data import MarketDataFactory
 
 
 def make_config_bundle(trading_rules, system_config, market_config=None):
@@ -19,7 +13,7 @@ def make_config_bundle(trading_rules, system_config, market_config=None):
     }
 
 
-def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
+def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_market_provider):
     # Prepare a fake watchlist
     watchlist = tmp_path / "watchlist.csv"
     watchlist.write_text("Symbol\nABC\nDEF\nGHI\n")
@@ -31,10 +25,9 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
         "GHI": {"price": 30, "iv": 10, "hv252": 20, "hv20": 19, "vrp_structural": 0.5, "earnings_date": None, "sector": "Finance", "atm_volume": 600},
     }
 
-    def fake_get_market_data(symbols):
-        return {sym: fake_data[sym] for sym in symbols}
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
 
-    monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.8,
@@ -60,12 +53,12 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path):
 
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
-    assert candidates[0]["is_bats_efficient"] == True
+    assert candidates[0]["is_bats_efficient"]
     # DEF excluded by sector, GHI skipped by low bias
     assert summary["sector_skipped_count"] == 1
     assert summary["low_bias_skipped_count"] == 1
 
-def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
+def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_market_provider):
     """Test that --include-asset-classes filters correctly."""
     # Prepare fake watchlist
     watchlist = tmp_path / "watchlist.csv"
@@ -79,10 +72,9 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
         "/6E": {"price": 1.1, "iv": 10, "hv252": 8, "hv20": 7.5, "vrp_structural": 1.25, "earnings_date": None, "sector": "Currencies", "atm_volume": 600},  # FX
     }
 
-    def fake_get_market_data(symbols):
-        return {sym: fake_data[sym] for sym in symbols}
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
 
-    monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.85,
@@ -126,7 +118,7 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path):
     # Check summary
     assert summary["asset_class_skipped_count"] == 1  # AAPL excluded
 
-def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path):
+def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_market_provider):
     """Test that --exclude-asset-classes filters correctly."""
     watchlist = tmp_path / "watchlist.csv"
     watchlist.write_text("Symbol\nAAPL\nTSLA\nGLD\n/CL\n")
@@ -138,10 +130,9 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path):
         "/CL": {"price": 70, "iv": 40, "hv252": 35, "hv20": 30, "vrp_structural": 1.14, "earnings_date": None, "sector": "Energy", "atm_volume": 600},  # Commodity
     }
 
-    def fake_get_market_data(symbols):
-        return {sym: fake_data[sym] for sym in symbols}
+    mock_provider = mock_market_provider(fake_data)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
 
-    monkeypatch.setattr(vol_screener, "get_market_data", fake_get_market_data)
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.85,

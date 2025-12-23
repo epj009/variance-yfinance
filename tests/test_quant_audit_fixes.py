@@ -22,23 +22,11 @@ TEST PHILOSOPHY:
 - Tests ensure config integration works correctly
 """
 
+
 import pytest
-import sys
-import os
-from typing import Dict, Any
-from unittest.mock import Mock, patch
 
-import pandas as pd
-import numpy as np
-
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
-
-from config_loader import load_trading_rules
-import triage_engine
-import vol_screener
-import get_market_data
-
+from variance import triage_engine
+from variance.config_loader import load_trading_rules
 
 # ============================================================================
 # FINDING-003: Futures Delta Validation
@@ -69,8 +57,8 @@ class TestFuturesDeltaValidation:
             rules=rules
         )
 
-        assert result['is_futures'] == True
-        assert result['potential_issue'] == True
+        assert result['is_futures']
+        assert result['potential_issue']
         assert result['multiplier'] == 50
         assert 'unmultiplied' in result['message'].lower()
         assert result['expected_min'] == 1.0
@@ -92,8 +80,8 @@ class TestFuturesDeltaValidation:
             rules=rules
         )
 
-        assert result['is_futures'] == True
-        assert result['potential_issue'] == False
+        assert result['is_futures']
+        assert not result['potential_issue']
         assert result['message'] == ''
 
     def test_futures_delta_validation_disabled(self):
@@ -114,8 +102,8 @@ class TestFuturesDeltaValidation:
             rules=rules
         )
 
-        assert result['is_futures'] == True
-        assert result['potential_issue'] == False
+        assert result['is_futures']
+        assert not result['potential_issue']
 
     def test_equity_position_not_validated(self):
         """
@@ -134,8 +122,8 @@ class TestFuturesDeltaValidation:
             rules=rules
         )
 
-        assert result['is_futures'] == False
-        assert result['potential_issue'] == False
+        assert not result['is_futures']
+        assert not result['potential_issue']
 
     def test_futures_delta_negative_value(self):
         """
@@ -154,8 +142,8 @@ class TestFuturesDeltaValidation:
             rules=rules
         )
 
-        assert result['is_futures'] == True
-        assert result['potential_issue'] == True
+        assert result['is_futures']
+        assert result['potential_issue']
 
 
 # ============================================================================
@@ -186,7 +174,7 @@ class TestGammaIntegrityCheck:
 
         should_warn = avg_gamma_per_leg < min_gamma
 
-        assert should_warn == True
+        assert should_warn
         assert abs(avg_gamma_per_leg - 0.0003) < 1e-10  # Floating point tolerance
         assert avg_gamma_per_leg < 0.001
 
@@ -206,7 +194,7 @@ class TestGammaIntegrityCheck:
 
         should_warn = avg_gamma_per_leg < min_gamma
 
-        assert should_warn == False
+        assert not should_warn
         assert avg_gamma_per_leg == 0.005
 
     def test_gamma_integrity_boundary_condition(self):
@@ -225,7 +213,7 @@ class TestGammaIntegrityCheck:
 
         should_warn = avg_gamma_per_leg < min_gamma
 
-        assert should_warn == False
+        assert not should_warn
         assert avg_gamma_per_leg == 0.001
 
     def test_gamma_integrity_negative_gamma(self):
@@ -244,7 +232,7 @@ class TestGammaIntegrityCheck:
 
         should_warn = avg_gamma_per_leg < min_gamma
 
-        assert should_warn == True
+        assert should_warn
         assert abs(avg_gamma_per_leg - 0.0003) < 1e-10  # Floating point tolerance
 
 
@@ -341,7 +329,7 @@ class TestExtremeMarkupWarnings:
 
         should_warn = markup < -0.30
 
-        assert should_warn == True
+        assert should_warn
 
     def test_markup_warning_boundary_condition(self):
         """
@@ -355,7 +343,7 @@ class TestExtremeMarkupWarnings:
         # Implementation uses strict <, so -0.30 does NOT trigger
         should_warn = markup < -0.30
 
-        assert should_warn == False
+        assert not should_warn
 
     def test_markup_warning_moderate_negative(self):
         """
@@ -368,7 +356,7 @@ class TestExtremeMarkupWarnings:
 
         should_warn = markup < -0.30
 
-        assert should_warn == False
+        assert not should_warn
 
     def test_markup_warning_positive_value(self):
         """
@@ -381,7 +369,7 @@ class TestExtremeMarkupWarnings:
 
         should_warn = markup < -0.30
 
-        assert should_warn == False
+        assert not should_warn
 
     def test_markup_warning_none_value(self):
         """
@@ -394,7 +382,7 @@ class TestExtremeMarkupWarnings:
 
         should_warn = markup is not None and markup < -0.30
 
-        assert should_warn == False
+        assert not should_warn
 
 
 # ============================================================================
@@ -720,10 +708,7 @@ class TestMarkPriceSlippage:
         atm_mark = 2.52
 
         # Use mark price if available
-        if atm_mark:
-            reference_price = float(atm_mark)
-        else:
-            reference_price = (bid + ask) / 2
+        reference_price = float(atm_mark) if atm_mark else (bid + ask) / 2
 
         slippage_pct = (ask - bid) / reference_price
 
@@ -742,10 +727,7 @@ class TestMarkPriceSlippage:
         atm_mark = None
 
         # Use mark price if available, otherwise mid
-        if atm_mark:
-            reference_price = float(atm_mark)
-        else:
-            reference_price = (bid + ask) / 2
+        reference_price = float(atm_mark) if atm_mark else (bid + ask) / 2
 
         slippage_pct = (ask - bid) / reference_price
 
@@ -804,7 +786,7 @@ class TestQuantAuditIntegration:
 
         # Nested validation
         futures_val = rules.get('futures_delta_validation', {})
-        assert futures_val.get('enabled') == True
+        assert futures_val.get('enabled')
         assert futures_val.get('min_abs_delta_threshold') == 1.0
 
     def test_no_nan_or_inf_in_calculations(self):
@@ -822,10 +804,7 @@ class TestQuantAuditIntegration:
         # Test friction horizon with zero theta
         total_abs_theta = 0.0
         total_liquidity_cost = 100.0
-        if total_abs_theta > 0.01:
-            friction = total_liquidity_cost / total_abs_theta
-        else:
-            friction = 999.0
+        friction = total_liquidity_cost / total_abs_theta if total_abs_theta > 0.01 else 999.0
         assert friction == 999.0  # Not Inf
 
         # Test gamma check with zero legs

@@ -3,15 +3,11 @@ Unit tests for Vol Screener Signal Synthesis logic.
 Ensures that metrics (NVRP, VRP, Earnings) are correctly synthesized into Actionable Signals.
 """
 
+
 import pytest
-import sys
-import os
-from unittest.mock import Mock, patch
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
+from variance import vol_screener
 
-import vol_screener
 
 class TestSignalSynthesis:
     """Tests for _determine_signal_type logic."""

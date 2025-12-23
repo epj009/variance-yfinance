@@ -1,21 +1,21 @@
 import argparse
 import json
-import sys
 import math
+import sys
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-
-from .get_market_data import MarketDataFactory
+from typing import Any, Optional
 
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import load_config_bundle
+from .get_market_data import MarketDataFactory
 from .portfolio_parser import (
-    PortfolioParser, parse_currency, parse_dte, get_root_symbol, is_stock_type
+    PortfolioParser,
+    get_root_symbol,
 )
-from .strategy_detector import identify_strategy, cluster_strategies, map_strategy_to_id
-from .triage_engine import triage_portfolio, get_position_aware_opportunities
+from .strategy_detector import cluster_strategies
+from .triage_engine import get_position_aware_opportunities, triage_portfolio
 
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
@@ -23,10 +23,10 @@ TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped pos
 def analyze_portfolio(
     file_path: str,
     *,
-    config: Optional[Dict[str, Any]] = None,
+    config: Optional[dict[str, Any]] = None,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
 
@@ -51,20 +51,29 @@ def analyze_portfolio(
     clusters = cluster_strategies(positions)
 
     # Step 3: Fetch Market Data
-    unique_roots = list(set(get_root_symbol(l['Symbol']) for l in positions))
+    unique_roots = list(set(get_root_symbol(leg['Symbol']) for leg in positions))
     unique_roots = [r for r in unique_roots if r]  # Filter empty roots
-    
+
     # Ensure Beta Symbol is included in the fetch
     beta_sym = rules.get('beta_weighted_symbol', 'SPY')
     if beta_sym not in unique_roots:
         unique_roots.append(beta_sym)
-        
+
     # Use Factory to get provider
     provider = MarketDataFactory.get_provider()
     market_data = provider.get_market_data(unique_roots)
 
     # Step 3b: Beta Data Hard Gate
-    if beta_sym not in market_data or market_data[beta_sym].get('price', 0) <= 0:
+    beta_entry = market_data.get(beta_sym, {})
+    beta_price = beta_entry.get('price', 0)
+
+    # Robust Type Handling: Ensure price is a float
+    if hasattr(beta_price, '__len__') and not isinstance(beta_price, (str, bytes)):
+        beta_price = float(beta_price[0])
+    else:
+        beta_price = float(beta_price)
+
+    if not beta_entry or beta_price <= 0:
         return {
             "error": f"CRITICAL: Beta weighting source ({beta_sym}) unavailable. Risk analysis halted.",
             "details": "Check internet connection or data provider status."
@@ -89,7 +98,7 @@ def analyze_portfolio(
     total_portfolio_theta_vrp_adj = metrics['total_portfolio_theta_vrp_adj']
     friction_horizon_days = metrics['friction_horizon_days']
     total_capital_at_risk = metrics['total_capital_at_risk']
-    
+
     # --- Generate Structured Report Data ---
     report = {
         "analysis_time": now.strftime('%Y-%m-%d %H:%M:%S'),
@@ -136,7 +145,7 @@ def analyze_portfolio(
             "sector": r['sector'],
             "is_hedge": r.get('is_hedge', False)
         }
-        
+
         # HEDGE PRIORITY: Always force hedges into the Action Required list
         # to ensure they are audited for utility regularly.
         if r.get('is_hedge') and not r.get('action_code'):
@@ -152,7 +161,7 @@ def analyze_portfolio(
     # Step 7: Finalize Portfolio Summary and Report
     net_liq = rules['net_liquidity']
     report['portfolio_summary']['net_liquidity'] = net_liq
-    
+
     if net_liq > 0:
         theta_as_pct_of_nl = total_portfolio_theta / net_liq
         theta_vrp_as_pct_of_nl = total_portfolio_theta_vrp_adj / net_liq
@@ -193,7 +202,7 @@ def analyze_portfolio(
             "count": count,
             "percentage": pct
         })
-    
+
     concentrations = []
     for sec, count in sorted_sectors:
         pct = count / total_positions if total_positions > 0 else 0
@@ -249,26 +258,28 @@ def analyze_portfolio(
 
     # Stress Box (Scenario Simulator)
     beta_sym = rules.get('beta_weighted_symbol', 'SPY') # Default to SPY if missing
-    beta_price = 0.0
-    if beta_sym in market_data:
-        beta_price = market_data[beta_sym].get('price', 0.0)
-    else:
-        try:
-            beta_data = get_market_data([beta_sym])
-            beta_price = beta_data.get(beta_sym, {}).get('price', 0.0)
-        except Exception:
-            pass
-            
+    # Retrieve Beta Price for Stress Testing
+    beta_price_raw = market_data.get(beta_sym, {}).get('price', 0.0)
+
+    # Robust Type Handling: Ensure price is a float
+    try:
+        if hasattr(beta_price_raw, '__len__') and not isinstance(beta_price_raw, (str, bytes)):
+            beta_price = float(beta_price_raw[0])
+        else:
+            beta_price = float(beta_price_raw)
+    except (TypeError, ValueError, IndexError):
+        beta_price = 0.0
+
     if beta_price > 0:
         # Get Beta (SPY) IV for Expected Move calculation
         beta_iv = market_data.get(beta_sym, {}).get('iv', 15.0) # Default to 15% if missing
-        
+
         # 1-Day Expected Move (1SD) = Price * (IV / sqrt(252))
         em_1sd = beta_price * (beta_iv / 100.0 / math.sqrt(252))
-        
+
         # Dynamic Stress Scenarios from Config
         stress_config = rules.get('stress_scenarios', [])
-        
+
         # Fallback if config is missing scenarios
         if not stress_config:
             stress_config = [
@@ -281,7 +292,7 @@ def analyze_portfolio(
         for s in stress_config:
             label = s.get('label', 'Scenario')
             vol_move = s.get('vol_point_move', 0.0)
-            
+
             # Calculate Beta Move (Price Change in SPY-equivalent terms)
             if s.get('move_pct') is not None:
                 move_points = beta_price * s['move_pct']
@@ -292,23 +303,23 @@ def analyze_portfolio(
             else:
                 move_points = 0.0
                 sigma = 0.0
-            
+
             # --- Per-Position P/L Calculation ---
             total_est_pl = 0.0
             total_drift = 0.0
-            
+
             for pos_report in all_position_reports:
                 # Get required values from the report, with safe defaults
                 pos_beta_delta = pos_report.get('delta', 0.0)
                 # FIX: Use 'gamma' (beta-weighted) directly, as 'raw_gamma' is not passed by triage_engine
                 pos_beta_gamma = pos_report.get('gamma', 0.0)
-                
+
                 pos_raw_vega = pos_report.get('raw_vega', 0.0)
                 pos_beta = pos_report.get('beta', 1.0)
 
                 # 1. Delta P/L: Uses beta-weighted delta against the SPY move
                 delta_pl = pos_beta_delta * move_points
-                
+
                 # 2. Gamma P/L: Uses beta-weighted gamma and SPY move
                 #    P/L = 0.5 * Gamma_BW * (Move_SPY)^2
                 gamma_pl = 0.5 * pos_beta_gamma * (move_points ** 2)
@@ -316,14 +327,14 @@ def analyze_portfolio(
                 # 3. Vega P/L: Uses raw vega and a beta-scaled volatility move
                 #    This is an approximation, assuming vol-beta is similar to price-beta.
                 vega_pl = (pos_raw_vega * pos_beta) * vol_move
-                
+
                 total_est_pl += (delta_pl + gamma_pl + vega_pl)
-                
+
                 # Delta Drift = Gamma_BW * Move_SPY
                 total_drift += pos_beta_gamma * move_points
-            
+
             new_delta = total_beta_delta + total_drift
-            
+
             stress_box_scenarios.append({
                 "label": label,
                 "beta_move": move_points,
@@ -332,7 +343,7 @@ def analyze_portfolio(
                 "drift": total_drift,
                 "new_delta": new_delta
             })
-            
+
         report['stress_box'] = {
             "beta_symbol": beta_sym,
             "beta_price": beta_price,
@@ -350,7 +361,7 @@ def analyze_portfolio(
         worst_case_pl = min((s['est_pl'] for s in scenarios), default=0.0)
         if worst_case_pl < 0:
             total_tail_risk = abs(worst_case_pl)
-    
+
     report['portfolio_summary']['total_tail_risk'] = total_tail_risk
     report['portfolio_summary']['tail_risk_pct'] = (total_tail_risk / net_liq) if net_liq > 0 else 0.0
 
@@ -382,12 +393,12 @@ def analyze_portfolio(
 def main():
     parser = argparse.ArgumentParser(description='Analyze current portfolio positions and generate a triage report.')
     parser.add_argument('file_path', type=str, help='Path to the portfolio CSV file.')
-    
+
     args = parser.parse_args()
-    
+
     warn_if_not_venv()
     report_data = analyze_portfolio(args.file_path)
-    
+
     if "error" in report_data:
         print(json.dumps(report_data, indent=2), file=sys.stderr)
         sys.exit(1)

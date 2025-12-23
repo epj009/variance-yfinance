@@ -11,17 +11,11 @@ Priority:
 3. Strategy validation - HIGH
 """
 
-import pytest
-import sys
-import os
 import json
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
+import pytest
 
-import config_loader
-import strategy_loader
-
+from variance import config_loader, strategy_loader
 
 # ============================================================================
 # FIXTURES
@@ -151,7 +145,7 @@ class TestLoadMarketConfig:
 
     def test_missing_file_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for missing file."""
-        result = config_loader.load_market_config(config_dir=str(config_dir))
+        config_loader.load_market_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "runtime_config.json not found" in captured.err
@@ -170,7 +164,7 @@ class TestLoadMarketConfig:
         config_file = config_dir / "runtime_config.json"
         config_file.write_text('{"broken": ')
 
-        result = config_loader.load_market_config(config_dir=str(config_dir))
+        config_loader.load_market_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "malformed" in captured.err
@@ -201,7 +195,7 @@ class TestLoadSystemConfig:
 
     def test_missing_file_warns_to_stderr(self, config_dir, capsys):
         """Warning printed for missing file."""
-        result = config_loader.load_system_config(config_dir=str(config_dir))
+        config_loader.load_system_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "runtime_config.json not found" in captured.err
@@ -220,7 +214,7 @@ class TestLoadSystemConfig:
         config_file = config_dir / "runtime_config.json"
         config_file.write_text('{"incomplete"')
 
-        result = config_loader.load_system_config(config_dir=str(config_dir))
+        config_loader.load_system_config(config_dir=str(config_dir))
 
         captured = capsys.readouterr()
         assert "malformed" in captured.err

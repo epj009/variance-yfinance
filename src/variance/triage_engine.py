@@ -6,19 +6,16 @@ Extracted from analyze_portfolio.py to improve maintainability.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, TypedDict
+from typing import Any, Optional, TypedDict
 
 # Import common utilities
-try:
-    from .portfolio_parser import parse_currency, parse_dte, get_root_symbol, is_stock_type
-    from .strategy_detector import identify_strategy, map_strategy_to_id
-except ImportError:
-    from portfolio_parser import parse_currency, parse_dte, get_root_symbol, is_stock_type
-    from strategy_detector import identify_strategy, map_strategy_to_id
+from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
+from .strategy_detector import identify_strategy, map_strategy_to_id
 
 
 class TriageResult(TypedDict, total=False):
     """Type definition for a triage result."""
+
     root: str
     strategy_name: str
     price: float
@@ -32,30 +29,32 @@ class TriageResult(TypedDict, total=False):
     logic: str
     sector: str
     delta: float
-    gamma: float # NEW
+    gamma: float  # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
     futures_multiplier_warning: Optional[str]
 
 
 class TriageContext(TypedDict, total=False):
     """Type definition for triage context data."""
-    market_data: Dict[str, Any]
-    rules: Dict[str, Any]
-    market_config: Dict[str, Any]
-    strategies: Dict[str, Any]
+
+    market_data: dict[str, Any]
+    rules: dict[str, Any]
+    market_config: dict[str, Any]
+    strategies: dict[str, Any]
     traffic_jam_friction: float
     portfolio_beta_delta: float  # NEW: Total portfolio delta for hedge validation
-    net_liquidity: float # NEW: For size threat checks
+    net_liquidity: float  # NEW: For size threat checks
 
 
 class TriageMetrics(TypedDict, total=False):
     """Type definition for portfolio-level triage metrics."""
+
     total_net_pl: float
     total_beta_delta: float
     total_portfolio_theta: float
     total_portfolio_theta_vrp_adj: float  # VRP-adjusted theta (quality-weighted)
     total_portfolio_vega: float
-    total_portfolio_gamma: float # NEW
+    total_portfolio_gamma: float  # NEW
     total_liquidity_cost: float
     total_abs_theta: float
     total_option_legs: int
@@ -68,7 +67,7 @@ def detect_hedge_tag(
     strategy_name: str,
     strategy_delta: float,
     portfolio_beta_delta: float,
-    rules: Dict[str, Any]
+    rules: dict[str, Any],
 ) -> bool:
     """
     Determine if a position qualifies as a structural portfolio hedge.
@@ -90,17 +89,19 @@ def detect_hedge_tag(
         True if position qualifies as a hedge, False otherwise
     """
     # Get hedge rules from config with safe defaults
-    hedge_rules = rules.get('hedge_rules', {})
+    hedge_rules = rules.get("hedge_rules", {})
 
     # Check if hedge detection is enabled
-    if not hedge_rules.get('enabled', False):
+    if not hedge_rules.get("enabled", False):
         return False
 
     # Default values if not in config
-    index_symbols = hedge_rules.get('index_symbols', ['SPY', 'QQQ', 'IWM'])
-    qualifying_strategies = hedge_rules.get('qualifying_strategies', ['Long Put', 'Vertical Spread (Put)'])
-    delta_threshold = hedge_rules.get('delta_threshold', -5)
-    require_portfolio_long = hedge_rules.get('require_portfolio_long', True)
+    index_symbols = hedge_rules.get("index_symbols", ["SPY", "QQQ", "IWM"])
+    qualifying_strategies = hedge_rules.get(
+        "qualifying_strategies", ["Long Put", "Vertical Spread (Put)"]
+    )
+    delta_threshold = hedge_rules.get("delta_threshold", -5)
+    require_portfolio_long = hedge_rules.get("require_portfolio_long", True)
 
     # Check 1: Is underlying a broad market index?
     if root not in index_symbols:
@@ -123,11 +124,8 @@ def detect_hedge_tag(
 
 
 def validate_futures_delta(
-    root: str,
-    beta_delta: float,
-    market_config: Dict[str, Any],
-    rules: Dict[str, Any]
-) -> Dict[str, Any]:
+    root: str, beta_delta: float, market_config: dict[str, Any], rules: dict[str, Any]
+) -> dict[str, Any]:
     """
     Validate that futures positions have plausible beta-weighted delta values.
 
@@ -153,36 +151,36 @@ def validate_futures_delta(
             - message: str (human-readable warning if issue detected)
     """
     result = {
-        'is_futures': False,
-        'multiplier': 1.0,
-        'potential_issue': False,
-        'expected_min': 0.0,
-        'message': ''
+        "is_futures": False,
+        "multiplier": 1.0,
+        "potential_issue": False,
+        "expected_min": 0.0,
+        "message": "",
     }
 
     # Only check symbols starting with '/'
-    if not root.startswith('/'):
+    if not root.startswith("/"):
         return result
 
-    result['is_futures'] = True
+    result["is_futures"] = True
 
     # Get multiplier from config
-    futures_multipliers = market_config.get('FUTURES_MULTIPLIERS', {})
+    futures_multipliers = market_config.get("FUTURES_MULTIPLIERS", {})
     multiplier = futures_multipliers.get(root, 1.0)
-    result['multiplier'] = multiplier
+    result["multiplier"] = multiplier
 
     # Get validation thresholds from rules
-    validation_rules = rules.get('futures_delta_validation', {})
-    if not validation_rules.get('enabled', True):
+    validation_rules = rules.get("futures_delta_validation", {})
+    if not validation_rules.get("enabled", True):
         return result
 
-    min_delta_threshold = validation_rules.get('min_abs_delta_threshold', 1.0)
-    result['expected_min'] = min_delta_threshold
+    min_delta_threshold = validation_rules.get("min_abs_delta_threshold", 1.0)
+    result["expected_min"] = min_delta_threshold
 
     # Check if delta is suspiciously small for a futures position
     if abs(beta_delta) < min_delta_threshold and abs(beta_delta) > 0:
-        result['potential_issue'] = True
-        result['message'] = (
+        result["potential_issue"] = True
+        result["message"] = (
             f"Futures delta ({beta_delta:.2f}) appears unmultiplied. "
             f"Expected: delta x {multiplier} = {beta_delta * multiplier:.1f} SPY-eq. "
             f"Verify broker CSV contains beta-weighted values."
@@ -191,36 +189,36 @@ def validate_futures_delta(
     return result
 
 
-def _beta_scale_from_deltas(leg: Dict[str, Any]) -> Optional[float]:
+def _beta_scale_from_deltas(leg: dict[str, Any]) -> Optional[float]:
     """
     Derive a beta-weighting scale from raw vs beta-weighted deltas.
 
     Returns None if inputs are missing or near-zero.
     """
-    raw_delta = parse_currency(leg.get('Delta', '0'))
-    beta_delta = parse_currency(leg.get('beta_delta', '0'))
+    raw_delta = parse_currency(leg.get("Delta", "0"))
+    beta_delta = parse_currency(leg.get("beta_delta", "0"))
     if abs(raw_delta) < 1e-6 or abs(beta_delta) < 1e-6:
         return None
     return beta_delta / raw_delta
 
 
-def _beta_weight_gamma(leg: Dict[str, Any]) -> float:
+def _beta_weight_gamma(leg: dict[str, Any]) -> float:
     """
     Convert raw gamma to beta-weighted gamma when raw delta is available.
 
     Gamma scaling follows the chain rule: gamma_beta = gamma_raw * scale^2.
     """
-    beta_gamma = parse_currency(leg.get('beta_gamma', '0'))
+    beta_gamma = parse_currency(leg.get("beta_gamma", "0"))
     if beta_gamma:
         return beta_gamma
-    raw_gamma = parse_currency(leg.get('Gamma', '0'))
+    raw_gamma = parse_currency(leg.get("Gamma", "0"))
     scale = _beta_scale_from_deltas(leg)
     if scale is None:
         return raw_gamma
-    return raw_gamma * (scale ** 2)
+    return raw_gamma * (scale**2)
 
 
-def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
+def calculate_days_held(legs: list[dict[str, Any]]) -> int:
     """
     Calculate the number of days the position has been held.
     Supports standard date formats, "Xd" strings (e.g. "12d"), or raw numeric days.
@@ -228,14 +226,14 @@ def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
     """
     max_days = 0
     earliest_date = None
-    
+
     for leg in legs:
-        open_date_str = leg.get('Open Date')
+        open_date_str = leg.get("Open Date")
         if not open_date_str:
             continue
-            
+
         # Case 1: Raw numeric days (e.g. "12") or "12d" format
-        clean_val = open_date_str.lower().replace('d', '').strip()
+        clean_val = open_date_str.lower().replace("d", "").strip()
         if clean_val.isdigit():
             days = int(clean_val)
             if days > max_days:
@@ -245,7 +243,7 @@ def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
         # Case 2: Date string
         try:
             # Try flexible parsing
-            for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d'):
+            for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d"):
                 try:
                     dt = datetime.strptime(open_date_str, fmt).date()
                     if earliest_date is None or dt < earliest_date:
@@ -255,83 +253,55 @@ def calculate_days_held(legs: List[Dict[str, Any]]) -> int:
                     continue
         except Exception:
             pass
-    
+
     if earliest_date:
         calc_days = (datetime.now().date() - earliest_date).days
         if calc_days > max_days:
             max_days = calc_days
-            
+
     return max_days
 
 
-def triage_cluster(
-    legs: List[Dict[str, Any]],
-    context: TriageContext
-) -> TriageResult:
+def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext) -> dict[str, Any]:
     """
-    Triage a single strategy cluster and determine action code.
-
-    Args:
-        legs: List of position legs forming a strategy
-        context: Triage context with market data, rules, and configs
-
-    Returns:
-        TriageResult with action code and logic
+    Step 1 of Triage: Calculate Greeks, stats, and identify strategy.
+    Does NOT depend on portfolio-level state (like total delta).
     """
-    market_data = context['market_data']
-    rules = context['rules']
-    market_config = context['market_config']
-    strategies = context['strategies']
-    traffic_jam_friction = context['traffic_jam_friction']
-    net_liquidity = context.get('net_liquidity', 50000.0) # Default if missing
+    rules = context["rules"]
+    market_config = context["market_config"]
+    strategies = context["strategies"]
 
-    root = get_root_symbol(legs[0]['Symbol'])
+    root = get_root_symbol(legs[0]["Symbol"])
 
     # Calculate DTE only for option legs
-    option_legs = [l for l in legs if not is_stock_type(l['Type'])]
+    option_legs = [leg for leg in legs if not is_stock_type(leg["Type"])]
     dtes = []
-    for l in option_legs:
-        val = parse_dte(l.get('DTE'))
+    for leg in option_legs:
+        val = parse_dte(leg.get("DTE"))
         if val <= 0:
             # Fallback to Exp Date
-            exp_str = l.get('Exp Date')
+            exp_str = leg.get("Exp Date")
             if exp_str:
                 try:
-                    exp_date = datetime.strptime(exp_str, '%Y-%m-%d').date()
+                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
                     val = (exp_date - datetime.now().date()).days
                 except ValueError:
                     val = 0
         dtes.append(val)
-    
+
     dte = min(dtes) if dtes else 0
 
     strategy_name = identify_strategy(legs)
-    net_pl = sum(parse_currency(l['P/L Open']) for l in legs)
+    net_pl = sum(parse_currency(leg["P/L Open"]) for leg in legs)
 
-    # Calculate net cost BEFORE using it in map_strategy_to_id
-    net_cost = sum(parse_currency(l['Cost']) for l in legs)
+    # Calculate net cost
+    net_cost = sum(parse_currency(leg["Cost"]) for leg in legs)
 
     # Resolve Strategy Config
     strategy_id = map_strategy_to_id(strategy_name, net_cost)
     strategy_config = strategies.get(strategy_id)
 
-    # Set Defaults from Rules
-    target_profit_pct = rules['profit_harvest_pct']
-    gamma_trigger_dte = rules['gamma_dte_threshold']
-    earnings_stance = "avoid" # Default to caution
-
-    # Override with Strategy Specifics if available
-    if strategy_config:
-        target_profit_pct = strategy_config['management']['profit_target_pct']
-        gamma_trigger_dte = strategy_config['metadata']['gamma_trigger_dte']
-        earnings_stance = strategy_config['metadata'].get('earnings_stance', 'avoid')
-
     # --- Greek Aggregation ---
-    # ASSUMPTION: Broker CSV 'beta_delta' column contains BETA-WEIGHTED delta values.
-    # For futures, this means: raw_delta * contract_multiplier * (underlying_beta / SPY).
-    # If your broker provides raw delta, pre-multiply before importing.
-    # See: docs/TECHNICAL_ARCHITECTURE.md Section 3.5 for details.
-
     strategy_delta = 0.0
     strategy_gamma = 0.0
     cluster_theta_raw = 0.0
@@ -339,41 +309,33 @@ def triage_cluster(
     futures_delta_warnings = []
     uses_raw_delta = False
 
-    for l in legs:
-        # Check for missing beta_delta key or empty string
-        b_delta_str = l.get('beta_delta')
-        if b_delta_str is None or str(b_delta_str).strip() == '':
-            # Fallback: If beta_delta is missing/empty but raw Delta exists
-            raw_delta_str = l.get('Delta')
-            if raw_delta_str and str(raw_delta_str).strip() != '':
+    for leg in legs:
+        b_delta_str = leg.get("beta_delta")
+        if b_delta_str is None or str(b_delta_str).strip() == "":
+            raw_delta_str = leg.get("Delta")
+            if raw_delta_str and str(raw_delta_str).strip() != "":
                 b_delta = parse_currency(raw_delta_str)
                 uses_raw_delta = True
             else:
                 b_delta = 0.0
         else:
             b_delta = parse_currency(b_delta_str)
-        
+
         strategy_delta += b_delta
 
-        # Validate futures delta looks reasonable (not raw/unmultiplied)
-        leg_root = get_root_symbol(l['Symbol'])
+        leg_root = get_root_symbol(leg["Symbol"])
         futures_check = validate_futures_delta(
-            root=leg_root,
-            beta_delta=b_delta,
-            market_config=market_config,
-            rules=rules
+            root=leg_root, beta_delta=b_delta, market_config=market_config, rules=rules
         )
-        if futures_check['potential_issue']:
-            futures_delta_warnings.append(futures_check['message'])
+        if futures_check["potential_issue"]:
+            futures_delta_warnings.append(futures_check["message"])
 
-        # Aggregate Gamma (Beta-weighted Gamma if available, else raw)
-        b_gamma = _beta_weight_gamma(l)
+        b_gamma = _beta_weight_gamma(leg)
         strategy_gamma += b_gamma
-        cluster_gamma_raw += parse_currency(l.get('Gamma', '0'))
-        cluster_theta_raw += parse_currency(l.get('Theta', '0'))
+        cluster_gamma_raw += parse_currency(leg.get("Gamma", "0"))
+        cluster_theta_raw += parse_currency(leg.get("Theta", "0"))
 
     pl_pct = None
-    # Treat negatives as credits received, positives as debits paid
     if net_cost < 0:
         max_profit = abs(net_cost)
         if max_profit > 0:
@@ -381,110 +343,165 @@ def triage_cluster(
     elif net_cost > 0:
         pl_pct = net_pl / net_cost
 
-    # Calculate Days Held for Velocity
     days_held = calculate_days_held(legs)
 
-    # Initialize variables
+    return {
+        "root": root,
+        "strategy_name": strategy_name,
+        "strategy_id": strategy_id,
+        "strategy_config": strategy_config,
+        "dte": dte,
+        "net_pl": net_pl,
+        "net_cost": net_cost,
+        "strategy_delta": strategy_delta,
+        "strategy_gamma": strategy_gamma,
+        "cluster_theta_raw": cluster_theta_raw,
+        "cluster_gamma_raw": cluster_gamma_raw,
+        "pl_pct": pl_pct,
+        "days_held": days_held,
+        "uses_raw_delta": uses_raw_delta,
+        "futures_delta_warnings": futures_delta_warnings,
+        "legs": legs,  # Keep legs for tested checks
+    }
+
+
+def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) -> TriageResult:
+    """
+    Step 2 of Triage: Determine Action Code using metrics and portfolio context.
+    """
+    market_data = context["market_data"]
+    rules = context["rules"]
+    net_liquidity = context.get("net_liquidity", 50000.0)
+
+    # Unpack metrics
+    root = metrics["root"]
+    strategy_name = metrics["strategy_name"]
+    strategy_config = metrics["strategy_config"]
+    dte = metrics["dte"]
+    net_pl = metrics["net_pl"]
+    net_cost = metrics["net_cost"]
+    strategy_delta = metrics["strategy_delta"]
+    strategy_gamma = metrics["strategy_gamma"]
+    cluster_theta_raw = metrics["cluster_theta_raw"]
+    cluster_gamma_raw = metrics["cluster_gamma_raw"]
+    pl_pct = metrics["pl_pct"]
+    days_held = metrics["days_held"]
+    uses_raw_delta = metrics["uses_raw_delta"]
+    futures_delta_warnings = metrics["futures_delta_warnings"]
+    legs = metrics["legs"]
+
+    # Set Defaults from Rules
+    target_profit_pct = rules["profit_harvest_pct"]
+    gamma_trigger_dte = rules["gamma_dte_threshold"]
+    earnings_stance = "avoid"
+
+    if strategy_config:
+        target_profit_pct = strategy_config["management"]["profit_target_pct"]
+        gamma_trigger_dte = strategy_config["metadata"]["gamma_trigger_dte"]
+        earnings_stance = strategy_config["metadata"].get("earnings_stance", "avoid")
+
     action_code = None
     logic = ""
     is_winner = False
 
     # Retrieve live data
     m_data = market_data.get(root, {})
-    vrp_structural = m_data.get('vrp_structural', 0)
-    if vrp_structural is None: vrp_structural = 0
-    vrp_tactical = m_data.get('vrp_tactical', 1.0) # For expansion checks
+    live_price_raw = m_data.get("price", 0)
 
-    live_price = m_data.get('price', 0)
-    is_stale = m_data.get('is_stale', False)
-    earnings_date = m_data.get('earnings_date')
-    sector = m_data.get('sector', 'Unknown')
-    proxy_note = m_data.get('proxy')
+    # Robust Type Handling: Ensure price is a float
+    try:
+        if hasattr(live_price_raw, "__len__") and not isinstance(live_price_raw, (str, bytes)):
+            live_price = float(live_price_raw[0])
+        else:
+            live_price = float(live_price_raw)
+    except (TypeError, ValueError, IndexError):
+        live_price = 0.0
+    is_stale = m_data.get("is_stale", False)
+    vrp_structural = m_data.get("vrp_structural")
+    earnings_date = m_data.get("earnings_date")
+    sector = m_data.get("sector", "Unknown")
+    proxy_note = m_data.get("proxy")
 
-    # Add Raw Delta warning to logic if applicable
     if uses_raw_delta:
         logic = "Using unweighted Delta (Beta Delta missing)"
 
-    # --- 0. Probabilistic Size Threat Check (VaR Contribution) ---
-    # Check if a 2SD move (-95% confidence) causes a loss > 5% of Net Liq
+    # --- 0. Probabilistic Size Threat Check ---
     is_size_threat = False
     size_logic = ""
-    loss_at_2sd = 0.0 # Initialize
-    
-    # Need Beta IV for Expected Move calculation
-    beta_rules = rules.get('beta_rules', {})
-    beta_sym = rules.get('beta_weighted_symbol', 'SPY')
+
+    beta_sym = rules.get("beta_weighted_symbol", "SPY")
     beta_data = market_data.get(beta_sym, {})
-    beta_iv = beta_data.get('iv', 15.0)
-    beta_price = beta_data.get('price', 0.0)
-    
+    beta_iv = beta_data.get("iv", 15.0)
+    beta_price_raw = beta_data.get("price", 0.0)
+
+    # Robust Type Handling: Ensure price is a float
+    try:
+        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
+            beta_price = float(beta_price_raw[0])
+        else:
+            beta_price = float(beta_price_raw)
+    except (TypeError, ValueError, IndexError):
+        beta_price = 0.0
+
     if beta_price > 0:
-        em_1sd = beta_price * (beta_iv / 100.0 / 15.87) # 15.87 approx sqrt(252)
-        move_2sd = em_1sd * -2.0 # Downward 2-sigma move
-        
-        # Calculate cluster specific 2SD loss
-        # Loss = (Delta * Move) + (0.5 * Gamma * Move^2)
-        # We use strategy_delta and strategy_gamma calculated earlier
-        loss_at_2sd = (strategy_delta * move_2sd) + (0.5 * strategy_gamma * (move_2sd ** 2))
-        
-        # Flag if loss > 5% of Net Liq
-        size_threshold = net_liquidity * rules.get('size_threat_pct', 0.05)
+        em_1sd = beta_price * (beta_iv / 100.0 / 15.87)
+        move_2sd = em_1sd * -2.0
+        loss_at_2sd = (strategy_delta * move_2sd) + (0.5 * strategy_gamma * (move_2sd**2))
+
+        size_threshold = net_liquidity * rules.get("size_threat_pct", 0.05)
         if abs(loss_at_2sd) > size_threshold and loss_at_2sd < 0:
             is_size_threat = True
             usage_pct = abs(loss_at_2sd) / net_liquidity
             size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
 
-
-    # --- 0. Expiration Day Check (Highest Priority) ---
+    # --- 0. Expiration Day Check ---
     if dte == 0:
         action_code = "EXPIRING"
         logic = "Expiration Day - Manual Management Required"
 
-    # --- 1. Harvest Logic (Enhanced with Velocity) ---
-    # Standard Harvest
+    # --- 1. Harvest Logic ---
     if net_cost < 0 and pl_pct is not None and pl_pct >= target_profit_pct:
         action_code = "HARVEST"
         logic = f"Profit {pl_pct:.1%} (Target: {target_profit_pct:.0%})"
         is_winner = True
-    
-    # Velocity Harvest (Early Profit)
-    # If profit > 25% AND held < 5 days
     elif net_cost < 0 and pl_pct is not None and pl_pct >= 0.25 and 0 < days_held < 5:
         action_code = "HARVEST"
         logic = f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
         is_winner = True
 
-    # Size Threat Action (If not already harvesting)
     if not is_winner and is_size_threat:
         action_code = "SIZE_THREAT"
         logic = size_logic if size_logic else "Excessive Position Size"
 
-
     # --- 2. Defense ---
-    underlying_price = parse_currency(legs[0]['Underlying Last Price'])
-    price_used = "static"
-    # Use live price if available
+    underlying_price = parse_currency(legs[0]["Underlying Last Price"])
     if live_price:
         underlying_price = live_price
-        price_used = "live_stale" if is_stale else "live"
 
     is_tested = False
-    for l in legs:
-        # Only check option legs for "tested" status
-        if is_stock_type(l['Type']): continue
-        qty = parse_currency(l['Quantity'])
-        otype = l['Call/Put']
-        strike = parse_currency(l['Strike Price'])
-        if qty < 0:
-            if otype == 'Call' and underlying_price > strike: is_tested = True
-            elif otype == 'Put' and underlying_price < strike: is_tested = True
+    for leg in legs:
+        if is_stock_type(leg["Type"]):
+            continue
+        qty = parse_currency(leg["Quantity"])
+        otype = leg["Call/Put"]
+        strike = parse_currency(leg["Strike Price"])
+        if qty < 0 and ((otype == "Call" and underlying_price > strike) or (
+            otype == "Put" and underlying_price < strike
+        )):
+            is_tested = True
 
     if not is_winner and not action_code and is_tested and dte < gamma_trigger_dte:
         action_code = "DEFENSE"
         logic = f"Tested & < {gamma_trigger_dte} DTE"
 
     # --- 3. Gamma Zone ---
-    if not is_winner and not action_code and not is_tested and dte < gamma_trigger_dte and dte > 0:
+    if (
+        not is_winner
+        and not action_code
+        and not is_tested
+        and dte < gamma_trigger_dte
+        and dte > 0
+    ):
         action_code = "GAMMA"
         logic = f"< {gamma_trigger_dte} DTE Risk"
 
@@ -493,117 +510,124 @@ def triage_cluster(
         root=root,
         strategy_name=strategy_name,
         strategy_delta=strategy_delta,
-        portfolio_beta_delta=context.get('portfolio_beta_delta', 0.0),
-        rules=rules
+        portfolio_beta_delta=context.get("portfolio_beta_delta", 0.0),
+        rules=rules,
     )
 
     # 4.5. Hedge Check
     if is_hedge and not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte:
-        if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-            if vrp_structural is not None and vrp_structural < rules['dead_money_vrp_structural_threshold']:
-                action_code = "HEDGE_CHECK"
-                logic = f"Protective hedge on {root}. Review utility."
+        if (
+            pl_pct is not None
+            and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
+        ) and (
+            vrp_structural is not None
+            and vrp_structural < rules["dead_money_vrp_structural_threshold"]
+        ):
+            action_code = "HEDGE_CHECK"
+            logic = f"Protective hedge on {root}. Review utility."
 
-    # --- 5. Toxic Theta (ZOMBIE) ---
-    # Triggered if carry (theta) is insufficient to cover expected gamma cost.
-    # Only flag if not already a winner/defense/gamma and P/L is relatively stagnant.
-    if not is_winner and not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        if pl_pct is not None and rules['dead_money_pl_pct_low'] <= pl_pct <= rules['dead_money_pl_pct_high']:
-            if net_cost < 0:
-                hv_ref = m_data.get('hv20') or m_data.get('hv252')
-                price_for_move = live_price if live_price else underlying_price
-                if hv_ref and hv_ref > 0 and price_for_move > 0:
-                    hv_floor = rules.get('hv_floor_percent', 5.0)
-                    hv_ref_floored = max(hv_ref, hv_floor)
-                    em_1sd = price_for_move * (hv_ref_floored / 100.0 / 15.87)
-                    expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd ** 2)
-                    if expected_gamma_cost > 0:
-                        theta_income = abs(cluster_theta_raw)
-                        efficiency = theta_income / expected_gamma_cost
-                        threshold = rules.get('theta_efficiency_low', 0.10)
-                        if efficiency < threshold:
-                            action_code = "TOXIC"
-                            logic = f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
+    # --- 5. Toxic Theta ---
+    if (
+        not is_winner
+        and not action_code
+        and not is_tested
+        and dte > gamma_trigger_dte
+        and not is_hedge
+    ) and (
+        pl_pct is not None
+        and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
+    ) and net_cost < 0:
+        hv_ref = m_data.get("hv20") or m_data.get("hv252")
+        price_for_move = live_price if live_price else underlying_price
+        if hv_ref and hv_ref > 0 and price_for_move > 0:
+            hv_floor = rules.get("hv_floor_percent", 5.0)
+            hv_ref_floored = max(hv_ref, hv_floor)
+            em_1sd = price_for_move * (hv_ref_floored / 100.0 / 15.87)
+            expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd**2)
+            if expected_gamma_cost > 0:
+                theta_income = abs(cluster_theta_raw)
+                efficiency = theta_income / expected_gamma_cost
+                threshold = rules.get("theta_efficiency_low", 0.10)
+                if efficiency < threshold:
+                    action_code = "TOXIC"
+                    logic = f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
 
-    # --- 6. Earnings Check (Enhanced with Stance) ---
+    # --- 6. Earnings Check ---
     earnings_note = ""
     if earnings_date and earnings_date != "Unavailable":
         try:
             edate = datetime.fromisoformat(earnings_date).date()
             days_to_earn = (edate - datetime.now().date()).days
-            
-            if 0 <= days_to_earn <= rules['earnings_days_threshold']:
+            if 0 <= days_to_earn <= rules["earnings_days_threshold"]:
                 earnings_note = f"Earnings {days_to_earn}d"
-                
-                # Logic based on Earnings Stance
                 if earnings_stance == "avoid":
-                    # Standard warning for short vol
                     if not action_code:
                         action_code = "EARNINGS_WARNING"
                         logic = "Binary Event Risk (Avoid)"
                     elif action_code == "HARVEST":
-                        # If harvesting, emphasize closing before event
                         logic = f"{logic} | Close before Earnings!"
-                
                 elif earnings_stance == "long_vol":
-                    # Opportunity for long vol
                     earnings_note = f"{earnings_note} (Play)"
-                    # Do NOT flag as warning, just append note
-                
-                elif earnings_stance == "neutral":
-                    # Just informational
-                    pass
-                
-                # Append note to logic if not already main reason
                 if action_code != "EARNINGS_WARNING":
-                     logic = f"{logic} | {earnings_note}" if logic else earnings_note
-
+                    logic = f"{logic} | {earnings_note}" if logic else earnings_note
         except (ValueError, TypeError):
             pass
 
     # --- 7. VRP Momentum (SCALABLE) ---
-    # Triggered if Tactical VRP is surging above Structural (Fresh Opportunity)
-    # AND we aren't already oversized or in trouble.
     if not action_code and not is_tested and dte > gamma_trigger_dte and not is_hedge:
-        scale_threshold = rules.get('vrp_scalable_threshold', 1.5)
-        if vrp_tactical is not None and vrp_tactical > (vrp_structural + 0.4) and vrp_tactical > scale_threshold:
-            # Safety check: Only suggest scaling if current Tail Risk is low (< 2% of Net Liq)
-            # This prevents over-sizing already significant positions.
-            if abs(loss_at_2sd) < (0.02 * net_liquidity) and (pl_pct or 0) < 0.25:
-                action_code = "SCALABLE"
-                logic = f"VRP Surge: Tactical markup ({vrp_tactical:.2f}) is significantly above trend. High Alpha Opportunity."
-
-    price_value = live_price if live_price else parse_currency(legs[0]['Underlying Last Price'])
-    if (price_used != "live" or is_stale) and not is_winner and dte < gamma_trigger_dte:
-        note = "Price stale/absent; tested status uncertain"
-        logic = f"{logic} | {note}" if logic else note
+        if pl_pct is not None and pl_pct < target_profit_pct:
+            vrp_s = m_data.get("vrp_structural", 0)
+            vrp_t = m_data.get("vrp_tactical", 1.0)
+            if vrp_s and vrp_t:
+                markup = (vrp_t / vrp_s) - 1 if vrp_s != 0 else 0
+                if markup > rules.get("vrp_momentum_threshold", 0.50):
+                    action_code = "SCALABLE"
+                    logic = f"VRP Surge: Tactical markup ({vrp_t:.2f}) is significantly above trend. High Alpha Opportunity."
 
     return {
-        'root': root,
-        'strategy_name': strategy_name,
-        'price': price_value,
-        'is_stale': bool(is_stale),
-        'vrp_structural': vrp_structural if vrp_structural is not None else None,
-        'proxy_note': proxy_note,
-        'net_pl': net_pl,
-        'pl_pct': pl_pct,
-        'dte': dte,
-        'action_code': action_code,
-        'logic': logic,
-        'sector': sector,
-        'delta': strategy_delta,
-        'gamma': strategy_gamma,
-        'is_hedge': is_hedge,
-        'futures_multiplier_warning': futures_delta_warnings[0] if futures_delta_warnings else None
+        "root": root,
+        "strategy_name": strategy_name,
+        "price": live_price if live_price else underlying_price,
+        "is_stale": is_stale,
+        "vrp_structural": vrp_structural,
+        "proxy_note": proxy_note,
+        "net_pl": net_pl,
+        "pl_pct": pl_pct,
+        "dte": dte,
+        "action_code": action_code,
+        "logic": logic,
+        "sector": sector,
+        "delta": strategy_delta,
+        "gamma": strategy_gamma,
+        "is_hedge": is_hedge,
+        "futures_multiplier_warning": (
+            futures_delta_warnings[0] if futures_delta_warnings else None
+        ),
     }
 
 
+def triage_cluster(legs: list[dict[str, Any]], context: TriageContext) -> TriageResult:
+    """
+    Triage a single strategy cluster and determine action code.
+    Backward-compatible entry point.
+
+    Args:
+        legs: List of position legs forming a strategy
+        context: Triage context with market data, rules, and configs
+
+    Returns:
+        TriageResult with action code and logic
+    """
+    metrics = calculate_cluster_metrics(legs, context)
+    return determine_cluster_action(metrics, context)
+
+
 def triage_portfolio(
-    clusters: List[List[Dict[str, Any]]],
-    context: TriageContext
-) -> tuple[List[TriageResult], TriageMetrics]:
+    clusters: list[list[dict[str, Any]]], context: TriageContext
+) -> tuple[list[TriageResult], TriageMetrics]:
     """
     Triage all clusters in a portfolio and calculate portfolio-level metrics.
+    Uses a 2-pass approach internally to resolve hedge dependencies efficiently.
 
     Args:
         clusters: List of strategy clusters
@@ -612,15 +636,15 @@ def triage_portfolio(
     Returns:
         Tuple of (position_reports, metrics)
     """
-    market_config = context['market_config']
-    rules = context['rules']
-    traffic_jam_friction = context['traffic_jam_friction']
+    market_config = context["market_config"]
+    rules = context["rules"]
+    traffic_jam_friction = context["traffic_jam_friction"]
 
-    all_position_reports = []
+    all_cluster_metrics = []
     total_net_pl = 0.0
     total_beta_delta = 0.0
     total_portfolio_theta = 0.0
-    total_portfolio_theta_vrp_adj = 0.0  # VRP-adjusted theta accumulator
+    total_portfolio_theta_vrp_adj = 0.0
     total_portfolio_vega = 0.0
     total_portfolio_gamma = 0.0
     total_liquidity_cost = 0.0
@@ -628,130 +652,125 @@ def triage_portfolio(
     total_option_legs = 0
     total_capital_at_risk = 0.0
 
+    # PASS 1: Calculate metrics and accumulate portfolio-wide state
     for legs in clusters:
         if not legs:
             continue
 
-        # Calculate per-leg metrics
-        option_legs = [l for l in legs if not is_stock_type(l['Type'])]
+        option_legs = [leg for leg in legs if not is_stock_type(leg["Type"])]
         total_option_legs += len(option_legs)
 
-        # Get triage result for this cluster
-        triage_result = triage_cluster(legs, context)
-        all_position_reports.append(triage_result)
+        # Step 1: Calculate cluster-level metrics (expensive identifying/parsing)
+        m = calculate_cluster_metrics(legs, context)
+        all_cluster_metrics.append(m)
 
         # Accumulate portfolio metrics
-        total_net_pl += triage_result['net_pl']
-        total_beta_delta += triage_result['delta']
+        total_net_pl += m["net_pl"]
+        total_beta_delta += m["strategy_delta"]
 
-        # Calculate capital at risk (sum of absolute cost basis for all positions)
-        net_cost = sum(parse_currency(l['Cost']) for l in legs)
-        total_capital_at_risk += abs(net_cost)
+        # Capital at risk
+        total_capital_at_risk += abs(m["net_cost"])
 
-        # Calculate theta, vega and friction metrics
-        cluster_theta_raw = 0.0  # Track raw theta for this cluster
-        for l in legs:
-            leg_theta = parse_currency(l['Theta'])
+        # Aggregate Greeks and Friction
+        for leg in legs:
+            leg_theta = parse_currency(leg["Theta"])
             total_portfolio_theta += leg_theta
-            cluster_theta_raw += leg_theta
             total_abs_theta += abs(leg_theta)
 
-            # Vega/Gamma Aggregation
-            leg_vega = parse_currency(l.get('Vega', '0'))
+            leg_vega = parse_currency(leg.get("Vega", "0"))
             total_portfolio_vega += leg_vega
-            
-            leg_gamma = _beta_weight_gamma(l)
+
+            leg_gamma = _beta_weight_gamma(leg)
             total_portfolio_gamma += leg_gamma
 
-            # Friction Horizon: Calculate liquidity cost (Ask - Bid) * Qty * Multiplier
-            bid = parse_currency(l['Bid'])
-            ask = parse_currency(l['Ask'])
-            qty = abs(parse_currency(l['Quantity']))
+            # Friction
+            bid = parse_currency(leg["Bid"])
+            ask = parse_currency(leg["Ask"])
+            qty = abs(parse_currency(leg["Quantity"]))
 
             if ask > bid and qty > 0:
                 spread = ask - bid
-
-                # Get multiplier from config or default to 100 for standard options
                 multiplier = 100.0
-                sym = l['Symbol'].upper()
-
-                # Check if this is a future and get its multiplier from config
-                futures_multipliers = market_config.get('FUTURES_MULTIPLIERS', {})
-                if sym.startswith('/'):
-                    # Try exact match first
+                sym = leg["Symbol"].upper()
+                futures_multipliers = market_config.get("FUTURES_MULTIPLIERS", {})
+                if sym.startswith("/"):
                     if sym in futures_multipliers:
                         multiplier = futures_multipliers[sym]
                     else:
-                        # Try prefix match (e.g., /ESZ24 matches /ES)
                         for future_prefix, future_mult in futures_multipliers.items():
                             if sym.startswith(future_prefix):
                                 multiplier = future_mult
                                 break
+                total_liquidity_cost += spread * qty * multiplier
 
-                liquidity_cost = spread * qty * multiplier
-                total_liquidity_cost += liquidity_cost
-
-        # Apply VRP adjustment to cluster theta
-        # Get VRP Tactical from market_data for this cluster's root symbol
-        root = get_root_symbol(legs[0]['Symbol'])
-        m_data = context['market_data'].get(root, {})
-        
-        # VRP Tactical is the ratio (IV / HV20)
-        vrp_t = m_data.get('vrp_tactical')
+        # VRP Adjustment for portfolio theta
+        m_data = context["market_data"].get(m["root"], {})
+        vrp_t = m_data.get("vrp_tactical")
 
         if vrp_t is not None:
             # CLAMPING Logic for Portfolio Aggregation
             # Prevent single-symbol data errors (like 1% IV) from skewing total portfolio quality
-            vta_floor = context['rules'].get('vrp_tactical_aggregation_floor', -0.50)
-            vta_ceil = context['rules'].get('vrp_tactical_aggregation_ceiling', 1.00)
-            
+            vta_floor = rules.get("vrp_tactical_aggregation_floor", -0.50)
+            vta_ceil = rules.get("vrp_tactical_aggregation_ceiling", 1.00)
+
             # Convert VRP Tactical (Ratio) to Markup for clamping
             # VRP 1.5 -> Markup 0.5. VRP 0.1 -> Markup -0.9.
             markup = vrp_t - 1.0
             clamped_markup = max(vta_floor, min(vta_ceil, markup))
-            
+
             # Re-convert to Clamped Ratio for multiplication
             clamped_ratio = 1.0 + clamped_markup
-            
+
             # Alpha Theta = Raw Theta * Clamped Tactical Ratio
-            cluster_theta_vrp_adj = cluster_theta_raw * clamped_ratio
+            cluster_theta_vrp_adj = m["cluster_theta_raw"] * clamped_ratio
         else:
             # Fallback: If VRP Tactical unavailable, use VRP Structural
-            vrp_s = m_data.get('vrp_structural', 1.0)
-            cluster_theta_vrp_adj = cluster_theta_raw * vrp_s
+            vrp_s = m_data.get("vrp_structural", 1.0)
+            cluster_theta_vrp_adj = m["cluster_theta_raw"] * vrp_s
 
         total_portfolio_theta_vrp_adj += cluster_theta_vrp_adj
 
+    # PASS 2: Determine Action Codes with final portfolio delta
+    # Create final context with the calculated portfolio delta
+    final_context = context.copy()
+    final_context["portfolio_beta_delta"] = total_beta_delta
+
+    all_position_reports = []
+    for m in all_cluster_metrics:
+        # Step 2: Determine action (cheap, uses pre-calculated metrics)
+        report = determine_cluster_action(m, final_context)
+        all_position_reports.append(report)
+
     # Calculate Friction Horizon (Φ)
     friction_horizon_days = 0.0
-    if total_abs_theta > rules.get('friction_horizon_min_theta', 0.01):
+    if total_abs_theta > rules.get("friction_horizon_min_theta", 0.01):
         friction_horizon_days = total_liquidity_cost / total_abs_theta
     elif total_liquidity_cost > 0:
         friction_horizon_days = traffic_jam_friction  # Infinite friction (trapped)
 
     metrics: TriageMetrics = {
-        'total_net_pl': total_net_pl,
-        'total_beta_delta': total_beta_delta,
-        'total_portfolio_theta': total_portfolio_theta,
-        'total_portfolio_theta_vrp_adj': total_portfolio_theta_vrp_adj,
-        'total_portfolio_vega': total_portfolio_vega,
-        'total_portfolio_gamma': total_portfolio_gamma,
-        'total_liquidity_cost': total_liquidity_cost,
-        'total_abs_theta': total_abs_theta,
-        'total_option_legs': total_option_legs,
-        'friction_horizon_days': friction_horizon_days,
-        'total_capital_at_risk': total_capital_at_risk
+        "total_net_pl": total_net_pl,
+        "total_beta_delta": total_beta_delta,
+        "total_portfolio_theta": total_portfolio_theta,
+        "total_portfolio_theta_vrp_adj": total_portfolio_theta_vrp_adj,
+        "total_portfolio_vega": total_portfolio_vega,
+        "total_portfolio_gamma": total_portfolio_gamma,
+        "total_liquidity_cost": total_liquidity_cost,
+        "total_abs_theta": total_abs_theta,
+        "total_option_legs": total_option_legs,
+        "friction_horizon_days": friction_horizon_days,
+        "total_capital_at_risk": total_capital_at_risk,
     }
 
     return all_position_reports, metrics
 
 
 def get_position_aware_opportunities(
-    positions: List[Dict[str, Any]],
-    clusters: List[List[Dict[str, Any]]],
+    positions: list[dict[str, Any]],
+    clusters: list[list[dict[str, Any]]],
     net_liquidity: float,
-    rules: Dict[str, Any]
-) -> Dict[str, Any]:
+    rules: dict[str, Any],
+) -> dict[str, Any]:
     """
     Identifies concentrated vs. held positions and queries the vol screener.
 
@@ -769,12 +788,13 @@ def get_position_aware_opportunities(
         Dict with 'meta' (excluded info) and 'candidates' (screening results)
     """
     from collections import defaultdict
-    from vol_screener import screen_volatility, ScreenerConfig
+
+    from .vol_screener import ScreenerConfig, screen_volatility
 
     # 1. Extract all unique roots
     held_roots = set()
     for pos in positions:
-        root = get_root_symbol(pos.get('Symbol', ''))
+        root = get_root_symbol(pos.get("Symbol", ""))
         if root:
             held_roots.add(root)
 
@@ -783,30 +803,30 @@ def get_position_aware_opportunities(
     root_clusters = defaultdict(list)
     for cluster in clusters:
         if cluster:
-            root = get_root_symbol(cluster[0].get('Symbol', ''))
+            root = get_root_symbol(cluster[0].get("Symbol", ""))
             if root:
                 root_clusters[root].append(cluster)
 
     # Calculate total cost/margin per root
     root_exposure = defaultdict(float)
     for pos in positions:
-        root = get_root_symbol(pos.get('Symbol', ''))
+        root = get_root_symbol(pos.get("Symbol", ""))
         if root:
             # Parse broker-formatted currency (e.g., $1,234 or (500)) safely.
-            cost_str = pos.get('Cost', '0')
+            cost_str = pos.get("Cost", "0")
             cost = abs(parse_currency(cost_str))
             root_exposure[root] += cost
 
     # 3. Apply Stacking Rule to identify concentrated positions
     concentrated_roots_set = set()
-    concentration_limit = net_liquidity * rules.get('concentration_limit_pct', 0.05)
-    max_strategies = rules.get('max_strategies_per_symbol', 3)
+    concentration_limit = net_liquidity * rules.get("concentration_limit_pct", 0.05)
+    max_strategies = rules.get("max_strategies_per_symbol", 3)
 
     # Track processed groups to avoid duplicates
     processed_groups = set()
 
     # Expand exposures to include equivalent symbols (futures ↔ ETF proxies)
-    if not rules.get('allow_proxy_stacking', False):
+    if not rules.get("allow_proxy_stacking", False):
         # Import the function from common.py
         try:
             from .common import get_equivalent_exposures
@@ -814,7 +834,8 @@ def get_position_aware_opportunities(
             from common import get_equivalent_exposures
     else:
         # If stacking is allowed, each symbol is its own group
-        get_equivalent_exposures = lambda x: {x}
+        def get_equivalent_exposures(x):
+            return {x}
 
     for root in held_roots:
         # Get exposure group for this root
@@ -834,10 +855,7 @@ def get_position_aware_opportunities(
         exposure = sum(root_exposure.get(member, 0.0) for member in held_group_members)
         strategy_count = sum(len(root_clusters.get(member, [])) for member in held_group_members)
 
-        is_concentrated = (
-            exposure > concentration_limit or
-            strategy_count >= max_strategies
-        )
+        is_concentrated = exposure > concentration_limit or strategy_count >= max_strategies
 
         if is_concentrated:
             # Add ALL members of the exposure group to concentrated_roots
@@ -849,10 +867,10 @@ def get_position_aware_opportunities(
     screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
-        min_vrp_structural=rules.get('vrp_structural_threshold', 0.85),
-        min_variance_score=rules.get('min_variance_score', 10.0),
+        min_vrp_structural=rules.get("vrp_structural_threshold", 0.85),
+        min_variance_score=rules.get("min_variance_score", 10.0),
         limit=None,
-        allow_illiquid=False
+        allow_illiquid=False,
     )
     screener_results = screen_volatility(screener_config)
 
@@ -861,8 +879,8 @@ def get_position_aware_opportunities(
         "meta": {
             "excluded_count": len(concentrated_roots),
             "excluded_symbols": concentrated_roots,
-            "scan_timestamp": datetime.now().isoformat()
+            "scan_timestamp": datetime.now().isoformat(),
         },
-        "candidates": screener_results.get('candidates', []),
-        "summary": screener_results.get('summary', {})
+        "candidates": screener_results.get("candidates", []),
+        "summary": screener_results.get("summary", {}),
     }

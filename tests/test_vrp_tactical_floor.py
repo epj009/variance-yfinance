@@ -22,19 +22,13 @@ TEST STRATEGY:
 4. Regression prevention (verify no side effects)
 """
 
-import pytest
-import sys
-import os
 from unittest.mock import Mock, patch
 
 import pandas as pd
+import pytest
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
-
-import get_market_data
-from config_loader import load_trading_rules
-
+from variance import get_market_data
+from variance.config_loader import load_trading_rules
 
 # ============================================================================
 # TEST CLASS 1: VRP Tactical Floor Logic - Unit Tests
@@ -221,9 +215,10 @@ class TestVolScreenerVRPTactical:
         """
         Vol screener should use RULES.get('hv_floor_percent', 5.0).
 
-        This verifies scripts/vol_screener.py:271 integration.
+        This verifies scripts/vol_screener.py integration.
         """
-        from vol_screener import RULES
+        # FIX: Load rules properly instead of importing non-existent global
+        RULES = load_trading_rules()
 
         hv_floor_config = RULES.get('hv_floor_percent', 5.0)
         assert hv_floor_config == 5.0, f"Expected 5.0, got {hv_floor_config}"
@@ -232,9 +227,16 @@ class TestVolScreenerVRPTactical:
         """
         Test full VRP Tactical calculation in vol_screener.py context.
 
-        Simulates the logic from vol_screener.py:270-275.
+        Simulates the logic from vol_screener.py.
         """
-        from vol_screener import RULES
+        # FIX: Load rules properly
+        RULES = load_trading_rules()
+        hv_floor_config = RULES.get('hv_floor_percent', 5.0)
+
+        # Scenario 1: Low HV20 (hit floor)
+        iv30 = 30.0
+        hv20 = 0.5
+        hv_floor = max(hv20, hv_floor_config)
 
         raw_markup = (iv30 - hv_floor) / hv_floor
         markup = max(-0.99, min(3.0, raw_markup))
@@ -252,7 +254,7 @@ class TestVolScreenerVRPTactical:
 
         # Normal: (30 - 25) / 25 = 0.2
         expected_raw = (30.0 - 25.0) / 25.0
-        assert abs(raw_nvrp - expected_raw) < 0.01, f"Expected {expected_raw}, got {raw_nvrp}"
+        assert abs(raw_markup - expected_raw) < 0.01, f"Expected {expected_raw}, got {raw_markup}"
 
 
 # ============================================================================
@@ -335,7 +337,6 @@ class TestVRPTacticalE2E:
         This is an integration test simulating the full data flow.
         """
         # Mock the yfinance module entirely
-        import yfinance as yf
 
         # Create mock ticker object
         mock_ticker = Mock()
@@ -417,9 +418,9 @@ class TestVRPTacticalPerformance:
         for _ in range(iterations):
             if hv20_val and hv20_val > 0:
                 hv20_floored = max(hv20_val, HV_FLOOR_DEFAULT)
-                vrp_tactical = iv_val / hv20_floored
+                iv_val / hv20_floored
             else:
-                vrp_tactical = None
+                pass
 
         duration = time.time() - start
         per_call = (duration / iterations) * 1e6  # microseconds

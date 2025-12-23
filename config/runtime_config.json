@@ -1,0 +1,494 @@
+{
+  "system": {
+    "watchlist_path": "watchlists/default-watchlist.csv",
+    "fallback_symbols": [
+      "SPY",
+      "QQQ",
+      "IWM"
+    ],
+    "market_cache_db_path": ".market_cache.db",
+    "hv_min_history_days": 200,
+    "cache_ttl_seconds": {
+      "hv": 86400,
+      "iv": 900,
+      "price": 600,
+      "earnings": 604800,
+      "sector": 2592000
+    }
+  },
+  "market": {
+    "SKIP_EARNINGS": [
+      "SPY",
+      "QQQ",
+      "IWM",
+      "DIA",
+      "VXX",
+      "TQQQ",
+      "TLT",
+      "USO",
+      "GLD",
+      "SLV",
+      "XLE",
+      "XLU",
+      "XBI",
+      "SMH",
+      "VIX",
+      "FXE",
+      "EWZ",
+      "EEM",
+      "FXI",
+      "GDX",
+      "XLF",
+      "UVIX",
+      "UVXY",
+      "KRE",
+      "SILJ",
+      "IBB",
+      "KWEB",
+      "EWJ",
+      "IBIT",
+      "ETHA"
+    ],
+    "ETF_SYMBOLS": [
+      "CPER",
+      "DIA",
+      "EEM",
+      "EWZ",
+      "FXI",
+      "GDX",
+      "GLD",
+      "HYG",
+      "IBB",
+      "IEF",
+      "IBIT",
+      "ETHA",
+      "IWM",
+      "KRE",
+      "KWEB",
+      "QQQ",
+      "SILJ",
+      "SLV",
+      "SMH",
+      "SPY",
+      "TLT",
+      "TQQQ",
+      "UNG",
+      "USO",
+      "UVIX",
+      "UVXY",
+      "VXX",
+      "XBI",
+      "XLE",
+      "XLF",
+      "XLP",
+      "XLU",
+      "XLV",
+      "XME",
+      "XOP"
+    ],
+    "SKIP_SYMBOLS": [
+      "XSP",
+      "LTHM"
+    ],
+    "SYMBOL_MAP": {
+      "/ES": "ES=F",
+      "/MES": "MES=F",
+      "/NQ": "NQ=F",
+      "/MNQ": "MNQ=F",
+      "/CL": "CL=F",
+      "/MCL": "MCL=F",
+      "/GC": "GC=F",
+      "/MGC": "MGC=F",
+      "/SI": "SI=F",
+      "/HG": "HG=F",
+      "/HE": "HE=F",
+      "/LE": "LE=F",
+      "/6E": "6E=F",
+      "/6B": "6B=F",
+      "/6J": "6J=F",
+      "/6A": "6A=F",
+      "/6C": "6C=F",
+      "/ZN": "ZN=F",
+      "/ZB": "ZB=F",
+      "/ZC": "ZC=F",
+      "/ZS": "ZS=F",
+      "/ZF": "ZF=F",
+      "/ZT": "ZT=F",
+      "/NG": "NG=F",
+      "/RTY": "RTY=F",
+      "/M2K": "M2K=F",
+      "/YM": "YM=F",
+      "SPX": "^SPX",
+      "VIX": "^VIX",
+      "DJX": "^DJI",
+      "NDX": "^NDX",
+      "RUT": "^RUT"
+    },
+    "FAMILY_MAP": {
+      "SILVER": [
+        "/SI",
+        "SLV",
+        "SIVR"
+      ],
+      "GOLD": [
+        "/GC",
+        "/MGC",
+        "GLD",
+        "IAU"
+      ],
+      "OIL": [
+        "/CL",
+        "/MCL",
+        "USO",
+        "XLE"
+      ],
+      "BONDS": [
+        "/ZB",
+        "/ZN",
+        "/ZF",
+        "/ZT",
+        "TLT",
+        "IEF",
+        "SHY"
+      ],
+      "NATGAS": [
+        "/NG",
+        "UNG",
+        "BOIL",
+        "KOLD"
+      ],
+      "SP500": [
+        "/ES",
+        "/MES",
+        "SPY",
+        "SPX"
+      ],
+      "NASDAQ": [
+        "/NQ",
+        "/MNQ",
+        "QQQ",
+        "NDX",
+        "TQQQ",
+        "SQQQ"
+      ],
+      "RUSSELL": [
+        "/RTY",
+        "/M2K",
+        "IWM",
+        "TNA",
+        "TZA"
+      ],
+      "VIX": [
+        "/VX",
+        "VIX",
+        "UVXY",
+        "VXX"
+      ]
+    },
+    "SECTOR_OVERRIDES": {
+      "/CL": "Energy",
+      "/MCL": "Energy",
+      "/NG": "Energy",
+      "/GC": "Metals",
+      "/MGC": "Metals",
+      "/SI": "Metals",
+      "/HG": "Metals",
+      "/ZC": "Agriculture",
+      "/ZS": "Agriculture",
+      "/LE": "Agriculture",
+      "/HE": "Agriculture",
+      "/ES": "Index",
+      "/MES": "Index",
+      "/NQ": "Index",
+      "/MNQ": "Index",
+      "/RTY": "Index",
+      "/M2K": "Index",
+      "/YM": "Index",
+      "/ZN": "Fixed Income",
+      "/ZB": "Fixed Income",
+      "/ZF": "Fixed Income",
+      "/ZT": "Fixed Income",
+      "/6E": "Currencies",
+      "/6B": "Currencies",
+      "/6J": "Currencies",
+      "/6A": "Currencies",
+      "/6C": "Currencies",
+      "GLD": "Metals",
+      "SLV": "Metals",
+      "USO": "Energy",
+      "UNG": "Energy",
+      "IBIT": "Financial Services",
+      "GBTC": "Financial Services",
+      "ETHA": "Financial Services",
+      "ARKG": "Healthcare",
+      "ARKK": "Technology",
+      "SMH": "Technology",
+      "XLE": "Energy",
+      "XLF": "Financial Services",
+      "XLK": "Technology",
+      "XLU": "Utilities",
+      "XLV": "Healthcare",
+      "XLY": "Consumer Cyclical",
+      "XLP": "Consumer Defensive",
+      "XBI": "Healthcare",
+      "GDX": "Metals",
+      "SILJ": "Metals",
+      "EWZ": "International",
+      "FXI": "International",
+      "EEM": "International",
+      "EWJ": "International",
+      "KWEB": "International",
+      "KRE": "Financial Services",
+      "SPY": "Index",
+      "QQQ": "Index",
+      "IWM": "Index",
+      "DIA": "Index",
+      "SPX": "Index",
+      "VIX": "Index",
+      "^VIX": "Index",
+      "^VXN": "Index",
+      "^SPX": "Index",
+      "^DJI": "Index",
+      "^NDX": "Index",
+      "^RUT": "Index",
+      "DJX": "Index",
+      "NDX": "Index",
+      "RUT": "Index",
+      "TLT": "Fixed Income",
+      "SHY": "Fixed Income",
+      "IEF": "Fixed Income",
+      "VXX": "Index",
+      "UVXY": "Index",
+      "UVIX": "Index",
+      "TQQQ": "Index",
+      "SQQQ": "Index",
+      "SPXU": "Index",
+      "SPXL": "Index",
+      "XME": "Materials",
+      "HYG": "Fixed Income",
+      "XOP": "Energy",
+      "CPER": "Metals",
+      "IBB": "Healthcare",
+      "XRT": "Consumer Cyclical",
+      "XHB": "Real Estate",
+      "XLC": "Communication Services",
+      "XLRE": "Real Estate",
+      "XLI": "Industrials",
+      "XLB": "Materials"
+    },
+    "FUTURES_PROXY": {
+      "/ES": {
+        "type": "vol_index",
+        "iv_symbol": "^VIX",
+        "hv_symbol": "ES=F"
+      },
+      "/MES": {
+        "type": "vol_index",
+        "iv_symbol": "^VIX",
+        "hv_symbol": "MES=F"
+      },
+      "/NQ": {
+        "type": "vol_index",
+        "iv_symbol": "^VIX",
+        "hv_symbol": "NQ=F"
+      },
+      "/MNQ": {
+        "type": "vol_index",
+        "iv_symbol": "^VIX",
+        "hv_symbol": "MNQ=F"
+      },
+      "/RTY": {
+        "type": "etf",
+        "iv_symbol": "IWM",
+        "hv_symbol": "RTY=F"
+      },
+      "/M2K": {
+        "type": "etf",
+        "iv_symbol": "IWM",
+        "hv_symbol": "M2K=F"
+      },
+      "/YM": {
+        "type": "vol_index",
+        "iv_symbol": "^VIX",
+        "hv_symbol": "YM=F"
+      },
+      "/6E": {
+        "type": "etf",
+        "iv_symbol": "FXE",
+        "hv_symbol": "FXE"
+      },
+      "/6B": {
+        "type": "etf",
+        "iv_symbol": "FXB",
+        "hv_symbol": "FXB"
+      },
+      "/6C": {
+        "type": "etf",
+        "iv_symbol": "FXE",
+        "hv_symbol": "6C=F"
+      },
+      "/6J": {
+        "type": "etf",
+        "iv_symbol": "FXY",
+        "hv_symbol": "FXY"
+      },
+      "/6A": {
+        "type": "etf",
+        "iv_symbol": "FXE",
+        "hv_symbol": "6A=F"
+      },
+      "/ZN": {
+        "type": "etf",
+        "iv_symbol": "IEF",
+        "hv_symbol": "ZN=F"
+      },
+      "/ZB": {
+        "type": "etf",
+        "iv_symbol": "TLT",
+        "hv_symbol": "TLT"
+      },
+      "/ZF": {
+        "type": "etf",
+        "iv_symbol": "IEF",
+        "hv_symbol": "IEF"
+      },
+      "/ZT": {
+        "type": "etf",
+        "iv_symbol": "IEF",
+        "hv_symbol": "ZT=F"
+      },
+      "/SR3": {
+        "type": "etf",
+        "iv_symbol": "SHV",
+        "hv_symbol": "SHV"
+      },
+      "/CL": {
+        "type": "etf",
+        "iv_symbol": "USO",
+        "hv_symbol": "USO"
+      },
+      "/MCL": {
+        "type": "etf",
+        "iv_symbol": "USO",
+        "hv_symbol": "USO"
+      },
+      "/NG": {
+        "type": "etf",
+        "iv_symbol": "UNG",
+        "hv_symbol": "UNG"
+      },
+      "/GC": {
+        "type": "etf",
+        "iv_symbol": "GLD",
+        "hv_symbol": "GLD"
+      },
+      "/MGC": {
+        "type": "etf",
+        "iv_symbol": "GLD",
+        "hv_symbol": "GLD"
+      },
+      "/SI": {
+        "type": "etf",
+        "iv_symbol": "SLV",
+        "hv_symbol": "SLV"
+      },
+      "/HG": {
+        "type": "etf",
+        "iv_symbol": "CPER",
+        "hv_symbol": "CPER"
+      },
+      "/ZC": {
+        "type": "etf",
+        "iv_symbol": "CORN",
+        "hv_symbol": "CORN"
+      },
+      "/ZS": {
+        "type": "etf",
+        "iv_symbol": "SOYB",
+        "hv_symbol": "SOYB"
+      },
+      "/HE": {
+        "type": "hv_only"
+      },
+      "/LE": {
+        "type": "hv_only"
+      }
+    },
+    "FUTURES_MULTIPLIERS": {
+      "/ES": 50,
+      "/MES": 5,
+      "/NQ": 20,
+      "/MNQ": 2,
+      "/RTY": 50,
+      "/YM": 5,
+      "/CL": 1000,
+      "/NG": 10000,
+      "/GC": 100,
+      "/SI": 5000,
+      "/HG": 25000,
+      "/ZB": 1000,
+      "/ZN": 1000,
+      "/ZF": 1000,
+      "/ZT": 2000,
+      "/ZC": 50,
+      "/ZS": 50,
+      "/HE": 400,
+      "/LE": 400,
+      "/6E": 125000,
+      "/6B": 62500,
+      "/6J": 12500000,
+      "/6A": 100000,
+      "/6C": 100000
+    },
+    "DATA_FETCHING": {
+      "dte_window_min": 20,
+      "dte_window_max": 70,
+      "target_dte": 45,
+      "strike_limit_lower": 0.8,
+      "strike_limit_upper": 1.2,
+      "option_chain_limit": 50
+    },
+    "ASSET_CLASS_MAP": {
+      "Equity": [
+        "Technology",
+        "Healthcare",
+        "Financial Services",
+        "Consumer Cyclical",
+        "Consumer Defensive",
+        "Communication Services",
+        "Real Estate",
+        "Industrials",
+        "Utilities",
+        "International"
+      ],
+      "Commodity": [
+        "Energy",
+        "Metals",
+        "Agriculture"
+      ],
+      "Fixed Income": [
+        "Fixed Income"
+      ],
+      "FX": [
+        "Currencies"
+      ],
+      "Index": [
+        "Index"
+      ]
+    }
+  },
+  "screener_profiles": {
+    "balanced": {
+      "min_vrp_structural": 0.85,
+      "allow_illiquid": false
+    },
+    "broad": {
+      "min_vrp_structural": 0.0,
+      "allow_illiquid": true
+    },
+    "high_quality": {
+      "min_vrp_structural": 1.0,
+      "allow_illiquid": false
+    }
+  }
+}

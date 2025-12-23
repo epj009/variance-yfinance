@@ -2,14 +2,8 @@
 Unit tests for portfolio_parser module.
 """
 
-import pytest
-import sys
-import os
 
-# Add scripts directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-
-from portfolio_parser import parse_currency, parse_dte, get_root_symbol, is_stock_type
+from variance.portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
 
 
 class TestParseCurrency:

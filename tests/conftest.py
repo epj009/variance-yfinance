@@ -2,20 +2,36 @@
 Shared pytest fixtures for test suite.
 """
 
-import pytest
-import sys
-import os
 from datetime import datetime
 from unittest.mock import Mock
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
-# Add scripts/ to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
+from variance import get_market_data
+from variance.interfaces import IMarketDataProvider, MarketData
 
-import get_market_data
 
+class MockMarketDataProvider(IMarketDataProvider):
+    """Fake provider for testing."""
+    def __init__(self, data: dict):
+        self.data = data
+
+    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
+        return {s: self.data[s] for s in symbols if s in self.data}
+
+    def get_current_price(self, symbol: str) -> float:
+        if symbol in self.data:
+            return self.data[symbol].get('price', 0.0)
+        return 0.0
+
+@pytest.fixture
+def mock_market_provider():
+    """Returns a factory function to create a provider with specific data."""
+    def _create(data):
+        return MockMarketDataProvider(data)
+    return _create
 
 @pytest.fixture
 def temp_cache_db(tmp_path, monkeypatch):

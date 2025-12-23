@@ -3,12 +3,9 @@ QA Validation Tests for ETF Sector Handling Fix
 Tests the safe_get_sector() function and SECTOR_OVERRIDES configuration
 """
 import sys
-import os
-from unittest.mock import Mock, patch, PropertyMock
-from io import StringIO
+from unittest.mock import Mock, PropertyMock, patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../scripts'))
-import get_market_data
+from variance import get_market_data
 
 
 def test_sector_override_priority():
