@@ -5,6 +5,7 @@ Fallback for unmapped or generic strategies.
 """
 
 from typing import Any
+
 from .base import BaseStrategy
 
 

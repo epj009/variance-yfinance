@@ -1,9 +1,9 @@
 # Configuration Overview
 
-Variance centralizes configuration in `/config` and loads it through `scripts/config_loader.py`. This keeps runtime behavior aligned with the JSON files and makes dependency injection explicit.
+Variance centralizes configuration in `/config` and loads it through `src/variance/config_loader.py`. This keeps runtime behavior aligned with the JSON files and makes dependency injection explicit.
 
 ## Config Directory Resolution
-- Default: `<repo>/config` (resolved relative to `scripts/config_loader.py`).
+- Default: `<repo>/config` (resolved relative to `src/variance/config_loader.py`).
 - Override: set `VARIANCE_CONFIG_DIR` to an absolute or relative path.
 
 ## Strict Mode
@@ -34,11 +34,14 @@ Variance centralizes configuration in `/config` and loads it through `scripts/co
 - `get_market_data` loads config once at import time; use a custom service for testing.
 
 ## Config Ownership
-- Trading thresholds and risk logic: `trading_rules.json`
+- Trading thresholds, risk logic, and performance limits: `trading_rules.json`
 - Market/futures mappings and proxy logic: `runtime_config.json` (`market`)
 - File paths, cache settings, and watchlist defaults: `runtime_config.json` (`system`)
 - Screener presets: `runtime_config.json` (`screener_profiles`)
 - Strategy metadata: `strategies.json`
+
+### New Parameters
+- **TUI Performance:** `screener_tui_limit` (Default: 50). Controls the maximum number of symbols scanned when running in `--tui` mode to ensure responsive UI updates.
 
 ## Liquidity & Filtering
 Variance enforces strict liquidity gates to prevent trading in "ghost towns" or wide markets. These rules are defined in `trading_rules.json`.

@@ -8,6 +8,25 @@
 
 Built on the Tastylive philosophy, Variance rejects market narratives in favor of statistical edge, specifically exploiting the **Volatility Risk Premium (VRP)** through net-premium selling strategies.
 
+Variance uses institution-grade **Logarithmic Distance** for all volatility calculations, ensuring mathematical objectivity across different asset scales and price regimes.
+
+---
+
+## 🛠 Architecture & Standards
+
+### 🧩 Modular Design
+Variance has been refactored into a professional Python package structure:
+- **`src/variance/`**: Core engine logic.
+- **`src/variance/models/`**: Domain-driven objects (`Position`, `StrategyCluster`, `Portfolio`).
+- **`src/variance/strategies/`**: Decoupled strategy pattern for specialized trade management.
+- **`src/variance/get_market_data.py`**: Resilient data layer with a thread-safe SQLite (WAL) cache.
+
+### 📐 The Quantitative Standard
+Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance operates in **Logarithmic Space**.
+- **Scale Symmetry**: A 1-point move in a low-vol asset has the same mathematical weight as a relative move in a high-vol asset.
+- **Z-Score Foundational**: All signals are derived from how many units of historical movement the current price covers.
+- **Stoic Logic**: "Subtraction is noise; Division is signal."
+
 ---
 
 ## 📊 The Dashboard

@@ -41,35 +41,37 @@ The data pipeline is designed for **Resilience** and **Speed**. It does not rely
 
 ---
 
-## 3. Layer 2: The Quantitative Engine (`triage_engine.py`)
+## 3. Layer 2: The Strategy Engine (`strategies/`)
 
-This module applies the "Physics" of the Variance philosophy to raw positions.
+Variance uses a **Strategy Pattern** to decouple trade management logic from the data pipeline. This allows for specialized handling of different risk archetypes.
 
-### 3.1. VRP Markup (Alpha-Theta)
-We quantify the "Quality of Income" by adjusting raw time decay for the Volatility Risk Premium (VRP).
+### 3.1. Strategy Hierarchy
+- **BaseStrategy:** Abstract interface defining profit harvesting and defense contracts.
+- **ShortThetaStrategy:** Specialized for premium sellers (Strangles, Condors). Implements the **Institutional Toxic Theta** filter.
+- **DefaultStrategy:** Fallback for unmapped or generic "Custom/Combo" positions.
 
-$$ 	ext{AlphaTheta} = 	ext{Theta}_{	ext{Raw}} 	imes \left( \frac{\text{IV}_{\text{30}}}{\text{HV}_{\text{252}}} \right) $$
+### 3.2. Quantitative Standard: Logarithmic Space
+Variance operates in **Logarithmic Space** to ensure mathematical objectivity across different asset scales.
 
-*   **Logic:** If IV (20%) > HV (15%), every $1.00 of Theta is statistically "worth" $1.33.
-*   **Toxic Theta:** If IV < HV, multiplier < 1.0 -> `TOXIC` flag.
-
-### 3.2. Dynamic Tail Risk
-The engine calculates "Max Drawdown" based on the worst outcome of configured stress scenarios.
-
-1.  **Ingest:** Load scenarios (e.g., "-5% Crash") from `config/trading_rules.json`.
-2.  **Simulate:** Calculate Portfolio P/L using Delta/Gamma/Vega sensitivities.
-3.  **Status:** `Safe` (< 5% Net Liq), `Loaded` (5-15%), `Extreme` (> 15%).
-
-### 3.3. Triage Hierarchy
-Action codes assigned via priority waterfall:
-1.  **HARVEST:** Profit Target Hit OR Velocity Win.
-2.  **SIZE_THREAT:** Tail Risk > 5% Net Liq.
-3.  **DEFENSE:** Tested (ITM) + < 21 DTE.
-4.  **TOXIC:** VRP < 0.8 + Dead Money.
+- **VRP Normalization:** Instead of subtraction ($IV - HV$), we use logarithmic ratios: $ln(IV / HV)$.
+- **Scale Symmetry:** Ensures a 1-point move in a low-vol asset (SPY) has the same mathematical weight as a relative move in a high-vol asset.
+- **Alpha-Theta:** Quality-adjusted income calculation:
+  $$ \text{AlphaTheta} = \text{Theta}_{\text{Raw}} \times \left( \frac{\text{IV}_{\text{30}}}{\text{HV}_{\text{252}}} \right) $$
 
 ---
 
-## 4. Layer 3: The Screener (`vol_screener.py`)
+## 4. Layer 3: Domain Model Layer (`models/`)
+
+Logic is encapsulated in robust, typed **Domain Objects** rather than raw dictionaries.
+
+### 4.1. Core Models
+- **Position:** Represents a single leg (Option or Stock). Validates raw broker data.
+- **StrategyCluster:** Groups legs into a logical strategy. Calculates aggregate Greeks (Net Delta, Theta).
+- **Portfolio:** The root object. Manages account-level state, Net Liquidity, and total risk.
+
+---
+
+## 5. Layer 4: The Screener (`vol_screener.py`)
 
 Synthesizes raw metrics into actionable "Signals."
 

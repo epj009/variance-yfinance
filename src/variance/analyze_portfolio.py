@@ -12,7 +12,6 @@ from .config_loader import load_config_bundle
 from .get_market_data import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
-    get_root_symbol,
 )
 from .strategy_detector import cluster_strategies
 from .triage_engine import get_position_aware_opportunities, triage_portfolio
@@ -47,7 +46,7 @@ def analyze_portfolio(
 
     # Step 2: Create Domain Objects
     positions = [Position.from_row(row) for row in raw_positions]
-    
+
     # Step 3: Fetch Market Data
     unique_roots = list(set(pos.root_symbol for pos in positions))
     unique_roots = [r for r in unique_roots if r]
@@ -76,7 +75,7 @@ def analyze_portfolio(
 
     # Step 4: Cluster Strategies (Using raw positions for now, to keep existing logic)
     raw_clusters = cluster_strategies(raw_positions)
-    
+
     # Convert to Domain Clusters
     domain_clusters = []
     for raw_cluster in raw_clusters:

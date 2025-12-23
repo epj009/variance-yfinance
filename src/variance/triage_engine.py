@@ -10,8 +10,8 @@ from typing import Any, Optional, TypedDict
 
 # Import common utilities
 from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
-from .strategy_detector import identify_strategy, map_strategy_to_id
 from .strategies.factory import StrategyFactory
+from .strategy_detector import identify_strategy, map_strategy_to_id
 
 
 class TriageResult(TypedDict, total=False):
@@ -226,7 +226,7 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     """
     rules = context["rules"]
     market_config = context["market_config"]
-    strategies = context["strategies"]
+    context["strategies"]
 
     root = get_root_symbol(legs[0]["Symbol"])
 
@@ -672,6 +672,7 @@ def get_position_aware_opportunities(
     Identifies concentrated vs. held positions and queries the vol screener.
     """
     from collections import defaultdict
+
     from .vol_screener import ScreenerConfig, screen_volatility
 
     # 1. Extract all unique roots
@@ -733,7 +734,7 @@ def get_position_aware_opportunities(
     # 4. Call vol screener with position context
     # Use a limit for TUI performance if scanning entire watchlist
     screener_limit = rules.get('screener_tui_limit', 50)
-    
+
     screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
