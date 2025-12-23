@@ -81,16 +81,39 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
 def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
     """Checks if a symbol fails the liquidity rules."""
     # Futures exemption: Yahoo data for futures options volume is unreliable
-    # Assume major futures are liquid enough or rely on user discretion
     if symbol.startswith("/"):
         return False
 
+    # 1. Check Implied Liquidity (Bid/Ask Spread) FIRST
+    # If spreads are tight, we assume liquidity exists even if reported volume is 0
+    legs = [
+        ("call", metrics.get("call_bid"), metrics.get("call_ask"), metrics.get("call_vol")),
+        ("put", metrics.get("put_bid"), metrics.get("put_ask"), metrics.get("put_vol")),
+    ]
+
+    has_valid_quote = False
+    max_slippage_found = 0.0
+
+    for _side, bid, ask, _vol in legs:
+        if bid is not None and ask is not None:
+            mid = (bid + ask) / 2
+            if mid > 0:
+                has_valid_quote = True
+                slippage = (ask - bid) / mid
+                if slippage > max_slippage_found:
+                    max_slippage_found = slippage
+
+    # GATE: If we have valid quotes and spreads are tight, PASS immediately.
+    # This handles the "implied liquidity" case (e.g. SPY/AAPL showing 0 vol but 1 cent wide).
+    if has_valid_quote and max_slippage_found <= rules["max_slippage_pct"]:
+        return False
+
+    # 2. Fallback: Check Reported Activity (Volume or OI)
+    # If spreads are wide or missing, we require proven volume/OI.
     mode = rules.get("liquidity_mode", "volume")
 
-    # 1. Check Activity (Volume or OI)
     if mode == "open_interest":
         atm_oi = metrics.get("atm_open_interest", 0)
-        # Fallback to volume if OI is missing (e.g. data error)
         if atm_oi is None:
             atm_volume = metrics.get("atm_volume", 0)
             if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
@@ -103,28 +126,10 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
         if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
             return True
 
-    # 2. Per-Leg Liquidity Check (FINDING-002)
-    # Ensure NEITHER the call nor the put is "dead" (zero volume or excessive spread)
-    legs = [
-        ("call", metrics.get("call_bid"), metrics.get("call_ask"), metrics.get("call_vol")),
-        ("put", metrics.get("put_bid"), metrics.get("put_ask"), metrics.get("put_vol")),
-    ]
-
-    for _side, bid, ask, _vol in legs:
-        # Note: In OI mode, we don't necessarily fail on 0 volume per leg
-        # BUT we still fail on broken spreads (slippage)
-
-        # Check per-leg slippage
-        if bid is not None and ask is not None:
-            mid = (bid + ask) / 2
-            if mid > 0:
-                slippage = (ask - bid) / mid
-                if slippage > rules["max_slippage_pct"]:
-                    return True
-            else:
-                return True  # Bid/Ask are 0 or negative
-
-    return False
+    # If we fall through to here, it means:
+    # 1. Spreads were too wide (failed implied check)
+    # 2. Volume/OI was too low (failed activity check)
+    return True
 
 
 def _create_candidate_flags(
