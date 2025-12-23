@@ -510,7 +510,20 @@ def screen_volatility(
         candidate_data.update(flags)
         candidates_with_status.append(candidate_data)
 
-    # 4. Sort by signal quality: Variance Score (Desc), then Tactical Markup (Desc), then Proxy bias last
+    # 4. Deduplicate by Root Symbol
+    # If multiple symbols map to the same root (e.g., /6B and /6BH6), keep only one.
+    deduplicated = {}
+    for c in candidates_with_status:
+        from .portfolio_parser import get_root_symbol
+        root = get_root_symbol(c['Symbol'])
+        
+        # Priority: Keep the one already in deduplicated if it has a shorter name (usually the root)
+        if root not in deduplicated or len(c['Symbol']) < len(deduplicated[root]['Symbol']):
+            deduplicated[root] = c
+            
+    final_candidates = list(deduplicated.values())
+
+    # 5. Sort by signal quality: Variance Score (Desc), then Tactical Markup (Desc), then Proxy bias last
     def _signal_key(c):
         # Sorting Logic (RFC 007 Alignment):
         # 1. Primary Key: Variance Score (Descending). The "Conviction" metric.
@@ -522,7 +535,7 @@ def screen_volatility(
         quality = 1 if proxy else 0
         return (score, vtm, -quality) # Sort by Score DESC, then VTM DESC, then Quality ASC
 
-    candidates_with_status.sort(key=_signal_key, reverse=True)
+    final_candidates.sort(key=_signal_key, reverse=True)
 
     bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
 
@@ -536,6 +549,7 @@ def screen_volatility(
 
     summary = {
         "scanned_symbols_count": len(symbols),
+        "candidates_count": len(final_candidates),
         "low_bias_skipped_count": low_bias_skipped,
         "low_score_skipped_count": low_score_skipped,
         "sector_skipped_count": sector_skipped,
@@ -551,7 +565,7 @@ def screen_volatility(
         "filter_note": f"{bias_note}; {liquidity_note}"
     }
 
-    return {"candidates": candidates_with_status, "summary": summary}
+    return {"candidates": final_candidates, "summary": summary}
 
 def main():
     warn_if_not_venv()

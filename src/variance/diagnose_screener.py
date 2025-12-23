@@ -113,6 +113,16 @@ def diagnose_watchlist(limit=None):
         if not dropped:
             passed.append(sym)
 
+    # --- Phase 4: Deduplicate Passed by Root ---
+    deduplicated_passed = {}
+    for sym in passed:
+        from .portfolio_parser import get_root_symbol
+        root = get_root_symbol(sym)
+        if root not in deduplicated_passed or len(sym) < len(deduplicated_passed[root]):
+            deduplicated_passed[root] = sym
+    
+    passed = sorted(list(deduplicated_passed.values()))
+
     # --- Report ---
     print("\n" + "="*40)
     print("      SCREENER DIAGNOSTIC REPORT")
