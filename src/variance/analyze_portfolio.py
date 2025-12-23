@@ -20,6 +20,9 @@ from .triage_engine import get_position_aware_opportunities, triage_portfolio
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
 
+from .models import Portfolio, Position, StrategyCluster
+
+
 def analyze_portfolio(
     file_path: str,
     *,
@@ -29,46 +32,38 @@ def analyze_portfolio(
 ) -> dict[str, Any]:
     """
     Main entry point for Portfolio Analysis (Portfolio Triage).
-
-    Thin orchestrator that delegates to specialized modules:
-    - portfolio_parser: CSV parsing
-    - strategy_detector: Strategy identification
-    - triage_engine: Position analysis and action detection
     """
     if config is None:
         config = load_config_bundle(config_dir=config_dir, strict=strict)
 
-    rules = config.get('trading_rules', {})
-    market_config = config.get('market_config', {})
-    strategies = config.get('strategies', {})
+    rules = config.get("trading_rules", {})
+    market_config = config.get("market_config", {})
+    strategies = config.get("strategies", {})
 
     # Step 1: Parse CSV
-    positions = PortfolioParser.parse(file_path)
-    if not positions:
+    raw_positions = PortfolioParser.parse(file_path)
+    if not raw_positions:
         return {"error": "No positions found in CSV or error parsing file."}
 
-    # Step 2: Cluster Strategies
-    clusters = cluster_strategies(positions)
-
+    # Step 2: Create Domain Objects
+    positions = [Position.from_row(row) for row in raw_positions]
+    
     # Step 3: Fetch Market Data
-    unique_roots = list(set(get_root_symbol(leg['Symbol']) for leg in positions))
-    unique_roots = [r for r in unique_roots if r]  # Filter empty roots
+    unique_roots = list(set(pos.root_symbol for pos in positions))
+    unique_roots = [r for r in unique_roots if r]
 
-    # Ensure Beta Symbol is included in the fetch
-    beta_sym = rules.get('beta_weighted_symbol', 'SPY')
+    beta_sym = rules.get("beta_weighted_symbol", "SPY")
     if beta_sym not in unique_roots:
         unique_roots.append(beta_sym)
 
-    # Use Factory to get provider
     provider = MarketDataFactory.get_provider()
     market_data = provider.get_market_data(unique_roots)
 
     # Step 3b: Beta Data Hard Gate
     beta_entry = market_data.get(beta_sym, {})
-    beta_price = beta_entry.get('price', 0)
+    beta_price = beta_entry.get("price", 0)
 
-    # Robust Type Handling: Ensure price is a float
-    if hasattr(beta_price, '__len__') and not isinstance(beta_price, (str, bytes)):
+    if hasattr(beta_price, "__len__") and not isinstance(beta_price, (str, bytes)):
         beta_price = float(beta_price[0])
     else:
         beta_price = float(beta_price)
@@ -76,32 +71,44 @@ def analyze_portfolio(
     if not beta_entry or beta_price <= 0:
         return {
             "error": f"CRITICAL: Beta weighting source ({beta_sym}) unavailable. Risk analysis halted.",
-            "details": "Check internet connection or data provider status."
+            "details": "Check internet connection or data provider status.",
         }
 
+    # Step 4: Cluster Strategies (Using raw positions for now, to keep existing logic)
+    raw_clusters = cluster_strategies(raw_positions)
+    
+    # Convert to Domain Clusters
+    domain_clusters = []
+    for raw_cluster in raw_clusters:
+        cluster_positions = [Position.from_row(row) for row in raw_cluster]
+        domain_clusters.append(StrategyCluster(legs=cluster_positions))
+
+    # Initialize Portfolio Object
+    portfolio = Portfolio(clusters=domain_clusters, net_liquidity=rules.get("net_liquidity", 50000.0), rules=rules)
+
     now = datetime.now()
-    # Execute single-pass triage (internally optimizes hedge detection)
+    # Execute single-pass triage
     triage_context = {
-        'market_data': market_data,
-        'rules': rules,
-        'market_config': market_config,
-        'strategies': strategies,
-        'traffic_jam_friction': TRAFFIC_JAM_FRICTION,
-        'net_liquidity': rules.get('net_liquidity', 50000.0)
+        "market_data": market_data,
+        "rules": rules,
+        "market_config": market_config,
+        "strategies": strategies,
+        "traffic_jam_friction": TRAFFIC_JAM_FRICTION,
+        "net_liquidity": portfolio.net_liquidity,
     }
-    all_position_reports, metrics = triage_portfolio(clusters, triage_context)
+    all_position_reports, metrics = triage_portfolio(raw_clusters, triage_context)
 
     # Unpack metrics
-    total_net_pl = metrics['total_net_pl']
-    total_beta_delta = metrics['total_beta_delta']
-    total_portfolio_theta = metrics['total_portfolio_theta']
-    total_portfolio_theta_vrp_adj = metrics['total_portfolio_theta_vrp_adj']
-    friction_horizon_days = metrics['friction_horizon_days']
-    total_capital_at_risk = metrics['total_capital_at_risk']
+    total_net_pl = metrics["total_net_pl"]
+    total_beta_delta = metrics["total_beta_delta"]
+    total_portfolio_theta = metrics["total_portfolio_theta"]
+    total_portfolio_theta_vrp_adj = metrics["total_portfolio_theta_vrp_adj"]
+    friction_horizon_days = metrics["friction_horizon_days"]
+    total_capital_at_risk = metrics["total_capital_at_risk"]
 
     # --- Generate Structured Report Data ---
     report = {
-        "analysis_time": now.strftime('%Y-%m-%d %H:%M:%S'),
+        "analysis_time": now.strftime("%Y-%m-%d %H:%M:%S"),
         "market_data_symbols_count": len(unique_roots),
         "triage_actions": [],
         "portfolio_overview": [],
@@ -110,7 +117,9 @@ def analyze_portfolio(
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
             "total_portfolio_theta_vrp_adj": total_portfolio_theta_vrp_adj,
-            "portfolio_vrp_markup": (total_portfolio_theta_vrp_adj / total_portfolio_theta - 1) if total_portfolio_theta != 0 else 0.0,
+            "portfolio_vrp_markup": (total_portfolio_theta_vrp_adj / total_portfolio_theta - 1)
+            if total_portfolio_theta != 0
+            else 0.0,
             "friction_horizon_days": friction_horizon_days,
             "theta_net_liquidity_pct": 0.0,
             "theta_vrp_net_liquidity_pct": 0.0,
@@ -124,9 +133,7 @@ def analyze_portfolio(
         "asset_mix_warning": {"risk": False, "details": ""},
         "caution_items": [],
         "stress_box": None,
-        "health_check": {
-            "liquidity_warnings": []
-        }
+        "health_check": {"liquidity_warnings": []},
     }
 
     # Populate Triage Actions

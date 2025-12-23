@@ -305,7 +305,7 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     market_data = context.get("market_data", {})
     m_data = market_data.get(root, {})
     live_price_raw = m_data.get("price", 0)
-    
+
     try:
         if hasattr(live_price_raw, "__len__") and not isinstance(live_price_raw, (str, bytes)):
             live_price = float(live_price_raw[0])
@@ -313,7 +313,7 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
             live_price = float(live_price_raw)
     except (TypeError, ValueError, IndexError):
         live_price = 0.0
-        
+
     price = live_price if live_price > 0 else parse_currency(legs[0].get("Underlying Last Price", "0"))
 
     return {
@@ -358,6 +358,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     uses_raw_delta = metrics["uses_raw_delta"]
     futures_delta_warnings = metrics["futures_delta_warnings"]
     legs = metrics["legs"]
+    price = metrics["price"]
 
     # --- Phase 2: Strategy Pattern Delegation ---
     strategies_config = context.get("strategies", {})
@@ -369,22 +370,10 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
 
     # Retrieve live data
     m_data = market_data.get(root, {})
-    live_price_raw = m_data.get("price", 0)
-
-    # Robust Type Handling: Ensure price is a float
-    try:
-        if hasattr(live_price_raw, "__len__") and not isinstance(live_price_raw, (str, bytes)):
-            live_price = float(live_price_raw[0])
-        else:
-            live_price = float(live_price_raw)
-    except (TypeError, ValueError, IndexError):
-        live_price = 0.0
-
     is_stale = m_data.get("is_stale", False)
     vrp_structural = m_data.get("vrp_structural")
-    earnings_date = m_data.get("earnings_date")
-    sector = m_data.get("sector", "Unknown")
     proxy_note = m_data.get("proxy")
+    sector = m_data.get("sector", "Unknown")
 
     if uses_raw_delta:
         logic = "Using unweighted Delta (Beta Delta missing)"
@@ -434,11 +423,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         logic = size_logic if size_logic else "Excessive Position Size"
 
     # --- 2. Defense (Delegated) ---
-    underlying_price = parse_currency(legs[0]["Underlying Last Price"])
-    if live_price:
-        underlying_price = live_price
-
-    is_tested = strategy_obj.is_tested(legs, underlying_price)
+    is_tested = strategy_obj.is_tested(legs, price)
 
     if not is_winner and not action_code and is_tested and dte < strategy_obj.gamma_trigger_dte:
         action_code = "DEFENSE"
@@ -493,6 +478,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
             logic = toxic_logic
 
     # --- 6. Earnings Check ---
+    earnings_date = m_data.get("earnings_date")
     earnings_note = ""
     if earnings_date and earnings_date != "Unavailable":
         try:
@@ -527,7 +513,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     return {
         "root": root,
         "strategy_name": strategy_name,
-        "price": live_price if live_price else underlying_price,
+        "price": price,
         "is_stale": is_stale,
         "vrp_structural": vrp_structural,
         "proxy_note": proxy_note,
@@ -549,6 +535,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
 def triage_cluster(legs: list[dict[str, Any]], context: TriageContext) -> TriageResult:
     """
     Triage a single strategy cluster and determine action code.
+    Backward-compatible entry point.
     """
     metrics = calculate_cluster_metrics(legs, context)
     return determine_cluster_action(metrics, context)
