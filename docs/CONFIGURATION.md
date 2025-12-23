@@ -53,5 +53,5 @@ Control the primary liquidity check using the `liquidity_mode` key:
 
 ### Safety Nets
 Regardless of mode, the following safety checks always apply:
-- **Slippage Cap:** `max_slippage_pct` (Default: 0.05 or 5%). Rejects symbols where the Bid/Ask spread is > 5% of the mid-price.
+- **Slippage Cap:** `max_slippage_pct` (Default: 0.05 or 5%). Rejects symbols where the Bid/Ask spread is > 5% of the mid-price. This also acts as the gatekeeper for **Implied Liquidity** recovery.
 - **Futures Exemption:** Symbols starting with `/` (e.g., `/ES`, `/CL`) bypass volume/OI checks due to data limitations but remain subject to slippage checks if chain data is available.

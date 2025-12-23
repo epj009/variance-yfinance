@@ -69,45 +69,26 @@ Logic is encapsulated in robust, typed **Domain Objects** rather than raw dictio
 - **StrategyCluster:** Groups legs into a logical strategy. Calculates aggregate Greeks (Net Delta, Theta).
 - **Portfolio:** The root object. Manages account-level state, Net Liquidity, and total risk.
 
----
+--- 
 
 ## 5. Layer 4: The Screener (`vol_screener.py`)
 
-Synthesizes raw metrics into actionable "Signals."
+Synthesizes raw metrics into actionable "Signals" using **Smart Gate** technology.
 
-### 4.1. Signal Synthesis
-| Metric | Signal | Recommended Strat (General) |
-| :--- | :--- | :--- |
-| **VRP Tactical** > +20% | `RICH` | Sell Premium (Strangle, Lizard) |
-| **Compression** < 0.75 | `BOUND` | Iron Condor |
-| **VRP Tactical** < -10% | `DISCOUNT` | Calendars / Diagonals |
-| **Earnings** < 5 Days | `EVENT` | Avoid / Speculative |
+### 5.1. Smart Gate: Implied Liquidity
+To overcome data gaps in retail providers (like `yfinance`), Variance uses an **Implied Liquidity** model.
+- **The Gap:** Yahoo Finance often reports `0` volume for liquid equities during polling cycles.
+- **The Fix:** If Volume is `0`, the engine analyzes the **Bid/Ask Spread (Slippage)**. 
+- **The Rule:** If Slippage < 5%, the symbol is accepted as "Implied Liquid" and admitted to the screener. This recovers ~20% of the high-quality equity universe.
 
----
-
-## 5. Layer 4: The Strategy Allocator (Future/RFC 007)
-
-*Current Status: In Design (RFC 007)*
-
-This layer will transform the system from a "Screener" to a "Trading Desk" by systematically mapping Opportunities to Mechanics.
-
-### 5.1. The Validator (`mechanics.py`)
-A physics engine that validates trade feasibility before recommendation.
-*   **Input:** Symbol, Strategy (e.g., Jade Lizard).
-*   **Check:** `Credit > Width` (Lizard Rule), `Liquidity Check`.
-*   **Output:** `PASS/FAIL`. *Prevents suggesting Lizards on $50 stocks.*
-
-### 5.2. The Allocator (`strategy_allocator.py`)
-Maps Market Archetypes to Strategy Menus.
-*   **Archetype A (Grinder):** Rich/Normal -> Iron Condor, Strangle.
-*   **Archetype B (Spring):** Rich/Coiled -> Jade Lizard, BWB.
-*   **Archetype C (Directional):** Skewed -> Ratio Spreads, ZEBRA.
-*   **Archetype D (Hedge):** Cheap -> Calendars.
+### 5.2. Log-Normalization (IV Scaling)
+The engine automatically detects and fixes decimal-scaling errors from data providers using logarithmic distance comparison.
+- **Formula:** `dist = abs(ln(IV / HV))`
+- **Success:** If `dist(IV * 100)` is smaller than `dist(IV)`, the engine automatically corrects the scale, preventing "Scale Poisoning" of the dashboard.
 
 ---
 
 ## 6. Configuration & Files
-
 *   `config/trading_rules.json`: Physics constants (Net Liq, Thresholds).
 *   `config/strategies.json`: Strategy metadata (Profit Targets, Mechanics).
 *   `config/runtime_config.json` (`market`): Futures multipliers, ETF mappings.

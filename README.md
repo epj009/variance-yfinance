@@ -90,7 +90,9 @@ Automatically flags positions using unified risk rules:
 To solve the "Data Blackout" problem in futures (CAD, Bonds, Oil), Variance employs a **Hybrid Idiosyncratic Model**:
 *   **IV Numerator:** Pulled from liquid category benchmarks (`FXE`, `IEF`, `^VIX`).
 *   **HV Denominator:** Pulled from the actual asset's idiosyncratic price history.
-*   **Result:** Reliable, real-time "Rich/Cheap" signals even when specific ETF options are illiquid.
+
+### 💧 Smart-Gate Liquidity Recovery
+Never miss an equity trade due to stale volume data. Variance automatically switches to **Spread Analysis** when reported volume is zero, accepting any symbol with a tight, tradable Bid/Ask market.
 
 ---
 

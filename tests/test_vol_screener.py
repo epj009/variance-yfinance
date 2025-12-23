@@ -28,6 +28,10 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
             "earnings_date": None,
             "sector": "Tech",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },
         "DEF": {
             "price": 40,
@@ -38,6 +42,10 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
             "earnings_date": None,
             "sector": "Energy",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },
         "GHI": {
             "price": 30,
@@ -48,6 +56,10 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
             "earnings_date": None,
             "sector": "Finance",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },
     }
 
@@ -99,6 +111,10 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Technology",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Equity
         "GLD": {
             "price": 180,
@@ -109,6 +125,10 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Metals",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Commodity
         "/CL": {
             "price": 70,
@@ -119,6 +139,10 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Energy",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Commodity
         "/6E": {
             "price": 1.1,
@@ -129,6 +153,10 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Currencies",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # FX
     }
 
@@ -190,6 +218,10 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Technology",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Equity
         "TSLA": {
             "price": 200,
@@ -200,6 +232,10 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Technology",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Equity
         "GLD": {
             "price": 180,
@@ -210,6 +246,10 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Metals",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Commodity
         "/CL": {
             "price": 70,
@@ -220,6 +260,10 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
             "earnings_date": None,
             "sector": "Energy",
             "atm_volume": 600,
+            "call_bid": 1.0,
+            "call_ask": 1.05,
+            "put_bid": 1.0,
+            "put_ask": 1.05,
         },  # Commodity
     }
 
