@@ -16,12 +16,7 @@ import numpy as np
 import pandas as pd
 
 # Import Variance Logger
-try:
-    from variance_logger import logger
-except ImportError:
-    import logging
-    logger = logging.getLogger("variance_fallback")
-    logger.addHandler(logging.NullHandler())
+from .variance_logger import logger
 
 try:
     import yfinance as yf
@@ -42,10 +37,7 @@ DEFAULT_TTL = {
     'sector': 2592000   # 30 days
 }
 
-try:
-    from .config_loader import load_system_config, load_market_config
-except ImportError:
-    from config_loader import load_system_config, load_market_config
+from .config_loader import load_system_config, load_market_config
 
 SYS_CONFIG = load_system_config()
 DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
@@ -896,6 +888,61 @@ def process_single_symbol(raw_symbol: str) -> Tuple[str, Dict[str, Any]]:
     if iv_warning: data['warning'] = iv_warning
     cache.set(f"md_{yf_symbol}", data, get_dynamic_ttl('price', TTL.get('price', 600)))
     return raw_symbol, data
+
+from .interfaces import IMarketDataProvider, MarketData
+
+# --- YFINANCE ADAPTER ---
+class YFinanceProvider(IMarketDataProvider):
+    """
+    Implementation of IMarketDataProvider using yfinance.
+    Handles caching, rate limiting, and data normalization internally.
+    """
+    def __init__(self, cache_instance: Optional[MarketCache] = None):
+        self.cache = cache_instance if cache_instance else MarketCache()
+
+    def get_market_data(self, symbols: List[str]) -> Dict[str, MarketData]:
+        """
+        Fetch market data for a list of symbols using the thread pool.
+        """
+        results = {}
+        with futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_symbol = {
+                executor.submit(process_single_symbol, sym, self.cache): sym 
+                for sym in symbols
+            }
+            for future in futures.as_completed(future_to_symbol):
+                sym = future_to_symbol[future]
+                try:
+                    r_sym, data = future.result()
+                    if "error" not in data:
+                        results[r_sym] = data
+                    else:
+                        logger.warning(f"Failed to fetch {r_sym}: {data['error']}")
+                except Exception as exc:
+                    logger.error(f"Exception fetching {sym}: {exc}")
+        return results
+
+    def get_current_price(self, symbol: str) -> float:
+        """
+        Get current price for a single symbol (optimized).
+        """
+        # Minimal implementation reusing the heavy fetch for now
+        # TODO: Optimize to fetch only price
+        data = self.get_market_data([symbol])
+        if symbol in data:
+            return data[symbol].get('price', 0.0)
+        return 0.0
+
+class MarketDataFactory:
+    """
+    Factory for creating Market Data Providers.
+    """
+    @staticmethod
+    def get_provider(provider_type: str = "yfinance") -> IMarketDataProvider:
+        if provider_type.lower() == "yfinance":
+            return YFinanceProvider()
+        else:
+            raise ValueError(f"Unknown provider type: {provider_type}")
 
 # Module-level singleton service (lazy initialization)
 _default_service: Optional[MarketDataService] = None
