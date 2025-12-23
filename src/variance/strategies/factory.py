@@ -40,8 +40,8 @@ class StrategyFactory:
         if not strat_class:
             strat_class = BaseStrategy.get_registered_class(strategy_id)
 
-        # 3. Final fallback to ShortTheta (Institutional Conservative Default)
+        # 3. Final fallback to DefaultStrategy (Safety Net)
         if not strat_class:
-            strat_class = ShortThetaStrategy
+            strat_class = DefaultStrategy
 
         return strat_class(strategy_id, config, rules)
