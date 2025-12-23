@@ -72,3 +72,21 @@ The Variance Score (0-100) is not just a measure of richness; it is a measure of
 *   **Definition:** Triggered when recent movement (HV20) is significantly lower than historical averages.
 *   **Logic:** A coil represents a consolidatory spring. While the VRP may look high, the risk of a gap-opening breakout is elevated.
 *   **Philosophy:** Favor "Honest Vol" (Normal or Expanding regimes) where you are being paid for real, active movement, rather than just waiting for a breakout. The penalty acts as a tie-breaker, prioritizing liquid, active markets over consolidating ones.
+
+---
+
+## 7. The Quantitative Standard: Logarithmic Space
+
+Variance operates in **Logarithmic Space** rather than **Arithmetic Space**. This is the standard used by institutional quant firms and market makers to maintain mathematical objectivity across different price and volatility scales.
+
+### 7.1. Why Log-Ratios?
+In retail trading, users often subtract volatility (e.g., $IV - HV = 5\%$). Variance rejects this because it lacks **Scale Symmetry**.
+
+1.  **Scale Fairness:** A 5-point "spread" on a 15% HV asset is a **33% markup**. A 5-point spread on a 95% HV asset is only a **5% markup**. Log-ratios ensure we only trade when we are being paid a significant *multiple* of the risk.
+2.  **Symmetry of Movement:** In regular math, an asset doubling (+100%) and an asset being cut in half (-50%) look like different magnitudes. In **Log Space**, they are the exact same distance from the mean, allowing our risk models to treat upside and downside "tails" with equal mathematical weight.
+3.  **Fat Tails & Mean Reversion:** By treating VRP as a ratio ($IV / HV$), we can calculate exactly how many **units of historical movement** the current price covers. This is the foundation of the **Variance Score**—it identifies statistical dislocations that are objectively "too far" from the historical average.
+
+### 7.2. Stoic Quant Philosophy
+*   **We do not trade "stories"; we trade mispriced distributions.**
+*   **Subtraction is noise; Division is signal.**
+*   **If the ratio isn't rich, the trade doesn't exist.**
