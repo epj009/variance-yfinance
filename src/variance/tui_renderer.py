@@ -375,6 +375,14 @@ class TUIRenderer:
                 f"   [warning]⚠️  {excluded_count} concentrated position(s) excluded: {', '.join(excluded[:3])}[/warning]"
             )
 
+        # Show Illiquid Count
+        summary = self.data.get("opportunities", {}).get("summary", {})
+        illiquid_count = summary.get("illiquid_skipped_count", 0)
+        if illiquid_count > 0:
+            self.console.print(
+                f"   [dim cyan]💧 {illiquid_count} implied liquidity issue(s) excluded[/dim cyan]"
+            )
+
         # Check for Data Integrity Skips (Strict Mode)
         summary = self.data.get("opportunities", {}).get("summary", {})
         integrity_skips = summary.get("data_integrity_skipped_count", 0)
