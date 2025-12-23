@@ -262,7 +262,9 @@ def identify_strategy(legs: list[dict[str, Any]]) -> str:
     if butterfly:
         return butterfly
 
-    broken_heart = _broken_heart_from_agg(call_agg, "Call") or _broken_heart_from_agg(put_agg, "Put")
+    broken_heart = _broken_heart_from_agg(call_agg, "Call") or _broken_heart_from_agg(
+        put_agg, "Put"
+    )
     if broken_heart:
         return broken_heart
 
@@ -500,7 +502,7 @@ def cluster_strategies(positions: list[dict[str, Any]]) -> list[list[dict[str, A
 
 
 def _cluster_expiration_options(
-    exp_legs_with_indices: list[tuple[int, dict[str, Any]]]
+    exp_legs_with_indices: list[tuple[int, dict[str, Any]]],
 ) -> tuple[list[list[dict[str, Any]]], set[int]]:
     """
     Cluster options within a single expiration to avoid merging distinct strategies.
@@ -529,7 +531,7 @@ def _cluster_expiration_options(
 
 
 def _cluster_cross_expiration_options(
-    legs_with_indices: list[tuple[int, dict[str, Any]]]
+    legs_with_indices: list[tuple[int, dict[str, Any]]],
 ) -> tuple[list[list[dict[str, Any]]], set[int]]:
     """
     Cluster multi-expiration option pairs (calendars/diagonals/PMCC/PMCP).
@@ -592,7 +594,7 @@ def _cluster_cross_expiration_options(
 
 
 def _cluster_same_open_date(
-    legs_with_idx: list[tuple[int, dict[str, Any]]]
+    legs_with_idx: list[tuple[int, dict[str, Any]]],
 ) -> tuple[list[list[dict[str, Any]]], set[int]]:
     """
     Greedy clustering for a single expiration/open-date bucket.
@@ -617,9 +619,7 @@ def _cluster_same_open_date(
             }
         )
 
-    leg_infos.sort(
-        key=lambda info: (info["otype"], info["side"], info["strike"], info["abs_qty"])
-    )
+    leg_infos.sort(key=lambda info: (info["otype"], info["side"], info["strike"], info["abs_qty"]))
 
     clusters: list[list[dict[str, Any]]] = []
     used_indices: set[int] = set()
@@ -687,7 +687,9 @@ def _cluster_same_open_date(
         return verticals
 
     remaining = [info for info in leg_infos if info["idx"] not in used_indices]
-    short_calls = [info for info in remaining if info["otype"] == "Call" and info["side"] == "short"]
+    short_calls = [
+        info for info in remaining if info["otype"] == "Call" and info["side"] == "short"
+    ]
     long_calls = [info for info in remaining if info["otype"] == "Call" and info["side"] == "long"]
     short_puts = [info for info in remaining if info["otype"] == "Put" and info["side"] == "short"]
     long_puts = [info for info in remaining if info["otype"] == "Put" and info["side"] == "long"]

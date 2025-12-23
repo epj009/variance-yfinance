@@ -2,7 +2,6 @@
 Unit tests for portfolio_parser module.
 """
 
-
 from variance.portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
 
 

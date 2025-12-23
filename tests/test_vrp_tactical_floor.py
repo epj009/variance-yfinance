@@ -34,6 +34,7 @@ from variance.config_loader import load_trading_rules
 # TEST CLASS 1: VRP Tactical Floor Logic - Unit Tests
 # ============================================================================
 
+
 class TestVRPTacticalFloor:
     """
     Unit tests for VRP Tactical HV floor implementation.
@@ -187,19 +188,20 @@ class TestVRPTacticalFloor:
 # TEST CLASS 2: Config Integration
 # ============================================================================
 
+
 class TestVRPTacticalConfig:
     """Test that config/trading_rules.json loads hv_floor_percent correctly."""
 
     def test_config_hv_floor_exists(self):
         """Config should contain hv_floor_percent = 5.0."""
         rules = load_trading_rules()
-        assert 'hv_floor_percent' in rules, "Config missing 'hv_floor_percent'"
-        assert rules['hv_floor_percent'] == 5.0, f"Expected 5.0, got {rules['hv_floor_percent']}"
+        assert "hv_floor_percent" in rules, "Config missing 'hv_floor_percent'"
+        assert rules["hv_floor_percent"] == 5.0, f"Expected 5.0, got {rules['hv_floor_percent']}"
 
     def test_config_hv_floor_type(self):
         """hv_floor_percent should be a numeric type (float or int)."""
         rules = load_trading_rules()
-        hv_floor = rules.get('hv_floor_percent')
+        hv_floor = rules.get("hv_floor_percent")
         assert isinstance(hv_floor, (int, float)), f"Expected numeric, got {type(hv_floor)}"
         assert hv_floor > 0, "HV floor should be positive"
 
@@ -207,6 +209,7 @@ class TestVRPTacticalConfig:
 # ============================================================================
 # TEST CLASS 3: Vol Screener Integration
 # ============================================================================
+
 
 class TestVolScreenerVRPTactical:
     """Test vol_screener.py uses config value for HV floor."""
@@ -220,7 +223,7 @@ class TestVolScreenerVRPTactical:
         # FIX: Load rules properly instead of importing non-existent global
         RULES = load_trading_rules()
 
-        hv_floor_config = RULES.get('hv_floor_percent', 5.0)
+        hv_floor_config = RULES.get("hv_floor_percent", 5.0)
         assert hv_floor_config == 5.0, f"Expected 5.0, got {hv_floor_config}"
 
     def test_vol_screener_vrp_tactical_calculation(self):
@@ -231,7 +234,7 @@ class TestVolScreenerVRPTactical:
         """
         # FIX: Load rules properly
         RULES = load_trading_rules()
-        hv_floor_config = RULES.get('hv_floor_percent', 5.0)
+        hv_floor_config = RULES.get("hv_floor_percent", 5.0)
 
         # Scenario 1: Low HV20 (hit floor)
         iv30 = 30.0
@@ -244,7 +247,9 @@ class TestVolScreenerVRPTactical:
         # With floor: (30 - 5.0) / 5.0 = 5.0 (capped VRP)
         expected_raw = (30.0 - 5.0) / 5.0
         assert abs(raw_markup - expected_raw) < 0.01, f"Expected {expected_raw}, got {raw_markup}"
-        assert markup >= -0.99 and markup <= 3.0, "VRP Tactical Markup should be clamped to [-0.99, 3.0]"
+        assert markup >= -0.99 and markup <= 3.0, (
+            "VRP Tactical Markup should be clamped to [-0.99, 3.0]"
+        )
 
         # Test Case 2: Normal HV20 (should be unchanged)
         hv20 = 25.0
@@ -260,6 +265,7 @@ class TestVolScreenerVRPTactical:
 # ============================================================================
 # TEST CLASS 4: Regression Prevention
 # ============================================================================
+
 
 class TestVRPTacticalRegression:
     """Ensure fix doesn't break existing functionality."""
@@ -327,6 +333,7 @@ class TestVRPTacticalRegression:
 # TEST CLASS 5: End-to-End Validation (if possible)
 # ============================================================================
 
+
 class TestVRPTacticalE2E:
     """End-to-end tests using get_market_data module (mocked)."""
 
@@ -344,38 +351,47 @@ class TestVRPTacticalE2E:
         mock_ticker.fast_info.last_price = 100.0
 
         # Mock history with low volatility
-        history_data = pd.DataFrame({
-            'Close': [100.0] * 252  # Zero volatility (extreme case)
-        }, index=pd.date_range(end='2025-01-01', periods=252, freq='D'))
+        history_data = pd.DataFrame(
+            {
+                "Close": [100.0] * 252  # Zero volatility (extreme case)
+            },
+            index=pd.date_range(end="2025-01-01", periods=252, freq="D"),
+        )
         mock_ticker.history.return_value = history_data
 
         # Mock options data
         mock_ticker.options = ["2025-02-21"]
         mock_chain = Mock()
-        mock_chain.calls = pd.DataFrame({
-            'strike': [100.0],
-            'bid': [2.5],
-            'ask': [2.6],
-            'impliedVolatility': [0.30],
-            'volume': [1000],
-            'dist': [0.0]
-        })
-        mock_chain.puts = pd.DataFrame({
-            'strike': [100.0],
-            'bid': [2.5],
-            'ask': [2.6],
-            'impliedVolatility': [0.30],
-            'volume': [1000],
-            'dist': [0.0]
-        })
+        mock_chain.calls = pd.DataFrame(
+            {
+                "strike": [100.0],
+                "bid": [2.5],
+                "ask": [2.6],
+                "impliedVolatility": [0.30],
+                "volume": [1000],
+                "dist": [0.0],
+            }
+        )
+        mock_chain.puts = pd.DataFrame(
+            {
+                "strike": [100.0],
+                "bid": [2.5],
+                "ask": [2.6],
+                "impliedVolatility": [0.30],
+                "volume": [1000],
+                "dist": [0.0],
+            }
+        )
         mock_ticker.option_chain.return_value = mock_chain
         mock_ticker.info = {}
         mock_ticker.calendar = pd.DataFrame()
 
         # Patch yf.Ticker to return our mock
-        with patch('yfinance.Ticker', return_value=mock_ticker):
+        with patch("yfinance.Ticker", return_value=mock_ticker):
             # Force calculate_hv to return low HV20
-            with patch.object(get_market_data, 'calculate_hv', return_value={'hv252': 20.0, 'hv20': 0.5}):
+            with patch.object(
+                get_market_data, "calculate_hv", return_value={"hv252": 20.0, "hv20": 0.5}
+            ):
                 result = get_market_data.process_single_symbol("TEST")
 
         # Verify result structure
@@ -383,12 +399,14 @@ class TestVRPTacticalE2E:
         symbol, data = result
 
         # Check that VRP Tactical was calculated with floor
-        if not isinstance(data, dict) or 'error' in data:
+        if not isinstance(data, dict) or "error" in data:
             pytest.skip(f"Test returned error: {data}")
 
-        if 'vrp_tactical' in data and data['vrp_tactical'] is not None:
+        if "vrp_tactical" in data and data["vrp_tactical"] is not None:
             # With IV=30, HV20=0.5 floored to 5.0: 30/5 = 6.0
-            assert data['vrp_tactical'] <= 10.0, f"VRP Tactical {data['vrp_tactical']} exceeds 10.0 (floor not applied?)"
+            assert data["vrp_tactical"] <= 10.0, (
+                f"VRP Tactical {data['vrp_tactical']} exceeds 10.0 (floor not applied?)"
+            )
         else:
             pytest.skip("VRP Tactical not calculated (possibly due to missing data)")
 
@@ -396,6 +414,7 @@ class TestVRPTacticalE2E:
 # ============================================================================
 # Performance Tests
 # ============================================================================
+
 
 class TestVRPTacticalPerformance:
     """Ensure fix doesn't degrade performance."""

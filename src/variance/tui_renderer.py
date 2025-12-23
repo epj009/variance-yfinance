@@ -12,24 +12,27 @@ from rich.theme import Theme
 from rich.tree import Tree
 
 # Define professional theme
-VARIANCE_THEME = Theme({
-    "header": "bold blue",
-    "profit": "bold green",
-    "loss": "bold red",
-    "warning": "bold yellow",
-    "dim": "dim white",
-    "neutral": "bold white",
-    "sigma": "bold cyan",
-    "delta": "bold magenta",
-    "label": "dim cyan",
-    "value": "bold white"
-})
+VARIANCE_THEME = Theme(
+    {
+        "header": "bold blue",
+        "profit": "bold green",
+        "loss": "bold red",
+        "warning": "bold yellow",
+        "dim": "dim white",
+        "neutral": "bold white",
+        "sigma": "bold cyan",
+        "delta": "bold magenta",
+        "label": "dim cyan",
+        "value": "bold white",
+    }
+)
+
 
 class TUIRenderer:
     def __init__(self, data: dict[str, Any]):
         self.data = data
         self.console = Console(theme=VARIANCE_THEME)
-        self.portfolio_summary = self.data.get('portfolio_summary', {})
+        self.portfolio_summary = self.data.get("portfolio_summary", {})
 
     def render(self):
         """Orchestrates full TUI generation using Rich"""
@@ -50,9 +53,9 @@ class TUIRenderer:
 
     def render_header(self):
         """Renders the dashboard header panels using Rich Panels and Layout Tables"""
-        net_liq = self.portfolio_summary.get('net_liquidity', 0.0)
-        total_net_pl = self.portfolio_summary.get('total_net_pl', 0.0)
-        bp_usage_pct = self.portfolio_summary.get('bp_usage_pct', 0.0)
+        net_liq = self.portfolio_summary.get("net_liquidity", 0.0)
+        total_net_pl = self.portfolio_summary.get("total_net_pl", 0.0)
+        bp_usage_pct = self.portfolio_summary.get("bp_usage_pct", 0.0)
 
         # --- Panel 1: Capital Console (Grid Layout) ---
         cap_grid = Table.grid(padding=(0, 4))
@@ -60,8 +63,12 @@ class TUIRenderer:
         cap_grid.add_column()
 
         # Left Column: Liquidity
-        bp_style = "profit" if bp_usage_pct < 0.50 else "warning" if bp_usage_pct <= 0.75 else "loss"
-        bp_status = "Deploy" if bp_usage_pct < 0.50 else "Optimal" if bp_usage_pct <= 0.75 else "⚠️ High"
+        bp_style = (
+            "profit" if bp_usage_pct < 0.50 else "warning" if bp_usage_pct <= 0.75 else "loss"
+        )
+        bp_status = (
+            "Deploy" if bp_usage_pct < 0.50 else "Optimal" if bp_usage_pct <= 0.75 else "⚠️ High"
+        )
 
         liq_text = Text()
         liq_text.append("• Net Liq:  ", style="label")
@@ -87,15 +94,15 @@ class TUIRenderer:
             title="[header]THE CAPITAL CONSOLE[/header]",
             border_style="blue",
             box=box.ROUNDED,
-            expand=False
+            expand=False,
         )
 
         # --- Panel 2: Gyroscope & Engine (Grid Layout) ---
-        beta_delta = self.portfolio_summary.get('total_beta_delta', 0.0)
-        theta_raw = self.portfolio_summary.get('total_portfolio_theta', 0.0)
-        theta_vrp = self.portfolio_summary.get('total_portfolio_theta_vrp_adj', theta_raw)
-        stability = self.portfolio_summary.get('delta_theta_ratio', 0.0)
-        markup = self.portfolio_summary.get('portfolio_vrp_markup', 0.0)
+        beta_delta = self.portfolio_summary.get("total_beta_delta", 0.0)
+        theta_raw = self.portfolio_summary.get("total_portfolio_theta", 0.0)
+        theta_vrp = self.portfolio_summary.get("total_portfolio_theta_vrp_adj", theta_raw)
+        stability = self.portfolio_summary.get("delta_theta_ratio", 0.0)
+        markup = self.portfolio_summary.get("portfolio_vrp_markup", 0.0)
 
         tilt_style = "loss" if abs(beta_delta) > 100 else "neutral"
         tilt_name = "Bearish" if beta_delta < -50 else "Bullish" if beta_delta > 50 else "Neutral"
@@ -126,24 +133,30 @@ class TUIRenderer:
         gyro_left.append(f"({stab_status})", style="dim")
 
         # Engine (Right)
-        stress_scenarios = self.data.get('stress_box', {}).get('scenarios', [])
+        stress_scenarios = self.data.get("stress_box", {}).get("scenarios", [])
         downside_pl = 0.0
         downside_label = "None"
-        worst_case = min(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
-        if worst_case and worst_case.get('est_pl', 0) < 0:
-            downside_pl = worst_case['est_pl']
-            downside_label = worst_case.get('label', 'Tail')
+        worst_case = (
+            min(stress_scenarios, key=lambda x: x.get("est_pl", 0.0)) if stress_scenarios else None
+        )
+        if worst_case and worst_case.get("est_pl", 0) < 0:
+            downside_pl = worst_case["est_pl"]
+            downside_label = worst_case.get("label", "Tail")
 
         upside_pl = 0.0
         upside_label = "None"
-        best_case = max(stress_scenarios, key=lambda x: x.get('est_pl', 0.0)) if stress_scenarios else None
-        if best_case and best_case.get('est_pl', 0) > 0:
-            upside_pl = best_case['est_pl']
-            upside_label = best_case.get('label', 'Rally')
+        best_case = (
+            max(stress_scenarios, key=lambda x: x.get("est_pl", 0.0)) if stress_scenarios else None
+        )
+        if best_case and best_case.get("est_pl", 0) > 0:
+            upside_pl = best_case["est_pl"]
+            upside_label = best_case.get("label", "Rally")
 
-        tail_risk_pct = self.portfolio_summary.get('tail_risk_pct', 0.0)
-        risk_style = "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
-        mix_warning = self.data.get('asset_mix_warning', {}).get('risk', False)
+        tail_risk_pct = self.portfolio_summary.get("tail_risk_pct", 0.0)
+        risk_style = (
+            "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
+        )
+        mix_warning = self.data.get("asset_mix_warning", {}).get("risk", False)
 
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
@@ -154,32 +167,32 @@ class TUIRenderer:
         gyro_right.append(f"{fmt_currency(upside_pl)} ", style="profit")
         gyro_right.append(f"({upside_label})\n", style="dim")
         gyro_right.append("• Mix:       ", style="label")
-        gyro_right.append("⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n", style="warning" if mix_warning else "profit")
+        gyro_right.append(
+            "⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n",
+            style="warning" if mix_warning else "profit",
+        )
 
         gyro_grid.add_row(gyro_left, gyro_right)
 
-        gyro_panel = Panel(
-            gyro_grid,
-            border_style="dim",
-            box=box.ROUNDED,
-            expand=False
-        )
+        gyro_panel = Panel(gyro_grid, border_style="dim", box=box.ROUNDED, expand=False)
 
         self.console.print(cap_panel)
         self.console.print(gyro_panel)
 
     def render_triage(self):
-        triage_actions = self.data.get('triage_actions', [])
-        portfolio_overview = self.data.get('portfolio_overview', [])
+        triage_actions = self.data.get("triage_actions", [])
+        portfolio_overview = self.data.get("portfolio_overview", [])
 
-        self.console.print("\n") # Spacer
+        self.console.print("\n")  # Spacer
 
         # Root Tree
         root = Tree("📂 [header]PORTFOLIO OVERVIEW[/header]", guide_style="dim")
 
         # Action Branch
         if triage_actions:
-            action_branch = root.add(f"🚨 [bold red]ACTION REQUIRED ({len(triage_actions)})[/bold red]")
+            action_branch = root.add(
+                f"🚨 [bold red]ACTION REQUIRED ({len(triage_actions)})[/bold red]"
+            )
             for action in triage_actions:
                 self._add_position_node(action_branch, action, is_action=True)
         else:
@@ -187,7 +200,9 @@ class TUIRenderer:
 
         # Holding Branch
         if portfolio_overview:
-            hold_branch = root.add(f"⏳ [bold white]HOLDING ({len(portfolio_overview)})[/bold white]")
+            hold_branch = root.add(
+                f"⏳ [bold white]HOLDING ({len(portfolio_overview)})[/bold white]"
+            )
             for pos in portfolio_overview:
                 self._add_position_node(hold_branch, pos, is_action=False)
 
@@ -195,12 +210,12 @@ class TUIRenderer:
 
     def _add_position_node(self, parent_branch, item: dict[str, Any], is_action: bool):
         """Helper to format and add a position node to the tree."""
-        sym = item.get('symbol', '???')
-        strat = item.get('strategy', 'Unknown')
-        net_pl = item.get('net_pl', 0.0)
-        dte = item.get('dte', 0)
-        code = item.get('action_code')
-        logic = item.get('logic', '')
+        sym = item.get("symbol", "???")
+        strat = item.get("strategy", "Unknown")
+        net_pl = item.get("net_pl", 0.0)
+        dte = item.get("dte", 0)
+        code = item.get("action_code")
+        logic = item.get("logic", "")
 
         # Icon & Color Logic
         icon = ""
@@ -249,7 +264,7 @@ class TUIRenderer:
         node.add(detail_text)
 
     def render_spectrograph(self):
-        deltas = self.data.get('delta_spectrograph', [])
+        deltas = self.data.get("delta_spectrograph", [])
         if not deltas:
             return
 
@@ -259,36 +274,32 @@ class TUIRenderer:
             title_justify="left",
             show_header=False,
             expand=False,
-            padding=(0, 2)
+            padding=(0, 2),
         )
         table.add_column("Rank", width=4, justify="right")
         table.add_column("Symbol", width=10, style="neutral")
         table.add_column("Bar", width=35)
         table.add_column("Delta", width=14, justify="right")
 
-        max_val = max([abs(d.get('delta', 0.0)) for d in deltas]) if deltas else 1.0
-        if max_val == 0: max_val = 1.0
+        max_val = max([abs(d.get("delta", 0.0)) for d in deltas]) if deltas else 1.0
+        if max_val == 0:
+            max_val = 1.0
 
         for rank, item in enumerate(deltas[:10], start=1):
-            delta = item.get('delta', 0.0)
+            delta = item.get("delta", 0.0)
             # Use fixed max bar length for functional visualization
             bar_len = int((abs(delta) / max_val) * 30)
             bar_style = "profit" if delta >= 0 else "loss"
             bar = Text("┃" * bar_len, style=bar_style)
 
-            table.add_row(
-                str(rank),
-                item.get('symbol', ''),
-                bar,
-                f"{delta:+.2f} Δ"
-            )
+            table.add_row(str(rank), item.get("symbol", ""), bar, f"{delta:+.2f} Δ")
 
         self.console.print(table)
 
     def render_composition(self):
         """Renders Asset Class and Sector breakdown side-by-side"""
-        asset_mix = self.data.get('asset_mix', [])
-        sector_balance = self.data.get('sector_balance', [])
+        asset_mix = self.data.get("asset_mix", [])
+        sector_balance = self.data.get("sector_balance", [])
 
         if not asset_mix and not sector_balance:
             return
@@ -307,7 +318,7 @@ class TUIRenderer:
                 box=box.SIMPLE,
                 show_header=False,
                 padding=(0, 1),
-                collapse_padding=True
+                collapse_padding=True,
             )
             # Shrink label width to 18
             t.add_column("Label", style="dim cyan", width=18)
@@ -315,11 +326,11 @@ class TUIRenderer:
             t.add_column("Pct", justify="right", style="bold white", width=5)
 
             # Sort and slice
-            sorted_items = sorted(items, key=lambda x: x.get('percentage', 0), reverse=True)
+            sorted_items = sorted(items, key=lambda x: x.get("percentage", 0), reverse=True)
 
             for item in sorted_items[:6]:
-                label = item.get(label_key, 'Unknown')
-                pct = item.get('percentage', 0.0)
+                label = item.get(label_key, "Unknown")
+                pct = item.get("percentage", 0.0)
 
                 # Bar - Slightly smaller
                 filled = int(pct * 6)
@@ -329,8 +340,8 @@ class TUIRenderer:
                 t.add_row(label, bar, f"{pct:.0%}")
             return t
 
-        asset_table = build_sub_table("Asset Allocation", asset_mix, 'asset_class')
-        sector_table = build_sub_table("Sector Concentration", sector_balance, 'sector')
+        asset_table = build_sub_table("Asset Allocation", asset_mix, "asset_class")
+        sector_table = build_sub_table("Sector Concentration", sector_balance, "sector")
 
         grid.add_row(asset_table, sector_table)
 
@@ -339,16 +350,16 @@ class TUIRenderer:
             title="[header]📊 EXPOSURE ANALYSIS[/header]",
             border_style="dim",
             box=box.ROUNDED,
-            expand=False
+            expand=False,
         )
 
         self.console.print(panel)
 
     def render_opportunities(self):
         """Renders top vol screener opportunities using Rich Table"""
-        opportunities = self.data.get('opportunities', {})
-        candidates = opportunities.get('candidates', [])
-        meta = opportunities.get('meta', {})
+        opportunities = self.data.get("opportunities", {})
+        candidates = opportunities.get("candidates", [])
+        meta = opportunities.get("meta", {})
 
         if not candidates:
             return
@@ -357,32 +368,39 @@ class TUIRenderer:
         self.console.print("   [dim]High Vol Bias candidates for portfolio diversification[/dim]")
 
         # Show exclusion info
-        excluded_count = meta.get('excluded_count', 0)
+        excluded_count = meta.get("excluded_count", 0)
         if excluded_count > 0:
-            excluded = meta.get('excluded_symbols', [])
-            self.console.print(f"   [warning]⚠️  {excluded_count} concentrated position(s) excluded: {', '.join(excluded[:3])}[/warning]")
+            excluded = meta.get("excluded_symbols", [])
+            self.console.print(
+                f"   [warning]⚠️  {excluded_count} concentrated position(s) excluded: {', '.join(excluded[:3])}[/warning]"
+            )
 
         # Check for Data Integrity Skips (Strict Mode)
-        summary = self.data.get('opportunities', {}).get('summary', {})
-        integrity_skips = summary.get('data_integrity_skipped_count', 0)
-        lean_skips = summary.get('lean_data_skipped_count', 0)
-        anomalous_skips = summary.get('anomalous_data_skipped_count', 0)
+        summary = self.data.get("opportunities", {}).get("summary", {})
+        integrity_skips = summary.get("data_integrity_skipped_count", 0)
+        lean_skips = summary.get("lean_data_skipped_count", 0)
+        anomalous_skips = summary.get("anomalous_data_skipped_count", 0)
 
         total_hidden = integrity_skips + lean_skips + anomalous_skips
         if total_hidden > 0:
             reasons = []
-            if integrity_skips: reasons.append(f"{integrity_skips} bad data")
-            if lean_skips: reasons.append(f"{lean_skips} lean data")
-            if anomalous_skips: reasons.append(f"{anomalous_skips} anomalies")
+            if integrity_skips:
+                reasons.append(f"{integrity_skips} bad data")
+            if lean_skips:
+                reasons.append(f"{lean_skips} lean data")
+            if anomalous_skips:
+                reasons.append(f"{anomalous_skips} anomalies")
 
-            self.console.print(f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]")
+            self.console.print(
+                f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]"
+            )
 
         table = Table(
             box=box.ROUNDED,
             header_style="bold cyan",
             border_style="dim",
             expand=False,
-            padding=(0, 1)
+            padding=(0, 1),
         )
         table.add_column("Symbol", style="neutral")
         table.add_column("Price")
@@ -394,10 +412,10 @@ class TUIRenderer:
         table.add_column("Asset Class", style="dim")
 
         for opp in candidates:
-            vrp_t = opp.get('VRP_Tactical_Markup', 0.0)
-            score = opp.get('Score', 0.0)
-            signal = opp.get('Signal', 'FAIR')
-            regime = opp.get('Regime', 'NORMAL')
+            vrp_t = opp.get("VRP_Tactical_Markup", 0.0)
+            score = opp.get("Score", 0.0)
+            signal = opp.get("Signal", "FAIR")
+            regime = opp.get("Regime", "NORMAL")
 
             # Icon mapping for Regime
             regime_icon = ""
@@ -408,32 +426,40 @@ class TUIRenderer:
 
             regime_display = f"{regime} {regime_icon}".strip()
 
-            if opp.get('is_bats_efficient'):
+            if opp.get("is_bats_efficient"):
                 signal = f"{signal} 🦇"
 
             table.add_row(
-                opp.get('Symbol', ''),
-                fmt_currency(opp.get('Price', 0.0)),
+                opp.get("Symbol", ""),
+                fmt_currency(opp.get("Price", 0.0)),
                 f"{opp.get('VRP Structural', 0.0):.2f}",
                 f"{vrp_t:+.0%}",
                 signal,
                 f"{score:.1f}",
                 regime_display,
-                opp.get('Asset Class', 'Equity')
+                opp.get("Asset Class", "Equity"),
             )
 
         self.console.print(table)
-        self.console.print("   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]")
+        self.console.print(
+            "   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]"
+        )
+
 
 # --- Formatting Helpers ---
 
+
 def fmt_currency(val: Optional[float]) -> str:
-    if val is None: return "$0.00"
+    if val is None:
+        return "$0.00"
     return f"${val:,.2f}"
 
+
 def fmt_percent(val: Optional[float]) -> str:
-    if val is None: return "0.0%"
+    if val is None:
+        return "0.0%"
     return f"{val:.1%}"
+
 
 def main():
     parser = argparse.ArgumentParser(description="Variance Rich TUI Renderer")
@@ -452,6 +478,7 @@ def main():
 
     renderer = TUIRenderer(data)
     renderer.render()
+
 
 if __name__ == "__main__":
     main()

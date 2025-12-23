@@ -21,6 +21,7 @@ from variance import config_loader, strategy_loader
 # FIXTURES
 # ============================================================================
 
+
 @pytest.fixture
 def config_dir(tmp_path, monkeypatch):
     """
@@ -45,13 +46,14 @@ def valid_strategy():
         "type": "defined_risk",
         "setup": {"legs_description": "Test"},
         "management": {"profit_target_pct": 0.50},
-        "metadata": {"gamma_trigger_dte": 21}
+        "metadata": {"gamma_trigger_dte": 21},
     }
 
 
 # ============================================================================
 # TEST CLASS 1: load_trading_rules()
 # ============================================================================
+
 
 class TestLoadTradingRules:
     """Unit tests for load_trading_rules() function."""
@@ -67,7 +69,7 @@ class TestLoadTradingRules:
 
         # Assert
         assert result["vrp_structural_threshold"] == 0.95  # Overridden
-        assert result["net_liquidity"] == 75000       # Overridden
+        assert result["net_liquidity"] == 75000  # Overridden
         assert set(result.keys()) == {"vrp_structural_threshold", "net_liquidity"}
 
     def test_missing_file_returns_empty_dict(self, config_dir):
@@ -87,7 +89,7 @@ class TestLoadTradingRules:
     def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
         config_file = config_dir / "trading_rules.json"
-        config_file.write_text('{ invalid json syntax')
+        config_file.write_text("{ invalid json syntax")
 
         result = config_loader.load_trading_rules(config_dir=str(config_dir))
 
@@ -119,6 +121,7 @@ class TestLoadTradingRules:
 # TEST CLASS 2: load_market_config()
 # ============================================================================
 
+
 class TestLoadMarketConfig:
     """Unit tests for load_market_config() function."""
 
@@ -128,7 +131,7 @@ class TestLoadMarketConfig:
         config_data = {
             "market": {
                 "FUTURES_MULTIPLIERS": {"/ES": 50, "/CL": 1000},
-                "SECTOR_OVERRIDES": {"SPY": "Index"}
+                "SECTOR_OVERRIDES": {"SPY": "Index"},
             }
         }
         config_file.write_text(json.dumps(config_data))
@@ -153,7 +156,7 @@ class TestLoadMarketConfig:
     def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
         config_file = config_dir / "runtime_config.json"
-        config_file.write_text('[invalid')
+        config_file.write_text("[invalid")
 
         result = config_loader.load_market_config(config_dir=str(config_dir))
 
@@ -173,6 +176,7 @@ class TestLoadMarketConfig:
 # ============================================================================
 # TEST CLASS 3: load_system_config()
 # ============================================================================
+
 
 class TestLoadSystemConfig:
     """Unit tests for load_system_config() function."""
@@ -203,7 +207,7 @@ class TestLoadSystemConfig:
     def test_malformed_json_returns_empty_dict(self, config_dir):
         """Graceful fallback on JSONDecodeError."""
         config_file = config_dir / "runtime_config.json"
-        config_file.write_text('{')
+        config_file.write_text("{")
 
         result = config_loader.load_system_config(config_dir=str(config_dir))
 
@@ -224,6 +228,7 @@ class TestLoadSystemConfig:
 # TEST CLASS 4: load_strategies()
 # ============================================================================
 
+
 class TestLoadStrategies:
     """Unit tests for load_strategies() function."""
 
@@ -237,7 +242,7 @@ class TestLoadStrategies:
                 "type": "undefined_risk",
                 "setup": {"legs": 2},
                 "management": {"profit_target_pct": 0.50},
-                "metadata": {"gamma_trigger_dte": 21}
+                "metadata": {"gamma_trigger_dte": 21},
             }
         ]
         config_file.write_text(json.dumps(strategies_data))
@@ -257,7 +262,7 @@ class TestLoadStrategies:
                 "type": "defined_risk",
                 "setup": {},
                 "management": {"profit_target_pct": 0.50},
-                "metadata": {"gamma_trigger_dte": 21}
+                "metadata": {"gamma_trigger_dte": 21},
             },
             {
                 "id": "strat2",
@@ -265,8 +270,8 @@ class TestLoadStrategies:
                 "type": "defined_risk",
                 "setup": {},
                 "management": {"profit_target_pct": 0.60},
-                "metadata": {"gamma_trigger_dte": 14}
-            }
+                "metadata": {"gamma_trigger_dte": 14},
+            },
         ]
         config_file.write_text(json.dumps(strategies_data))
 
@@ -282,6 +287,7 @@ class TestLoadStrategies:
 # TEST CLASS 5: load_config_bundle()
 # ============================================================================
 
+
 class TestLoadConfigBundle:
     """Unit tests for load_config_bundle() function."""
 
@@ -290,23 +296,26 @@ class TestLoadConfigBundle:
         runtime_config = {
             "system": {"watchlist_path": "watchlists/default.csv"},
             "market": {},
-            "screener_profiles": {}
+            "screener_profiles": {},
         }
         (config_dir / "runtime_config.json").write_text(json.dumps(runtime_config))
-        (config_dir / "strategies.json").write_text('[]')
+        (config_dir / "strategies.json").write_text("[]")
 
         bundle = config_loader.load_config_bundle(config_dir=str(config_dir))
         assert "trading_rules" in bundle
         assert bundle["trading_rules"]["net_liquidity"] == 50000
 
         override = {"trading_rules": {"net_liquidity": 75000}}
-        bundle_override = config_loader.load_config_bundle(config_dir=str(config_dir), overrides=override)
+        bundle_override = config_loader.load_config_bundle(
+            config_dir=str(config_dir), overrides=override
+        )
         assert bundle_override["trading_rules"]["net_liquidity"] == 75000
 
 
 # ============================================================================
 # TEST CLASS 6: Strategy Validation (strategy_loader.py)
 # ============================================================================
+
 
 class TestStrategyValidation:
     """Unit tests for validate_strategy() function."""
@@ -384,13 +393,13 @@ class TestStrategyValidation:
                 "type": "defined_risk",
                 "setup": {},
                 "management": {"profit_target_pct": 0.50},
-                "metadata": {"gamma_trigger_dte": 21}
+                "metadata": {"gamma_trigger_dte": 21},
             },
             {
                 "id": "invalid_strat",
-                "name": "Invalid - Missing type"
+                "name": "Invalid - Missing type",
                 # Missing required fields
-            }
+            },
         ]
         config_file.write_text(json.dumps(strategies_data))
 

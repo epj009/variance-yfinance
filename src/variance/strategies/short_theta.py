@@ -24,7 +24,7 @@ class ShortThetaStrategy(BaseStrategy):
 
             qty = parse_currency(leg.get("Quantity", "0"))
             if qty >= 0:
-                continue # Only short legs can be "tested" in this context
+                continue  # Only short legs can be "tested" in this context
 
             otype = leg.get("Call/Put")
             strike = parse_currency(leg.get("Strike Price", "0"))
@@ -36,7 +36,9 @@ class ShortThetaStrategy(BaseStrategy):
 
         return False
 
-    def check_toxic_theta(self, metrics: dict[str, Any], market_data: dict[str, Any]) -> tuple[Optional[str], str]:
+    def check_toxic_theta(
+        self, metrics: dict[str, Any], market_data: dict[str, Any]
+    ) -> tuple[Optional[str], str]:
         """
         Calculates if the Theta 'Carry' is sufficient to cover the Gamma 'Cost'.
         Institutional standard for stop-losses on premium sellers.
@@ -64,7 +66,7 @@ class ShortThetaStrategy(BaseStrategy):
         em_1sd = price * (hv_ref_floored / 100.0 / 15.87)
 
         # Gamma Cost = 0.5 * Gamma * (Move^2)
-        expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd ** 2)
+        expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd**2)
 
         if expected_gamma_cost > 0:
             efficiency = abs(cluster_theta_raw) / expected_gamma_cost

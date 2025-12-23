@@ -22,7 +22,6 @@ TEST PHILOSOPHY:
 - Tests ensure config integration works correctly
 """
 
-
 import pytest
 
 from variance import triage_engine
@@ -31,6 +30,7 @@ from variance.config_loader import load_trading_rules
 # ============================================================================
 # FINDING-003: Futures Delta Validation
 # ============================================================================
+
 
 class TestFuturesDeltaValidation:
     """
@@ -48,20 +48,17 @@ class TestFuturesDeltaValidation:
         Expected: potential_issue = True, warning message about multiplier
         """
         rules = load_trading_rules()
-        market_config = {'FUTURES_MULTIPLIERS': {'/ES': 50}}
+        market_config = {"FUTURES_MULTIPLIERS": {"/ES": 50}}
 
         result = triage_engine.validate_futures_delta(
-            root='/ES',
-            beta_delta=0.3,
-            market_config=market_config,
-            rules=rules
+            root="/ES", beta_delta=0.3, market_config=market_config, rules=rules
         )
 
-        assert result['is_futures']
-        assert result['potential_issue']
-        assert result['multiplier'] == 50
-        assert 'unmultiplied' in result['message'].lower()
-        assert result['expected_min'] == 1.0
+        assert result["is_futures"]
+        assert result["potential_issue"]
+        assert result["multiplier"] == 50
+        assert "unmultiplied" in result["message"].lower()
+        assert result["expected_min"] == 1.0
 
     def test_futures_delta_normal_value(self):
         """
@@ -71,18 +68,15 @@ class TestFuturesDeltaValidation:
         Expected: potential_issue = False
         """
         rules = load_trading_rules()
-        market_config = {'FUTURES_MULTIPLIERS': {'/ES': 50}}
+        market_config = {"FUTURES_MULTIPLIERS": {"/ES": 50}}
 
         result = triage_engine.validate_futures_delta(
-            root='/ES',
-            beta_delta=15.0,
-            market_config=market_config,
-            rules=rules
+            root="/ES", beta_delta=15.0, market_config=market_config, rules=rules
         )
 
-        assert result['is_futures']
-        assert not result['potential_issue']
-        assert result['message'] == ''
+        assert result["is_futures"]
+        assert not result["potential_issue"]
+        assert result["message"] == ""
 
     def test_futures_delta_validation_disabled(self):
         """
@@ -92,18 +86,15 @@ class TestFuturesDeltaValidation:
         Expected: No warning even for small delta
         """
         rules = load_trading_rules()
-        rules['futures_delta_validation']['enabled'] = False
-        market_config = {'FUTURES_MULTIPLIERS': {'/ES': 50}}
+        rules["futures_delta_validation"]["enabled"] = False
+        market_config = {"FUTURES_MULTIPLIERS": {"/ES": 50}}
 
         result = triage_engine.validate_futures_delta(
-            root='/ES',
-            beta_delta=0.3,
-            market_config=market_config,
-            rules=rules
+            root="/ES", beta_delta=0.3, market_config=market_config, rules=rules
         )
 
-        assert result['is_futures']
-        assert not result['potential_issue']
+        assert result["is_futures"]
+        assert not result["potential_issue"]
 
     def test_equity_position_not_validated(self):
         """
@@ -113,17 +104,14 @@ class TestFuturesDeltaValidation:
         Expected: is_futures = False, no validation performed
         """
         rules = load_trading_rules()
-        market_config = {'FUTURES_MULTIPLIERS': {'/ES': 50}}
+        market_config = {"FUTURES_MULTIPLIERS": {"/ES": 50}}
 
         result = triage_engine.validate_futures_delta(
-            root='AAPL',
-            beta_delta=0.3,
-            market_config=market_config,
-            rules=rules
+            root="AAPL", beta_delta=0.3, market_config=market_config, rules=rules
         )
 
-        assert not result['is_futures']
-        assert not result['potential_issue']
+        assert not result["is_futures"]
+        assert not result["potential_issue"]
 
     def test_futures_delta_negative_value(self):
         """
@@ -133,22 +121,20 @@ class TestFuturesDeltaValidation:
         Expected: potential_issue = True (abs(-0.5) < 1.0)
         """
         rules = load_trading_rules()
-        market_config = {'FUTURES_MULTIPLIERS': {'/ES': 50}}
+        market_config = {"FUTURES_MULTIPLIERS": {"/ES": 50}}
 
         result = triage_engine.validate_futures_delta(
-            root='/ES',
-            beta_delta=-0.5,
-            market_config=market_config,
-            rules=rules
+            root="/ES", beta_delta=-0.5, market_config=market_config, rules=rules
         )
 
-        assert result['is_futures']
-        assert result['potential_issue']
+        assert result["is_futures"]
+        assert result["potential_issue"]
 
 
 # ============================================================================
 # FINDING-004: Gamma Units Integrity Check
 # ============================================================================
+
 
 class TestGammaIntegrityCheck:
     """
@@ -170,7 +156,7 @@ class TestGammaIntegrityCheck:
         total_gamma = 0.003
         total_option_legs = 10
         avg_gamma_per_leg = abs(total_gamma) / total_option_legs
-        min_gamma = rules.get('data_integrity_min_gamma', 0.001)
+        min_gamma = rules.get("data_integrity_min_gamma", 0.001)
 
         should_warn = avg_gamma_per_leg < min_gamma
 
@@ -190,7 +176,7 @@ class TestGammaIntegrityCheck:
         total_gamma = 0.05
         total_option_legs = 10
         avg_gamma_per_leg = abs(total_gamma) / total_option_legs
-        min_gamma = rules.get('data_integrity_min_gamma', 0.001)
+        min_gamma = rules.get("data_integrity_min_gamma", 0.001)
 
         should_warn = avg_gamma_per_leg < min_gamma
 
@@ -209,7 +195,7 @@ class TestGammaIntegrityCheck:
         total_gamma = 0.010
         total_option_legs = 10
         avg_gamma_per_leg = abs(total_gamma) / total_option_legs
-        min_gamma = rules.get('data_integrity_min_gamma', 0.001)
+        min_gamma = rules.get("data_integrity_min_gamma", 0.001)
 
         should_warn = avg_gamma_per_leg < min_gamma
 
@@ -228,7 +214,7 @@ class TestGammaIntegrityCheck:
         total_gamma = -0.003
         total_option_legs = 10
         avg_gamma_per_leg = abs(total_gamma) / total_option_legs
-        min_gamma = rules.get('data_integrity_min_gamma', 0.001)
+        min_gamma = rules.get("data_integrity_min_gamma", 0.001)
 
         should_warn = avg_gamma_per_leg < min_gamma
 
@@ -239,6 +225,7 @@ class TestGammaIntegrityCheck:
 # ============================================================================
 # FINDING-007: EXPIRING Action Code
 # ============================================================================
+
 
 class TestExpiringActionCode:
     """
@@ -309,6 +296,7 @@ class TestExpiringActionCode:
 # ============================================================================
 # FINDING-006: Extreme VRP Tactical Markup Warnings
 # ============================================================================
+
 
 class TestExtremeMarkupWarnings:
     """
@@ -389,6 +377,7 @@ class TestExtremeMarkupWarnings:
 # FINDING-009: IV Normalization Edge Case
 # ============================================================================
 
+
 class TestIVNormalizationEdgeCase:
     """
     Test IV normalization protection against extreme scaling errors.
@@ -462,6 +451,7 @@ class TestIVNormalizationEdgeCase:
 # FINDING-010: Friction Horizon Threshold
 # ============================================================================
 
+
 class TestFrictionHorizonThreshold:
     """
     Test friction horizon uses config value instead of hardcoded 1.0.
@@ -481,7 +471,7 @@ class TestFrictionHorizonThreshold:
 
         total_abs_theta = 0.5
         total_liquidity_cost = 100.0
-        min_theta = rules.get('friction_horizon_min_theta', 0.01)
+        min_theta = rules.get("friction_horizon_min_theta", 0.01)
         traffic_jam_friction = 999.0
 
         if total_abs_theta > min_theta:
@@ -505,7 +495,7 @@ class TestFrictionHorizonThreshold:
 
         total_abs_theta = 0.005
         total_liquidity_cost = 100.0
-        min_theta = rules.get('friction_horizon_min_theta', 0.01)
+        min_theta = rules.get("friction_horizon_min_theta", 0.01)
         traffic_jam_friction = 999.0
 
         if total_abs_theta > min_theta:
@@ -528,7 +518,7 @@ class TestFrictionHorizonThreshold:
 
         total_abs_theta = 0.01
         total_liquidity_cost = 100.0
-        min_theta = rules.get('friction_horizon_min_theta', 0.01)
+        min_theta = rules.get("friction_horizon_min_theta", 0.01)
         traffic_jam_friction = 999.0
 
         if total_abs_theta > min_theta:
@@ -545,6 +535,7 @@ class TestFrictionHorizonThreshold:
 # ============================================================================
 # FINDING-011: Variance Score Config
 # ============================================================================
+
 
 class TestVarianceScoreConfig:
     """
@@ -564,7 +555,7 @@ class TestVarianceScoreConfig:
         rules = load_trading_rules()
 
         vrp_structural = 1.5
-        multiplier = rules.get('variance_score_dislocation_multiplier', 200)
+        multiplier = rules.get("variance_score_dislocation_multiplier", 200)
 
         bias_dislocation = abs(vrp_structural - 1.0) * multiplier
         bias_score = max(0, min(100, bias_dislocation))
@@ -583,7 +574,7 @@ class TestVarianceScoreConfig:
         rules = load_trading_rules()
 
         vrp_structural = 1.25
-        multiplier = rules.get('variance_score_dislocation_multiplier', 200)
+        multiplier = rules.get("variance_score_dislocation_multiplier", 200)
 
         bias_dislocation = abs(vrp_structural - 1.0) * multiplier
         bias_score = max(0, min(100, bias_dislocation))
@@ -601,7 +592,7 @@ class TestVarianceScoreConfig:
         rules = load_trading_rules()
 
         vrp_structural = 2.0
-        multiplier = rules.get('variance_score_dislocation_multiplier', 200)
+        multiplier = rules.get("variance_score_dislocation_multiplier", 200)
 
         bias_dislocation = abs(vrp_structural - 1.0) * multiplier
         bias_score = max(0, min(100, bias_dislocation))
@@ -613,6 +604,7 @@ class TestVarianceScoreConfig:
 # ============================================================================
 # FINDING-012: HV20 Standard Error
 # ============================================================================
+
 
 class TestHV20StandardError:
     """
@@ -688,6 +680,7 @@ class TestHV20StandardError:
 # FINDING-014: Mark Price Slippage
 # ============================================================================
 
+
 class TestMarkPriceSlippage:
     """
     Test slippage calculation uses mark price when available.
@@ -760,6 +753,7 @@ class TestMarkPriceSlippage:
 # Integration Tests
 # ============================================================================
 
+
 class TestQuantAuditIntegration:
     """
     Integration tests to verify fixes work together correctly.
@@ -774,10 +768,10 @@ class TestQuantAuditIntegration:
         rules = load_trading_rules()
 
         required_params = {
-            'hv_floor_percent': 5.0,
-            'data_integrity_min_gamma': 0.001,
-            'friction_horizon_min_theta': 0.01,
-            'variance_score_dislocation_multiplier': 200,
+            "hv_floor_percent": 5.0,
+            "data_integrity_min_gamma": 0.001,
+            "friction_horizon_min_theta": 0.01,
+            "variance_score_dislocation_multiplier": 200,
         }
 
         for key, expected in required_params.items():
@@ -785,9 +779,9 @@ class TestQuantAuditIntegration:
             assert actual == expected, f"Config param {key} = {actual}, expected {expected}"
 
         # Nested validation
-        futures_val = rules.get('futures_delta_validation', {})
-        assert futures_val.get('enabled')
-        assert futures_val.get('min_abs_delta_threshold') == 1.0
+        futures_val = rules.get("futures_delta_validation", {})
+        assert futures_val.get("enabled")
+        assert futures_val.get("min_abs_delta_threshold") == 1.0
 
     def test_no_nan_or_inf_in_calculations(self):
         """
@@ -822,10 +816,10 @@ class TestQuantAuditIntegration:
         rules = {}  # Empty config
 
         # Test all .get() calls have defaults
-        hv_floor = rules.get('hv_floor_percent', 5.0)
-        min_gamma = rules.get('data_integrity_min_gamma', 0.001)
-        min_theta = rules.get('friction_horizon_min_theta', 0.01)
-        dislocation_mult = rules.get('variance_score_dislocation_multiplier', 200)
+        hv_floor = rules.get("hv_floor_percent", 5.0)
+        min_gamma = rules.get("data_integrity_min_gamma", 0.001)
+        min_theta = rules.get("friction_horizon_min_theta", 0.01)
+        dislocation_mult = rules.get("variance_score_dislocation_multiplier", 200)
 
         assert hv_floor == 5.0
         assert min_gamma == 0.001

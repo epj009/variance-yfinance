@@ -6,10 +6,11 @@ import sys
 import pytest
 
 # Paths to scripts
-SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '../scripts')
-ANALYZE_SCRIPT = os.path.join(SCRIPTS_DIR, 'analyze_portfolio.py')
-SCREENER_SCRIPT = os.path.join(SCRIPTS_DIR, 'vol_screener.py')
+SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "../scripts")
+ANALYZE_SCRIPT = os.path.join(SCRIPTS_DIR, "analyze_portfolio.py")
+SCREENER_SCRIPT = os.path.join(SCRIPTS_DIR, "vol_screener.py")
 PYTHON_EXE = sys.executable
+
 
 def test_analyze_portfolio_cli_default_json(tmp_path):
     """Test that analyze_portfolio.py defaults to JSON output."""
@@ -21,9 +22,7 @@ def test_analyze_portfolio_cli_default_json(tmp_path):
     )
 
     result = subprocess.run(
-        [PYTHON_EXE, ANALYZE_SCRIPT, str(csv_path)],
-        capture_output=True,
-        text=True
+        [PYTHON_EXE, ANALYZE_SCRIPT, str(csv_path)], capture_output=True, text=True
     )
 
     if result.returncode != 0:
@@ -39,6 +38,7 @@ def test_analyze_portfolio_cli_default_json(tmp_path):
     except json.JSONDecodeError:
         pytest.fail(f"Output was not valid JSON: {result.stdout[:200]}...")
 
+
 def test_vol_screener_cli_default_json():
     """Test that vol_screener.py defaults to JSON output."""
     # We use a small limit to speed it up and reduce network reliance logic (though it will mock network if we mock it,
@@ -47,9 +47,7 @@ def test_vol_screener_cli_default_json():
 
     # We can pass a limit to avoid hitting the whole watchlist
     result = subprocess.run(
-        [PYTHON_EXE, SCREENER_SCRIPT, "1", "--profile", "balanced"],
-        capture_output=True,
-        text=True
+        [PYTHON_EXE, SCREENER_SCRIPT, "1", "--profile", "balanced"], capture_output=True, text=True
     )
 
     assert result.returncode == 0

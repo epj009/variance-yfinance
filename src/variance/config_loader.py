@@ -78,7 +78,9 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
-def load_runtime_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
+def load_runtime_config(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, Any]:
     config_path = _resolve_config_dir(config_dir) / RUNTIME_CONFIG_FILE
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     return _ensure_dict(payload, name=RUNTIME_CONFIG_FILE, strict=_resolve_strict(strict))
@@ -103,31 +105,41 @@ def _extract_section(runtime_config: dict[str, Any], key: str, *, strict: bool) 
     return {}
 
 
-def load_trading_rules(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
+def load_trading_rules(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, Any]:
     config_path = _resolve_config_dir(config_dir) / "trading_rules.json"
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     return _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
 
 
-def load_screener_profiles(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
+def load_screener_profiles(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "screener_profiles", strict=strict_flag)
 
 
-def load_market_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
+def load_market_config(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "market", strict=strict_flag)
 
 
-def load_system_config(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, Any]:
+def load_system_config(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, Any]:
     strict_flag = _resolve_strict(strict)
     runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
     return _extract_section(runtime_config, "system", strict=strict_flag)
 
 
-def load_strategies(*, config_dir: Optional[str] = None, strict: Optional[bool] = None) -> dict[str, dict[str, Any]]:
+def load_strategies(
+    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
+) -> dict[str, dict[str, Any]]:
     try:
         from .strategy_loader import load_strategies as _load_strategies
     except ImportError:
@@ -154,7 +166,9 @@ def load_config_bundle(
         "trading_rules": load_trading_rules(config_dir=str(config_path), strict=strict_flag),
         "market_config": _extract_section(runtime_config, "market", strict=strict_flag),
         "system_config": _extract_section(runtime_config, "system", strict=strict_flag),
-        "screener_profiles": _extract_section(runtime_config, "screener_profiles", strict=strict_flag),
+        "screener_profiles": _extract_section(
+            runtime_config, "screener_profiles", strict=strict_flag
+        ),
         "strategies": load_strategies(config_dir=str(config_path), strict=strict_flag),
     }
 

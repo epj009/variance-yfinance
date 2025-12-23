@@ -4,8 +4,9 @@ import sys
 from datetime import datetime
 
 # Ensure logs directory exists
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
+
 
 def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.Logger:
     """
@@ -22,8 +23,7 @@ def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.L
 
     # Formatter
     formatter = logging.Formatter(
-        '%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
 
     # Console Handler (Stderr)
@@ -38,6 +38,7 @@ def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.L
     logger.addHandler(file_handler)
 
     return logger
+
 
 # Singleton instance
 logger = setup_logger()

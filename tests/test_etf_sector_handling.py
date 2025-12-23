@@ -2,6 +2,7 @@
 QA Validation Tests for ETF Sector Handling Fix
 Tests the safe_get_sector() function and SECTOR_OVERRIDES configuration
 """
+
 import sys
 from unittest.mock import Mock, PropertyMock, patch
 
@@ -26,7 +27,7 @@ def test_http_404_error_suppression():
     type(ticker_mock).info = PropertyMock(side_effect=Exception("HTTP Error 404: Not Found"))
 
     # Clear cache to ensure fresh fetch
-    with patch.object(get_market_data.cache, 'get', return_value=None):
+    with patch.object(get_market_data.cache, "get", return_value=None):
         result = get_market_data.safe_get_sector(ticker_mock, "FAKE_ETF", "FAKE_ETF")
 
     assert result == "Unknown", f"Expected 'Unknown', got '{result}'"
@@ -43,7 +44,7 @@ def test_no_stderr_output_on_error(capsys):
 
     type(ticker_mock).info = PropertyMock(side_effect=raise_and_print)
 
-    with patch.object(get_market_data.cache, 'get', return_value=None):
+    with patch.object(get_market_data.cache, "get", return_value=None):
         result = get_market_data.safe_get_sector(ticker_mock, "FAKE_ETF", "FAKE_ETF")
 
     captured = capsys.readouterr()
@@ -64,7 +65,9 @@ def test_etf_sector_overrides_exist():
     for symbol, expected_sector in critical_etfs.items():
         assert symbol in get_market_data.SECTOR_OVERRIDES, f"{symbol} missing from SECTOR_OVERRIDES"
         actual_sector = get_market_data.SECTOR_OVERRIDES[symbol]
-        assert actual_sector == expected_sector, f"{symbol}: expected '{expected_sector}', got '{actual_sector}'"
+        assert actual_sector == expected_sector, (
+            f"{symbol}: expected '{expected_sector}', got '{actual_sector}'"
+        )
 
 
 def test_safe_get_sector_unknown_fallback():
@@ -72,7 +75,7 @@ def test_safe_get_sector_unknown_fallback():
     ticker_mock = Mock()
     ticker_mock.info = {}  # Empty info (no sector key)
 
-    with patch.object(get_market_data.cache, 'get', return_value=None):
+    with patch.object(get_market_data.cache, "get", return_value=None):
         result = get_market_data.safe_get_sector(ticker_mock, "UNKNOWN_SYM", "UNKNOWN_SYM")
 
     assert result == "Unknown"

@@ -13,6 +13,7 @@ from typing import Optional, TypedDict
 
 class NormalizedPosition(TypedDict, total=False):
     """Type definition for a normalized position row."""
+
     Symbol: str
     Type: str
     Quantity: str
@@ -39,30 +40,31 @@ class PortfolioParser:
     """
     Normalizes CSV headers from various broker exports to a standard internal format.
     """
+
     # Internal Key : [Possible CSV Headers]
     MAPPING = {
-        'Symbol': ['Symbol', 'Sym', 'Ticker'],
-        'Type': ['Type', 'Asset Class'],
-        'Quantity': ['Quantity', 'Qty', 'Position', 'Size'],
-        'Exp Date': ['Exp Date', 'Expiration', 'Expiry'],
-        'DTE': ['DTE', 'Days To Expiration', 'Days to Exp'],
-        'Strike Price': ['Strike Price', 'Strike'],
-        'Call/Put': ['Call/Put', 'Side', 'C/P'],
-        'Underlying Last Price': ['Underlying Last Price', 'Underlying Price', 'Current Price'],
-        'P/L Open': ['P/L Open', 'P/L Day', 'Unrealized P/L'],
-        'Cost': ['Cost', 'Cost Basis', 'Trade Price'],
-        'IV Rank': ['IV Rank', 'IVR', 'IV Percentile'],
-        'Delta': ['Delta', 'Δ', 'Position Delta', 'Raw Delta'],
-        'beta_delta': ['β Delta', 'Beta Delta', 'Delta Beta', 'Weighted Delta'],
-        'Theta': ['Theta', 'Theta Daily', 'Daily Theta'],
-        'Vega': ['Vega', '/ Vega'],
-        'Gamma': ['Gamma'],
-        'beta_gamma': ['β Gamma', 'Beta Gamma'],
-        'Value': ['Value', 'Mkt Value', 'Net Liq'],
-        'Bid': ['Bid', 'Bid Price'],
-        'Ask': ['Ask', 'Ask Price'],
-        'Mark': ['Mark', 'Mark Price', 'Mid'],
-        'Open Date': ['Open Date', "D's Opn", 'Days Open']
+        "Symbol": ["Symbol", "Sym", "Ticker"],
+        "Type": ["Type", "Asset Class"],
+        "Quantity": ["Quantity", "Qty", "Position", "Size"],
+        "Exp Date": ["Exp Date", "Expiration", "Expiry"],
+        "DTE": ["DTE", "Days To Expiration", "Days to Exp"],
+        "Strike Price": ["Strike Price", "Strike"],
+        "Call/Put": ["Call/Put", "Side", "C/P"],
+        "Underlying Last Price": ["Underlying Last Price", "Underlying Price", "Current Price"],
+        "P/L Open": ["P/L Open", "P/L Day", "Unrealized P/L"],
+        "Cost": ["Cost", "Cost Basis", "Trade Price"],
+        "IV Rank": ["IV Rank", "IVR", "IV Percentile"],
+        "Delta": ["Delta", "Δ", "Position Delta", "Raw Delta"],
+        "beta_delta": ["β Delta", "Beta Delta", "Delta Beta", "Weighted Delta"],
+        "Theta": ["Theta", "Theta Daily", "Daily Theta"],
+        "Vega": ["Vega", "/ Vega"],
+        "Gamma": ["Gamma"],
+        "beta_gamma": ["β Gamma", "Beta Gamma"],
+        "Value": ["Value", "Mkt Value", "Net Liq"],
+        "Bid": ["Bid", "Bid Price"],
+        "Ask": ["Ask", "Ask Price"],
+        "Mark": ["Mark", "Mark Price", "Mid"],
+        "Open Date": ["Open Date", "D's Opn", "Days Open"],
     }
 
     @staticmethod
@@ -83,12 +85,12 @@ class PortfolioParser:
                 if alias in row:
                     val = row[alias]
                     # Canonicalize option side to keep strategy detection stable across casing
-                    if internal_key == 'Call/Put' and val:
+                    if internal_key == "Call/Put" and val:
                         upper_val = str(val).strip().upper()
-                        if upper_val == 'CALL':
-                            val = 'Call'
-                        elif upper_val == 'PUT':
-                            val = 'Put'
+                        if upper_val == "CALL":
+                            val = "Call"
+                        elif upper_val == "PUT":
+                            val = "Put"
                     normalized[internal_key] = val
                     found = True
                     break
@@ -113,7 +115,7 @@ class PortfolioParser:
         """
         positions = []
         try:
-            with open(file_path, encoding='utf-8-sig') as f:
+            with open(file_path, encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     positions.append(PortfolioParser.normalize_row(row))
@@ -145,17 +147,17 @@ def parse_currency(value: Optional[str]) -> float:
 
     # 1. Initial cleanup
     clean = value.strip()
-    if clean == '--' or not clean:
+    if clean == "--" or not clean:
         return 0.0
 
     # 2. Handle Parentheses Negatives: (123.45) -> -123.45
     is_negative = False
-    if clean.startswith('(') and clean.endswith(')'):
+    if clean.startswith("(") and clean.endswith(")"):
         is_negative = True
         clean = clean[1:-1].strip()
 
     # 3. Strip formatting characters
-    clean = clean.replace(',', '').replace('$', '').replace('%', '').strip()
+    clean = clean.replace(",", "").replace("$", "").replace("%", "").strip()
 
     try:
         val = float(clean)
@@ -181,7 +183,7 @@ def parse_dte(value: Optional[str]) -> int:
     clean = value.strip().lower()
 
     # 2. Remove common suffixes
-    clean = clean.replace('dte', '').replace('days', '').replace('d', '').strip()
+    clean = clean.replace("dte", "").replace("days", "").replace("d", "").strip()
 
     try:
         return int(clean)
@@ -205,11 +207,11 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
     token = raw_symbol.strip().split()[0] if raw_symbol else ""
 
     # Handle Futures: ./CLG6 LOG6 ... -> /CL
-    if token.startswith('./'):
-        token = token.replace('./', '/')
+    if token.startswith("./"):
+        token = token.replace("./", "/")
 
     # Futures roots like /ESZ4 -> /ES, /MESZ4 -> /MES, /6EZ4 -> /6E (case-insensitive)
-    if token.startswith('/'):
+    if token.startswith("/"):
         upper_token = token.upper()
         match = re.match(r"^(/[A-Z0-9]+)([FGHJKMNQUVXZ])(\d{1,2})$", upper_token)
         if match:
@@ -217,8 +219,8 @@ def get_root_symbol(raw_symbol: Optional[str]) -> str:
         return token
 
     # Handle crypto/forex/class shares: ETH/USD -> ETH-USD, BRK/B -> BRK-B
-    if '/' in token and not token.startswith('/'):
-        token = token.replace('/', '-')
+    if "/" in token and not token.startswith("/"):
+        token = token.replace("/", "-")
 
     return token
 

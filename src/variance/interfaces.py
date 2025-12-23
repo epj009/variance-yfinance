@@ -3,6 +3,7 @@ from typing import Optional, Protocol, TypedDict
 
 class MarketData(TypedDict, total=False):
     """Standardized Market Data Model"""
+
     price: float
     iv: Optional[float]
     iv_rank: Optional[float]
@@ -14,6 +15,7 @@ class MarketData(TypedDict, total=False):
     sector: Optional[str]
     is_stale: bool
     proxy: Optional[str]
+
 
 class IMarketDataProvider(Protocol):
     """

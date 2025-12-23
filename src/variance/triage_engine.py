@@ -10,8 +10,8 @@ from typing import Any, Optional, TypedDict
 
 # Import common utilities
 from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
-from .strategy_detector import identify_strategy, map_strategy_to_id
 from .strategies.factory import StrategyFactory
+from .strategy_detector import identify_strategy, map_strategy_to_id
 
 
 class TriageResult(TypedDict, total=False):
@@ -313,7 +313,9 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     except (TypeError, ValueError, IndexError):
         live_price = 0.0
 
-    price = live_price if live_price > 0 else parse_currency(legs[0].get("Underlying Last Price", "0"))
+    price = (
+        live_price if live_price > 0 else parse_currency(legs[0].get("Underlying Last Price", "0"))
+    )
 
     return {
         "root": root,
@@ -449,7 +451,13 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     )
 
     # 4.5. Hedge Check
-    if is_hedge and not is_winner and not action_code and not is_tested and dte > strategy_obj.gamma_trigger_dte:
+    if (
+        is_hedge
+        and not is_winner
+        and not action_code
+        and not is_tested
+        and dte > strategy_obj.gamma_trigger_dte
+    ):
         if (
             pl_pct is not None
             and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
@@ -462,15 +470,19 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
 
     # --- 5. Toxic Theta (Delegated) ---
     if (
-        not is_winner
-        and not action_code
-        and not is_tested
-        and dte > strategy_obj.gamma_trigger_dte
-        and not is_hedge
-    ) and (
-        pl_pct is not None
-        and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
-    ) and net_cost < 0:
+        (
+            not is_winner
+            and not action_code
+            and not is_tested
+            and dte > strategy_obj.gamma_trigger_dte
+            and not is_hedge
+        )
+        and (
+            pl_pct is not None
+            and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
+        )
+        and net_cost < 0
+    ):
         toxic_code, toxic_logic = strategy_obj.check_toxic_theta(metrics, market_data)
         if toxic_code:
             action_code = toxic_code
@@ -671,6 +683,7 @@ def get_position_aware_opportunities(
     Identifies concentrated vs. held positions and queries the vol screener.
     """
     from collections import defaultdict
+
     from .vol_screener import ScreenerConfig, screen_volatility
 
     # 1. Extract all unique roots
@@ -709,6 +722,7 @@ def get_position_aware_opportunities(
         except ImportError:
             from common import get_equivalent_exposures
     else:
+
         def get_equivalent_exposures(x):
             return {x}
 

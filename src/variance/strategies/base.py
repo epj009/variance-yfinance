@@ -29,7 +29,9 @@ class BaseStrategy(ABC):
 
         # Management
         mgmt = config.get("management", {})
-        self.profit_target_pct = mgmt.get("profit_target_pct", rules.get("profit_harvest_pct", 0.50))
+        self.profit_target_pct = mgmt.get(
+            "profit_target_pct", rules.get("profit_harvest_pct", 0.50)
+        )
         self.defense_mechanic = mgmt.get("defense_mechanic", "roll_untested")
 
     @abstractmethod
@@ -47,10 +49,12 @@ class BaseStrategy(ABC):
 
         return None, ""
 
-    def check_toxic_theta(self, metrics: dict[str, Any], market_data: dict[str, Any]) -> tuple[Optional[str], str]:
+    def check_toxic_theta(
+        self, metrics: dict[str, Any], market_data: dict[str, Any]
+    ) -> tuple[Optional[str], str]:
         """Re-implementation of the institutional 'Toxic Theta' check."""
         # Generic implementation suitable for most short-theta strategies
         if self.type != "undefined":
-            return None, "" # Only check undefined/high-risk strategies for now
+            return None, ""  # Only check undefined/high-risk strategies for now
 
         return None, ""

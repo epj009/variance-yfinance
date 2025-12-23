@@ -45,7 +45,9 @@ def load_profile_config(
     return ScreenerConfig(
         limit=None,
         min_vrp_structural=profile_data.get("min_vrp_structural"),
-        min_variance_score=profile_data.get("min_variance_score", rules.get("min_variance_score", 10.0)),
+        min_variance_score=profile_data.get(
+            "min_variance_score", rules.get("min_variance_score", 10.0)
+        ),
         allow_illiquid=profile_data.get("allow_illiquid", False),
         exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
         include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),
@@ -53,6 +55,7 @@ def load_profile_config(
         exclude_symbols=list(profile_data.get("exclude_symbols", []) or []),
         held_symbols=list(profile_data.get("held_symbols", []) or []),
     )
+
 
 def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     """
@@ -74,36 +77,37 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
     except (ValueError, TypeError):
         return "N/A"
 
+
 def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
     """Checks if a symbol fails the liquidity rules."""
     # Futures exemption: Yahoo data for futures options volume is unreliable
     # Assume major futures are liquid enough or rely on user discretion
-    if symbol.startswith('/'):
+    if symbol.startswith("/"):
         return False
 
-    mode = rules.get('liquidity_mode', 'volume')
+    mode = rules.get("liquidity_mode", "volume")
 
     # 1. Check Activity (Volume or OI)
-    if mode == 'open_interest':
-        atm_oi = metrics.get('atm_open_interest', 0)
+    if mode == "open_interest":
+        atm_oi = metrics.get("atm_open_interest", 0)
         # Fallback to volume if OI is missing (e.g. data error)
         if atm_oi is None:
-             atm_volume = metrics.get('atm_volume', 0)
-             if atm_volume is not None and atm_volume < rules['min_atm_volume']:
-                 return True
-        elif atm_oi < rules.get('min_atm_open_interest', 500):
+            atm_volume = metrics.get("atm_volume", 0)
+            if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
+                return True
+        elif atm_oi < rules.get("min_atm_open_interest", 500):
             return True
     else:
         # Default: Volume Mode
-        atm_volume = metrics.get('atm_volume', 0)
-        if atm_volume is not None and atm_volume < rules['min_atm_volume']:
+        atm_volume = metrics.get("atm_volume", 0)
+        if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
             return True
 
     # 2. Per-Leg Liquidity Check (FINDING-002)
     # Ensure NEITHER the call nor the put is "dead" (zero volume or excessive spread)
     legs = [
-        ('call', metrics.get('call_bid'), metrics.get('call_ask'), metrics.get('call_vol')),
-        ('put', metrics.get('put_bid'), metrics.get('put_ask'), metrics.get('put_vol'))
+        ("call", metrics.get("call_bid"), metrics.get("call_ask"), metrics.get("call_vol")),
+        ("put", metrics.get("put_bid"), metrics.get("put_ask"), metrics.get("put_vol")),
     ]
 
     for _side, bid, ask, _vol in legs:
@@ -115,41 +119,72 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
             mid = (bid + ask) / 2
             if mid > 0:
                 slippage = (ask - bid) / mid
-                if slippage > rules['max_slippage_pct']:
+                if slippage > rules["max_slippage_pct"]:
                     return True
             else:
-                return True # Bid/Ask are 0 or negative
+                return True  # Bid/Ask are 0 or negative
 
     return False
 
-def _create_candidate_flags(vrp_structural: Optional[float], days_to_earnings: Union[int, str], compression_ratio: Optional[float], vrp_t_markup: Optional[float], hv20: Optional[float], hv60: Optional[float], rules: dict[str, Any]) -> dict[str, bool]:
+
+def _create_candidate_flags(
+    vrp_structural: Optional[float],
+    days_to_earnings: Union[int, str],
+    compression_ratio: Optional[float],
+    vrp_t_markup: Optional[float],
+    hv20: Optional[float],
+    hv60: Optional[float],
+    rules: dict[str, Any],
+) -> dict[str, bool]:
     """Creates a dictionary of boolean flags for a candidate."""
 
     # Coiled Logic: Requires BOTH long-term compression (vs 252) and medium-term compression (vs 60)
     # to avoid flagging "new normal" low vol regimes as coiled.
-    is_coiled_long = (compression_ratio is not None and compression_ratio < rules.get('compression_coiled_threshold', 0.75))
-    is_coiled_medium = True # Default to true if missing data
+    is_coiled_long = compression_ratio is not None and compression_ratio < rules.get(
+        "compression_coiled_threshold", 0.75
+    )
+    is_coiled_medium = True  # Default to true if missing data
     if hv60 and hv60 > 0 and hv20:
         is_coiled_medium = (hv20 / hv60) < 0.85
 
     return {
-        'is_rich': bool(vrp_structural is not None and vrp_structural > rules.get('vrp_structural_rich_threshold', 1.0)),
-        'is_fair': bool(vrp_structural is not None and rules['vrp_structural_threshold'] < vrp_structural <= rules.get('vrp_structural_rich_threshold', 1.0)),
-        'is_earnings_soon': bool(isinstance(days_to_earnings, int) and 0 <= days_to_earnings <= rules['earnings_days_threshold']),
-        'is_coiled': bool(is_coiled_long and is_coiled_medium),
-        'is_expanding': bool(compression_ratio is not None and compression_ratio > rules.get('compression_expanding_threshold', 1.25)),
-        'is_cheap': bool(vrp_t_markup is not None and vrp_t_markup < rules.get('vrp_tactical_cheap_threshold', -0.10))
+        "is_rich": bool(
+            vrp_structural is not None
+            and vrp_structural > rules.get("vrp_structural_rich_threshold", 1.0)
+        ),
+        "is_fair": bool(
+            vrp_structural is not None
+            and rules["vrp_structural_threshold"]
+            < vrp_structural
+            <= rules.get("vrp_structural_rich_threshold", 1.0)
+        ),
+        "is_earnings_soon": bool(
+            isinstance(days_to_earnings, int)
+            and 0 <= days_to_earnings <= rules["earnings_days_threshold"]
+        ),
+        "is_coiled": bool(is_coiled_long and is_coiled_medium),
+        "is_expanding": bool(
+            compression_ratio is not None
+            and compression_ratio > rules.get("compression_expanding_threshold", 1.25)
+        ),
+        "is_cheap": bool(
+            vrp_t_markup is not None
+            and vrp_t_markup < rules.get("vrp_tactical_cheap_threshold", -0.10)
+        ),
     }
 
-def _determine_signal_type(flags: dict[str, bool], vrp_t_markup: Optional[float], rules: dict[str, Any]) -> str:
+
+def _determine_signal_type(
+    flags: dict[str, bool], vrp_t_markup: Optional[float], rules: dict[str, Any]
+) -> str:
     """
     Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
     Hierarchy: EVENT > DISCOUNT > RICH > BOUND > FAIR
     """
-    if flags['is_earnings_soon']:
+    if flags["is_earnings_soon"]:
         return "EVENT"
 
-    if flags.get('is_cheap'): # VRP Tactical Markup < -10%
+    if flags.get("is_cheap"):  # VRP Tactical Markup < -10%
         return "DISCOUNT"
 
     # Rich Logic: High markup takes precedence over Coiled state
@@ -158,23 +193,25 @@ def _determine_signal_type(flags: dict[str, bool], vrp_t_markup: Optional[float]
         return "RICH"
 
     # Priority 2: Structural VRP (Fallback if Tactical is missing/flat)
-    if flags.get('is_rich'):
+    if flags.get("is_rich"):
         return "RICH"
 
-    if flags['is_coiled']: # Ratio < 0.75
+    if flags["is_coiled"]:  # Ratio < 0.75
         return "BOUND"
 
     return "FAIR"
+
 
 def _determine_regime_type(flags: dict[str, bool]) -> str:
     """
     Determines the Volatility Regime based on compression flags.
     """
-    if flags['is_coiled']:
+    if flags["is_coiled"]:
         return "COILED"
-    if flags['is_expanding']:
+    if flags["is_expanding"]:
         return "EXPANDING"
     return "NORMAL"
+
 
 def _get_recommended_environment(signal_type: str) -> str:
     """Maps Signal Type to a recommended market environment for strategy selection."""
@@ -187,6 +224,7 @@ def _get_recommended_environment(signal_type: str) -> str:
     elif signal_type == "EVENT":
         return "Binary Risk"
     return "Neutral / Fair Value"
+
 
 def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
     """
@@ -207,38 +245,41 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     # 1. VRP Structural Component (Absolute Dislocation)
     # Target: |Bias - 1.0| * 200. Max 100.
     # Example: 1.5 -> 0.5 * 200 = 100. 0.5 -> 0.5 * 200 = 100.
-    bias = metrics.get('vrp_structural')
+    bias = metrics.get("vrp_structural")
     if bias:
-        bias_dislocation = abs(bias - 1.0) * rules.get('variance_score_dislocation_multiplier', 200)
+        bias_dislocation = abs(bias - 1.0) * rules.get("variance_score_dislocation_multiplier", 200)
         bias_score = max(0, min(100, bias_dislocation))
         score += bias_score * 0.50
 
     # 2. VRP Tactical Component (Absolute Dislocation)
-    bias20 = metrics.get('vrp_tactical')
+    bias20 = metrics.get("vrp_tactical")
     if bias20:
-        bias20_dislocation = abs(bias20 - 1.0) * rules.get('variance_score_dislocation_multiplier', 200)
+        bias20_dislocation = abs(bias20 - 1.0) * rules.get(
+            "variance_score_dislocation_multiplier", 200
+        )
         bias20_score = max(0, min(100, bias20_dislocation))
         score += bias20_score * 0.50
-    elif bias: # Fallback
+    elif bias:  # Fallback
         score += bias_score * 0.50
 
     # 3. Penalties
     # HV Rank Trap: High VRP Structural but extremely low realized vol
-    hv_rank = metrics.get('hv_rank')
-    trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
-    rich_threshold = rules.get('vrp_structural_rich_threshold', 1.0)
+    hv_rank = metrics.get("hv_rank")
+    trap_threshold = rules.get("hv_rank_trap_threshold", 15.0)
+    rich_threshold = rules.get("vrp_structural_rich_threshold", 1.0)
 
     if bias and bias > rich_threshold and hv_rank is not None and hv_rank < trap_threshold:
-        score *= 0.50 # Slash score by half for traps
+        score *= 0.50  # Slash score by half for traps
 
     # 4. Regime Penalties (Dev Mode)
     # Coiled Penalty: Recent movement is unsustainably low.
     # High markup may be an artifact of a shrinking denominator.
     # Apply a 20% haircut to Coiled signals to favor Normal/Expanding regimes.
-    if metrics.get('regime_type') == 'COILED' or metrics.get('is_coiled'):
+    if metrics.get("regime_type") == "COILED" or metrics.get("is_coiled"):
         score *= 0.80
 
     return round(score, 1)
+
 
 def screen_volatility(
     config: ScreenerConfig,
@@ -268,8 +309,8 @@ def screen_volatility(
     market_config = config_bundle.get("market_config", {})
     family_map = market_config.get("FAMILY_MAP", {})
 
-    watchlist_path = system_config.get('watchlist_path', 'watchlists/default-watchlist.csv')
-    fallback_symbols = system_config.get('fallback_symbols', ['SPY', 'QQQ', 'IWM'])
+    watchlist_path = system_config.get("watchlist_path", "watchlists/default-watchlist.csv")
+    fallback_symbols = system_config.get("fallback_symbols", ["SPY", "QQQ", "IWM"])
 
     limit = config.limit
     exclude_sectors = config.exclude_sectors or []
@@ -288,7 +329,7 @@ def screen_volatility(
             # Simple parsing: Skip header if exists, read first column
             reader = csv.reader(f)
             for row in reader:
-                if row and row[0] != 'Symbol':
+                if row and row[0] != "Symbol":
                     symbols.append(row[0])
     except FileNotFoundError:
         symbols = fallback_symbols
@@ -312,7 +353,7 @@ def screen_volatility(
     illiquid_skipped = 0
     excluded_symbols_skipped = 0
     hv_rank_trap_skipped = 0  # Short vol trap filter
-    bats_zone_count = 0 # Initialize bats zone counter
+    bats_zone_count = 0  # Initialize bats zone counter
 
     # Strict Mode Counters
     data_integrity_skipped = 0
@@ -334,28 +375,30 @@ def screen_volatility(
             held_symbols_set.update(siblings_upper)
 
     # Threshold Logic
-    structural_threshold = rules['vrp_structural_threshold'] if min_vrp_structural is None else min_vrp_structural
+    structural_threshold = (
+        rules["vrp_structural_threshold"] if min_vrp_structural is None else min_vrp_structural
+    )
 
     # Absolute Vol Floor: Filter out dead assets where Ratio is high only because HV is near zero
     # Example: /ZT (HV=1.5, IV=3.5 -> Ratio 2.3). Untradable noise.
-    hv_floor_absolute = rules.get('hv_floor_percent', 5.0)
+    hv_floor_absolute = rules.get("hv_floor_percent", 5.0)
 
     for sym, metrics in data.items():
-        if 'error' in metrics:
+        if "error" in metrics:
             continue
 
         if exclude_symbols_set and sym.upper() in exclude_symbols_set:
             excluded_symbols_skipped += 1
             continue
 
-        iv30 = metrics.get('iv')
-        hv252 = metrics.get('hv252')
-        hv60 = metrics.get('hv60')
-        hv20 = metrics.get('hv20')
-        vrp_structural = metrics.get('vrp_structural')
-        price = metrics.get('price')
-        earnings_date = metrics.get('earnings_date')
-        sector = metrics.get('sector', 'Unknown')
+        iv30 = metrics.get("iv")
+        hv252 = metrics.get("hv252")
+        hv60 = metrics.get("hv60")
+        hv20 = metrics.get("hv20")
+        vrp_structural = metrics.get("vrp_structural")
+        price = metrics.get("price")
+        earnings_date = metrics.get("earnings_date")
+        sector = metrics.get("sector", "Unknown")
 
         # --- FILTER: SECTOR & ASSET CLASS ---
         if exclude_sectors and sector in exclude_sectors:
@@ -379,32 +422,33 @@ def screen_volatility(
         # --- FILTER: VOLATILITY REGIME (Structural) ---
         if vrp_structural is None:
             missing_bias += 1
-            if not show_all: continue
+            if not show_all:
+                continue
         elif vrp_structural <= structural_threshold and not show_all:
             low_bias_skipped += 1
             continue
 
         # --- FILTER: LOW VOL TRAP (Denominator Effect) ---
         # If HV is below the absolute floor (e.g. 5%), the ratio is noise.
-        is_low_vol_trap = (hv252 is not None and hv252 < hv_floor_absolute)
+        is_low_vol_trap = hv252 is not None and hv252 < hv_floor_absolute
 
         if is_low_vol_trap and not show_all:
             # We treat this effectively as "Low Bias" (Not enough juice)
             # Or track it separately if we want granular stats
-            hv_rank_trap_skipped += 1 # Re-using trap counter for simplicity
+            hv_rank_trap_skipped += 1  # Re-using trap counter for simplicity
             continue
 
         # --- FILTER: HV RANK TRAP (Relative) ---
         # High Ratio but Low Rank (e.g. TSLA going sideways)
-        hv_rank = metrics.get('hv_rank')
-        rich_threshold = rules.get('vrp_structural_rich_threshold', 1.0)
-        trap_threshold = rules.get('hv_rank_trap_threshold', 15.0)
+        hv_rank = metrics.get("hv_rank")
+        rich_threshold = rules.get("vrp_structural_rich_threshold", 1.0)
+        trap_threshold = rules.get("hv_rank_trap_threshold", 15.0)
 
         is_hv_rank_trap = (
-            vrp_structural is not None and
-            vrp_structural > rich_threshold and
-            hv_rank is not None and
-            hv_rank < trap_threshold
+            vrp_structural is not None
+            and vrp_structural > rich_threshold
+            and hv_rank is not None
+            and hv_rank < trap_threshold
         )
 
         if is_hv_rank_trap and not show_all:
@@ -413,7 +457,7 @@ def screen_volatility(
 
         # 3.1. Compression Logic (Fallback)
         is_data_lean = False
-        compression_ratio = 1.0 # Default to Neutral
+        compression_ratio = 1.0  # Default to Neutral
         if hv20 and hv252 and hv252 > 0:
             compression_ratio = hv20 / hv252
         elif hv252:
@@ -421,7 +465,7 @@ def screen_volatility(
 
         # --- FILTER: DATA INTEGRITY (Strict Mode) ---
         # Reject any symbol with partial data, scaling warnings, or missing HV20
-        if metrics.get('warning'):
+        if metrics.get("warning"):
             data_integrity_skipped += 1
             continue
 
@@ -450,14 +494,16 @@ def screen_volatility(
         is_bats_efficient = bool(
             price
             and vrp_structural is not None
-            and rules['bats_efficiency_min_price'] <= price <= rules['bats_efficiency_max_price']
-            and vrp_structural > rules['bats_efficiency_vrp_structural']
+            and rules["bats_efficiency_min_price"] <= price <= rules["bats_efficiency_max_price"]
+            and vrp_structural > rules["bats_efficiency_vrp_structural"]
         )
         if is_bats_efficient:
             bats_zone_count += 1
 
         # Refactored flag creation
-        flags = _create_candidate_flags(vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, rules)
+        flags = _create_candidate_flags(
+            vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, rules
+        )
 
         # Determine Signal Type
         signal_type = _determine_signal_type(flags, vrp_t_markup, rules)
@@ -469,8 +515,8 @@ def screen_volatility(
         env_idea = _get_recommended_environment(signal_type)
 
         # Inject regime into metrics for scoring penalty
-        metrics['is_coiled'] = flags['is_coiled']
-        metrics['regime_type'] = regime_type
+        metrics["is_coiled"] = flags["is_coiled"]
+        metrics["regime_type"] = regime_type
 
         # Calculate Variance Score
         variance_score = _calculate_variance_score(metrics, rules)
@@ -483,28 +529,28 @@ def screen_volatility(
 
         # Prepare candidate data for return
         candidate_data = {
-            'Symbol': sym,
-            'Price': price,
-            'IV30': iv30,
-            'HV252': hv252,
-            'HV20': hv20,
-            'Compression Ratio': compression_ratio,
-            'VRP Structural': vrp_structural,
-            'VRP Tactical': metrics.get('vrp_tactical'), # Ratio
-            'VRP_Tactical_Markup': vrp_t_markup, # Renamed from NVRP
-            'Score': variance_score, # The Golden Metric
-            'Signal': signal_type,
-            'Regime': regime_type, # New field
-            'Environment': env_idea,
-            'Earnings In': days_to_earnings,
-            'Proxy': metrics.get('proxy'),
-            'Sector': sector, # Include sector in candidate data for JSON output
-            'Asset Class': asset_class, # Include asset class in candidate data for JSON output
-            'is_illiquid': is_illiquid,
-            'is_earnings_soon': flags['is_earnings_soon'],
-            'is_bats_efficient': is_bats_efficient,
-            'is_held': bool(sym.upper() in held_symbols_set),
-            'is_data_lean': is_data_lean
+            "Symbol": sym,
+            "Price": price,
+            "IV30": iv30,
+            "HV252": hv252,
+            "HV20": hv20,
+            "Compression Ratio": compression_ratio,
+            "VRP Structural": vrp_structural,
+            "VRP Tactical": metrics.get("vrp_tactical"),  # Ratio
+            "VRP_Tactical_Markup": vrp_t_markup,  # Renamed from NVRP
+            "Score": variance_score,  # The Golden Metric
+            "Signal": signal_type,
+            "Regime": regime_type,  # New field
+            "Environment": env_idea,
+            "Earnings In": days_to_earnings,
+            "Proxy": metrics.get("proxy"),
+            "Sector": sector,  # Include sector in candidate data for JSON output
+            "Asset Class": asset_class,  # Include asset class in candidate data for JSON output
+            "is_illiquid": is_illiquid,
+            "is_earnings_soon": flags["is_earnings_soon"],
+            "is_bats_efficient": is_bats_efficient,
+            "is_held": bool(sym.upper() in held_symbols_set),
+            "is_data_lean": is_data_lean,
         }
 
         candidate_data.update(flags)
@@ -515,12 +561,13 @@ def screen_volatility(
     deduplicated = {}
     for c in candidates_with_status:
         from .portfolio_parser import get_root_symbol
-        root = get_root_symbol(c['Symbol'])
-        
+
+        root = get_root_symbol(c["Symbol"])
+
         # Priority: Keep the one already in deduplicated if it has a shorter name (usually the root)
-        if root not in deduplicated or len(c['Symbol']) < len(deduplicated[root]['Symbol']):
+        if root not in deduplicated or len(c["Symbol"]) < len(deduplicated[root]["Symbol"]):
             deduplicated[root] = c
-            
+
     final_candidates = list(deduplicated.values())
 
     # 5. Sort by signal quality: Variance Score (Desc), then Tactical Markup (Desc), then Proxy bias last
@@ -529,23 +576,27 @@ def screen_volatility(
         # 1. Primary Key: Variance Score (Descending). The "Conviction" metric.
         # 2. Secondary Key: VRP_Tactical_Markup (Descending). Immediate opportunity size.
         # 3. Tertiary Key: Data Quality (0=Real, 1=Proxy). Lower is better.
-        score = c['Score']
-        vtm = c.get('VRP_Tactical_Markup') if c.get('VRP_Tactical_Markup') is not None else -9.9
-        proxy = c.get('Proxy')
+        score = c["Score"]
+        vtm = c.get("VRP_Tactical_Markup") if c.get("VRP_Tactical_Markup") is not None else -9.9
+        proxy = c.get("Proxy")
         quality = 1 if proxy else 0
-        return (score, vtm, -quality) # Sort by Score DESC, then VTM DESC, then Quality ASC
+        return (score, vtm, -quality)  # Sort by Score DESC, then VTM DESC, then Quality ASC
 
     final_candidates.sort(key=_signal_key, reverse=True)
 
-    bias_note = "All symbols (no bias filter)" if show_all else f"VRP Structural (IV / HV) > {structural_threshold}"
+    bias_note = (
+        "All symbols (no bias filter)"
+        if show_all
+        else f"VRP Structural (IV / HV) > {structural_threshold}"
+    )
 
-    liq_mode = rules.get('liquidity_mode', 'volume')
+    liq_mode = rules.get("liquidity_mode", "volume")
     if allow_illiquid:
         liquidity_note = "Illiquid included"
-    elif liq_mode == 'open_interest':
-        liquidity_note = f"Illiquid filtered (ATM OI < {rules.get('min_atm_open_interest', 500)}, slippage > {rules['max_slippage_pct']*100:.1f}%)"
+    elif liq_mode == "open_interest":
+        liquidity_note = f"Illiquid filtered (ATM OI < {rules.get('min_atm_open_interest', 500)}, slippage > {rules['max_slippage_pct'] * 100:.1f}%)"
     else:
-        liquidity_note = f"Illiquid filtered (ATM vol < {rules['min_atm_volume']}, slippage > {rules['max_slippage_pct']*100:.1f}%)"
+        liquidity_note = f"Illiquid filtered (ATM vol < {rules['min_atm_volume']}, slippage > {rules['max_slippage_pct'] * 100:.1f}%)"
 
     summary = {
         "scanned_symbols_count": len(symbols),
@@ -562,22 +613,50 @@ def screen_volatility(
         "data_integrity_skipped_count": data_integrity_skipped,
         "lean_data_skipped_count": lean_data_skipped,
         "anomalous_data_skipped_count": anomalous_data_skipped,
-        "filter_note": f"{bias_note}; {liquidity_note}"
+        "filter_note": f"{bias_note}; {liquidity_note}",
     }
 
     return {"candidates": final_candidates, "summary": summary}
 
+
 def main():
     warn_if_not_venv()
 
-    parser = argparse.ArgumentParser(description='Screen for high volatility opportunities.')
-    parser.add_argument('limit', type=int, nargs='?', help='Limit the number of symbols to scan (optional)')
-    parser.add_argument('--profile', type=str, default='balanced', help='Profile name from config/runtime_config.json (screener_profiles)')
-    parser.add_argument('--exclude-sectors', type=str, help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")')
-    parser.add_argument('--include-asset-classes', type=str, help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index')
-    parser.add_argument('--exclude-asset-classes', type=str, help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index')
-    parser.add_argument('--exclude-symbols', type=str, help='Comma-separated list of symbols to exclude (e.g., "NVDA,TSLA,AMD")')
-    parser.add_argument('--held-symbols', type=str, help='Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)')
+    parser = argparse.ArgumentParser(description="Screen for high volatility opportunities.")
+    parser.add_argument(
+        "limit", type=int, nargs="?", help="Limit the number of symbols to scan (optional)"
+    )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        default="balanced",
+        help="Profile name from config/runtime_config.json (screener_profiles)",
+    )
+    parser.add_argument(
+        "--exclude-sectors",
+        type=str,
+        help='Comma-separated list of sectors to exclude (e.g., "Financial Services,Technology")',
+    )
+    parser.add_argument(
+        "--include-asset-classes",
+        type=str,
+        help='Comma-separated list of asset classes to include (e.g., "Commodity,FX"). Options: Equity, Commodity, Fixed Income, FX, Index',
+    )
+    parser.add_argument(
+        "--exclude-asset-classes",
+        type=str,
+        help='Comma-separated list of asset classes to exclude (e.g., "Equity"). Options: Equity, Commodity, Fixed Income, FX, Index',
+    )
+    parser.add_argument(
+        "--exclude-symbols",
+        type=str,
+        help='Comma-separated list of symbols to exclude (e.g., "NVDA,TSLA,AMD")',
+    )
+    parser.add_argument(
+        "--held-symbols",
+        type=str,
+        help="Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)",
+    )
 
     args = parser.parse_args()
     config_bundle = load_config_bundle()
@@ -592,23 +671,25 @@ def main():
 
     exclude_list = None
     if args.exclude_sectors:
-        exclude_list = [s.strip() for s in args.exclude_sectors.split(',')]
+        exclude_list = [s.strip() for s in args.exclude_sectors.split(",")]
 
     include_assets = None
     if args.include_asset_classes:
-        include_assets = [s.strip() for s in args.include_asset_classes.split(',')]
+        include_assets = [s.strip() for s in args.include_asset_classes.split(",")]
 
     exclude_assets = None
     if args.exclude_asset_classes:
-        exclude_assets = [s.strip() for s in args.exclude_asset_classes.split(',')]
+        exclude_assets = [s.strip() for s in args.exclude_asset_classes.split(",")]
 
     exclude_symbols_list = None
     if args.exclude_symbols:
-        exclude_symbols_list = [s.strip().upper() for s in args.exclude_symbols.split(',') if s.strip()]
+        exclude_symbols_list = [
+            s.strip().upper() for s in args.exclude_symbols.split(",") if s.strip()
+        ]
 
     held_symbols_list = None
     if args.held_symbols:
-        held_symbols_list = [s.strip().upper() for s in args.held_symbols.split(',') if s.strip()]
+        held_symbols_list = [s.strip().upper() for s in args.held_symbols.split(",") if s.strip()]
 
     if exclude_list:
         config.exclude_sectors = exclude_list
@@ -628,6 +709,7 @@ def main():
         sys.exit(1)
 
     print(json.dumps(report_data, indent=2))
+
 
 if __name__ == "__main__":
     main()

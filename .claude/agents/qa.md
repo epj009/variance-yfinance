@@ -601,7 +601,8 @@ Before marking a feature DONE:
 ```
 [ ] All tests passing (pytest tests/ -v)
 [ ] Coverage >80% (pytest --cov=scripts)
-[ ] No flake8 warnings (flake8 scripts/)
+[ ] No Ruff lint warnings (ruff check scripts/)
+[ ] Ruff formatting verified (ruff format --check scripts/)
 [ ] Regression baseline unchanged (or updated with reason)
 [ ] Performance benchmarks met (<2s for analyze_portfolio.py)
 [ ] Manual verification on sample_positions.csv

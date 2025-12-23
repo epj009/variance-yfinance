@@ -2,7 +2,6 @@
 Unit tests for strategy_detector module.
 """
 
-
 import pytest
 
 from variance.strategy_detector import cluster_strategies, identify_strategy, map_strategy_to_id
@@ -16,7 +15,7 @@ def make_leg(
     exp="2024-01-19",
     dte="45",
     underlying_price="100",
-    delta=None
+    delta=None,
 ):
     leg = {
         "Symbol": symbol,
@@ -49,44 +48,128 @@ class TestIdentifyStrategy:
     """Test strategy identification logic."""
 
     def test_identify_single_stock(self):
-        legs = [{"Type": "Stock", "Call/Put": "", "Quantity": "100", "Strike Price": "0", "Exp Date": ""}]
+        legs = [
+            {
+                "Type": "Stock",
+                "Call/Put": "",
+                "Quantity": "100",
+                "Strike Price": "0",
+                "Exp Date": "",
+            }
+        ]
         assert identify_strategy(legs) == "Stock"
 
     def test_identify_long_call(self):
-        legs = [{"Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Exp Date": "2024-01-19"}]
+        legs = [
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "100",
+                "Exp Date": "2024-01-19",
+            }
+        ]
         assert identify_strategy(legs) == "Long Call"
 
     def test_identify_short_put(self):
-        legs = [{"Type": "Put", "Call/Put": "Put", "Quantity": "-1", "Strike Price": "95", "Exp Date": "2024-01-19"}]
+        legs = [
+            {
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "-1",
+                "Strike Price": "95",
+                "Exp Date": "2024-01-19",
+            }
+        ]
         assert identify_strategy(legs) == "Short Put"
 
     def test_identify_strangle(self):
         legs = [
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "105", "Exp Date": "2024-01-19"},
-            {"Type": "Put", "Call/Put": "Put", "Quantity": "-1", "Strike Price": "95", "Exp Date": "2024-01-19"}
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "105",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "-1",
+                "Strike Price": "95",
+                "Exp Date": "2024-01-19",
+            },
         ]
         assert identify_strategy(legs) == "Short Strangle"
 
     def test_identify_iron_condor(self):
         legs = [
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "110", "Exp Date": "2024-01-19"},
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "115", "Exp Date": "2024-01-19"},
-            {"Type": "Put", "Call/Put": "Put", "Quantity": "-1", "Strike Price": "90", "Exp Date": "2024-01-19"},
-            {"Type": "Put", "Call/Put": "Put", "Quantity": "1", "Strike Price": "85", "Exp Date": "2024-01-19"}
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "110",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "115",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "-1",
+                "Strike Price": "90",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "1",
+                "Strike Price": "85",
+                "Exp Date": "2024-01-19",
+            },
         ]
         assert identify_strategy(legs) == "Iron Condor"
 
     def test_identify_covered_call(self):
         legs = [
-            {"Type": "Stock", "Call/Put": "", "Quantity": "100", "Strike Price": "0", "Exp Date": ""},
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "105", "Exp Date": "2024-01-19"}
+            {
+                "Type": "Stock",
+                "Call/Put": "",
+                "Quantity": "100",
+                "Strike Price": "0",
+                "Exp Date": "",
+            },
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "105",
+                "Exp Date": "2024-01-19",
+            },
         ]
         assert identify_strategy(legs) == "Covered Call"
 
     def test_identify_vertical_spread_call(self):
         legs = [
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Exp Date": "2024-01-19"},
-            {"Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "105", "Exp Date": "2024-01-19"}
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "100",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "105",
+                "Exp Date": "2024-01-19",
+            },
         ]
         assert identify_strategy(legs) == "Vertical Spread (Call)"
 
@@ -124,10 +207,38 @@ class TestClusterStrategies:
 
     def test_cluster_separates_multiple_verticals(self):
         positions = [
-            {"Symbol": "ABC", "Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Exp Date": "2024-01-19"},
-            {"Symbol": "ABC", "Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "105", "Exp Date": "2024-01-19"},
-            {"Symbol": "ABC", "Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "110", "Exp Date": "2024-01-19"},
-            {"Symbol": "ABC", "Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "115", "Exp Date": "2024-01-19"},
+            {
+                "Symbol": "ABC",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "100",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "ABC",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "105",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "ABC",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "110",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "ABC",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "115",
+                "Exp Date": "2024-01-19",
+            },
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 2
@@ -136,10 +247,38 @@ class TestClusterStrategies:
 
     def test_cluster_builds_iron_condor(self):
         positions = [
-            {"Symbol": "XYZ", "Type": "Call", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "110", "Exp Date": "2024-01-19"},
-            {"Symbol": "XYZ", "Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "115", "Exp Date": "2024-01-19"},
-            {"Symbol": "XYZ", "Type": "Put", "Call/Put": "Put", "Quantity": "-1", "Strike Price": "90", "Exp Date": "2024-01-19"},
-            {"Symbol": "XYZ", "Type": "Put", "Call/Put": "Put", "Quantity": "1", "Strike Price": "85", "Exp Date": "2024-01-19"},
+            {
+                "Symbol": "XYZ",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-1",
+                "Strike Price": "110",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "XYZ",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "115",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "XYZ",
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "-1",
+                "Strike Price": "90",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "XYZ",
+                "Type": "Put",
+                "Call/Put": "Put",
+                "Quantity": "1",
+                "Strike Price": "85",
+                "Exp Date": "2024-01-19",
+            },
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 1
@@ -147,9 +286,30 @@ class TestClusterStrategies:
 
     def test_cluster_builds_butterfly(self):
         positions = [
-            {"Symbol": "XYZ", "Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Exp Date": "2024-01-19"},
-            {"Symbol": "XYZ", "Type": "Call", "Call/Put": "Call", "Quantity": "-2", "Strike Price": "105", "Exp Date": "2024-01-19"},
-            {"Symbol": "XYZ", "Type": "Call", "Call/Put": "Call", "Quantity": "1", "Strike Price": "110", "Exp Date": "2024-01-19"},
+            {
+                "Symbol": "XYZ",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "100",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "XYZ",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "-2",
+                "Strike Price": "105",
+                "Exp Date": "2024-01-19",
+            },
+            {
+                "Symbol": "XYZ",
+                "Type": "Call",
+                "Call/Put": "Call",
+                "Quantity": "1",
+                "Strike Price": "110",
+                "Exp Date": "2024-01-19",
+            },
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 1
@@ -178,46 +338,289 @@ class TestClusterStrategies:
     "legs, net_cost, expected_id",
     [
         # Covered
-        ([make_stock_leg(), make_leg(option_type="Call", qty=-1, strike=105)], -50.0, "covered_call"),
+        (
+            [make_stock_leg(), make_leg(option_type="Call", qty=-1, strike=105)],
+            -50.0,
+            "covered_call",
+        ),
         ([make_stock_leg(), make_leg(option_type="Put", qty=-1, strike=95)], -50.0, "covered_put"),
         # Verticals
-        ([make_leg(option_type="Call", qty=1, strike=100), make_leg(option_type="Call", qty=-1, strike=105)], 200.0, "long_call_vertical_spread"),
-        ([make_leg(option_type="Call", qty=-1, strike=100), make_leg(option_type="Call", qty=1, strike=105)], -150.0, "short_call_vertical_spread"),
-        ([make_leg(option_type="Put", qty=1, strike=100), make_leg(option_type="Put", qty=-1, strike=95)], 200.0, "long_put_vertical_spread"),
-        ([make_leg(option_type="Put", qty=-1, strike=100), make_leg(option_type="Put", qty=1, strike=95)], -150.0, "short_put_vertical_spread"),
+        (
+            [
+                make_leg(option_type="Call", qty=1, strike=100),
+                make_leg(option_type="Call", qty=-1, strike=105),
+            ],
+            200.0,
+            "long_call_vertical_spread",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=100),
+                make_leg(option_type="Call", qty=1, strike=105),
+            ],
+            -150.0,
+            "short_call_vertical_spread",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=1, strike=100),
+                make_leg(option_type="Put", qty=-1, strike=95),
+            ],
+            200.0,
+            "long_put_vertical_spread",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=-1, strike=100),
+                make_leg(option_type="Put", qty=1, strike=95),
+            ],
+            -150.0,
+            "short_put_vertical_spread",
+        ),
         # Calendars
-        ([make_leg(option_type="Call", qty=-1, strike=100, exp="2024-01-19", dte="30"), make_leg(option_type="Call", qty=1, strike=100, exp="2024-02-16", dte="60")], 50.0, "call_calendar_spread"),
-        ([make_leg(option_type="Put", qty=-1, strike=100, exp="2024-01-19", dte="30"), make_leg(option_type="Put", qty=1, strike=100, exp="2024-02-16", dte="60")], 50.0, "put_calendar_spread"),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=100, exp="2024-01-19", dte="30"),
+                make_leg(option_type="Call", qty=1, strike=100, exp="2024-02-16", dte="60"),
+            ],
+            50.0,
+            "call_calendar_spread",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=-1, strike=100, exp="2024-01-19", dte="30"),
+                make_leg(option_type="Put", qty=1, strike=100, exp="2024-02-16", dte="60"),
+            ],
+            50.0,
+            "put_calendar_spread",
+        ),
         # PMCC/PMCP
-        ([make_leg(option_type="Call", qty=1, strike=90, exp="2024-03-15", dte="90", underlying_price="100", delta=0.7), make_leg(option_type="Call", qty=-1, strike=110, exp="2024-02-16", dte="45", underlying_price="100", delta=0.3)], 200.0, "poor_mans_covered_call"),
-        ([make_leg(option_type="Put", qty=1, strike=110, exp="2024-03-15", dte="90", underlying_price="100", delta=-0.7), make_leg(option_type="Put", qty=-1, strike=90, exp="2024-02-16", dte="45", underlying_price="100", delta=-0.3)], 200.0, "poor_mans_covered_put"),
+        (
+            [
+                make_leg(
+                    option_type="Call",
+                    qty=1,
+                    strike=90,
+                    exp="2024-03-15",
+                    dte="90",
+                    underlying_price="100",
+                    delta=0.7,
+                ),
+                make_leg(
+                    option_type="Call",
+                    qty=-1,
+                    strike=110,
+                    exp="2024-02-16",
+                    dte="45",
+                    underlying_price="100",
+                    delta=0.3,
+                ),
+            ],
+            200.0,
+            "poor_mans_covered_call",
+        ),
+        (
+            [
+                make_leg(
+                    option_type="Put",
+                    qty=1,
+                    strike=110,
+                    exp="2024-03-15",
+                    dte="90",
+                    underlying_price="100",
+                    delta=-0.7,
+                ),
+                make_leg(
+                    option_type="Put",
+                    qty=-1,
+                    strike=90,
+                    exp="2024-02-16",
+                    dte="45",
+                    underlying_price="100",
+                    delta=-0.3,
+                ),
+            ],
+            200.0,
+            "poor_mans_covered_put",
+        ),
         # Butterflies
-        ([make_leg(option_type="Call", qty=1, strike=100), make_leg(option_type="Call", qty=-2, strike=105), make_leg(option_type="Call", qty=1, strike=110)], 100.0, "call_butterfly"),
-        ([make_leg(option_type="Put", qty=1, strike=110), make_leg(option_type="Put", qty=-2, strike=105), make_leg(option_type="Put", qty=1, strike=100)], 100.0, "put_butterfly"),
-        ([make_leg(option_type="Call", qty=1, strike=100), make_leg(option_type="Call", qty=-2, strike=105), make_leg(option_type="Call", qty=1, strike=112)], 50.0, "call_broken_wing_butterfly"),
-        ([make_leg(option_type="Put", qty=1, strike=112), make_leg(option_type="Put", qty=-2, strike=105), make_leg(option_type="Put", qty=1, strike=100)], 50.0, "put_broken_wing_butterfly"),
-        ([make_leg(option_type="Call", qty=1, strike=95), make_leg(option_type="Call", qty=-1, strike=100), make_leg(option_type="Call", qty=-1, strike=105), make_leg(option_type="Call", qty=1, strike=115)], 50.0, "call_broken_heart_butterfly"),
-        ([make_leg(option_type="Put", qty=1, strike=115), make_leg(option_type="Put", qty=-1, strike=110), make_leg(option_type="Put", qty=-1, strike=105), make_leg(option_type="Put", qty=1, strike=95)], 50.0, "put_broken_heart_butterfly"),
+        (
+            [
+                make_leg(option_type="Call", qty=1, strike=100),
+                make_leg(option_type="Call", qty=-2, strike=105),
+                make_leg(option_type="Call", qty=1, strike=110),
+            ],
+            100.0,
+            "call_butterfly",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=1, strike=110),
+                make_leg(option_type="Put", qty=-2, strike=105),
+                make_leg(option_type="Put", qty=1, strike=100),
+            ],
+            100.0,
+            "put_butterfly",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=1, strike=100),
+                make_leg(option_type="Call", qty=-2, strike=105),
+                make_leg(option_type="Call", qty=1, strike=112),
+            ],
+            50.0,
+            "call_broken_wing_butterfly",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=1, strike=112),
+                make_leg(option_type="Put", qty=-2, strike=105),
+                make_leg(option_type="Put", qty=1, strike=100),
+            ],
+            50.0,
+            "put_broken_wing_butterfly",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=1, strike=95),
+                make_leg(option_type="Call", qty=-1, strike=100),
+                make_leg(option_type="Call", qty=-1, strike=105),
+                make_leg(option_type="Call", qty=1, strike=115),
+            ],
+            50.0,
+            "call_broken_heart_butterfly",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=1, strike=115),
+                make_leg(option_type="Put", qty=-1, strike=110),
+                make_leg(option_type="Put", qty=-1, strike=105),
+                make_leg(option_type="Put", qty=1, strike=95),
+            ],
+            50.0,
+            "put_broken_heart_butterfly",
+        ),
         # ZEBRA / Front Ratio
-        ([make_leg(option_type="Call", qty=2, strike=90), make_leg(option_type="Call", qty=-1, strike=100)], 50.0, "call_zebra"),
-        ([make_leg(option_type="Put", qty=2, strike=110), make_leg(option_type="Put", qty=-1, strike=100)], 50.0, "put_zebra"),
-        ([make_leg(option_type="Call", qty=1, strike=90), make_leg(option_type="Call", qty=-2, strike=100)], 50.0, "call_front_ratio_spread"),
-        ([make_leg(option_type="Put", qty=1, strike=110), make_leg(option_type="Put", qty=-2, strike=100)], 50.0, "put_front_ratio_spread"),
+        (
+            [
+                make_leg(option_type="Call", qty=2, strike=90),
+                make_leg(option_type="Call", qty=-1, strike=100),
+            ],
+            50.0,
+            "call_zebra",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=2, strike=110),
+                make_leg(option_type="Put", qty=-1, strike=100),
+            ],
+            50.0,
+            "put_zebra",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=1, strike=90),
+                make_leg(option_type="Call", qty=-2, strike=100),
+            ],
+            50.0,
+            "call_front_ratio_spread",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=1, strike=110),
+                make_leg(option_type="Put", qty=-2, strike=100),
+            ],
+            50.0,
+            "put_front_ratio_spread",
+        ),
         # Strangles / Straddles
-        ([make_leg(option_type="Call", qty=-1, strike=110), make_leg(option_type="Put", qty=-1, strike=90)], -100.0, "short_strangle"),
-        ([make_leg(option_type="Call", qty=-1, strike=100), make_leg(option_type="Put", qty=-1, strike=100)], -100.0, "short_straddle"),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=110),
+                make_leg(option_type="Put", qty=-1, strike=90),
+            ],
+            -100.0,
+            "short_strangle",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=100),
+                make_leg(option_type="Put", qty=-1, strike=100),
+            ],
+            -100.0,
+            "short_straddle",
+        ),
         # Condors / Fly
-        ([make_leg(option_type="Call", qty=-1, strike=110), make_leg(option_type="Call", qty=1, strike=115), make_leg(option_type="Put", qty=-1, strike=90), make_leg(option_type="Put", qty=1, strike=85)], -100.0, "iron_condor"),
-        ([make_leg(option_type="Call", qty=-1, strike=110), make_leg(option_type="Call", qty=1, strike=118), make_leg(option_type="Put", qty=-1, strike=90), make_leg(option_type="Put", qty=1, strike=85)], -100.0, "dynamic_width_iron_condor"),
-        ([make_leg(option_type="Call", qty=-1, strike=100), make_leg(option_type="Call", qty=1, strike=110), make_leg(option_type="Put", qty=-1, strike=100), make_leg(option_type="Put", qty=1, strike=90)], -100.0, "iron_fly"),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=110),
+                make_leg(option_type="Call", qty=1, strike=115),
+                make_leg(option_type="Put", qty=-1, strike=90),
+                make_leg(option_type="Put", qty=1, strike=85),
+            ],
+            -100.0,
+            "iron_condor",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=110),
+                make_leg(option_type="Call", qty=1, strike=118),
+                make_leg(option_type="Put", qty=-1, strike=90),
+                make_leg(option_type="Put", qty=1, strike=85),
+            ],
+            -100.0,
+            "dynamic_width_iron_condor",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=100),
+                make_leg(option_type="Call", qty=1, strike=110),
+                make_leg(option_type="Put", qty=-1, strike=100),
+                make_leg(option_type="Put", qty=1, strike=90),
+            ],
+            -100.0,
+            "iron_fly",
+        ),
         # Naked
         ([make_leg(option_type="Put", qty=-1, strike=95)], -50.0, "short_naked_put"),
         ([make_leg(option_type="Call", qty=-1, strike=105)], -50.0, "short_naked_call"),
         # Lizard family
-        ([make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"), make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"), make_leg(option_type="Call", qty=1, strike=115, underlying_price="100")], -100.0, "jade_lizard"),
-        ([make_leg(option_type="Put", qty=-1, strike=100, underlying_price="100"), make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"), make_leg(option_type="Call", qty=1, strike=115, underlying_price="100")], -100.0, "big_lizard"),
-        ([make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"), make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"), make_leg(option_type="Put", qty=1, strike=90, underlying_price="100")], -100.0, "reverse_jade_lizard"),
-        ([make_leg(option_type="Call", qty=-1, strike=100, underlying_price="100"), make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"), make_leg(option_type="Put", qty=1, strike=90, underlying_price="100")], -100.0, "reverse_big_lizard"),
+        (
+            [
+                make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"),
+                make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"),
+                make_leg(option_type="Call", qty=1, strike=115, underlying_price="100"),
+            ],
+            -100.0,
+            "jade_lizard",
+        ),
+        (
+            [
+                make_leg(option_type="Put", qty=-1, strike=100, underlying_price="100"),
+                make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"),
+                make_leg(option_type="Call", qty=1, strike=115, underlying_price="100"),
+            ],
+            -100.0,
+            "big_lizard",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=110, underlying_price="100"),
+                make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"),
+                make_leg(option_type="Put", qty=1, strike=90, underlying_price="100"),
+            ],
+            -100.0,
+            "reverse_jade_lizard",
+        ),
+        (
+            [
+                make_leg(option_type="Call", qty=-1, strike=100, underlying_price="100"),
+                make_leg(option_type="Put", qty=-1, strike=95, underlying_price="100"),
+                make_leg(option_type="Put", qty=1, strike=90, underlying_price="100"),
+            ],
+            -100.0,
+            "reverse_big_lizard",
+        ),
     ],
 )
 def test_strategy_coverage(legs, net_cost, expected_id):

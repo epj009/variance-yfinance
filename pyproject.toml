@@ -16,6 +16,14 @@ dependencies = [
     "scipy>=1.7.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.14.0",
+    "pre-commit>=4.0.0"
+]
+
 [project.scripts]
 variance-analyze = "variance.analyze_portfolio:main"
 variance-screener = "variance.vol_screener:main"
@@ -31,7 +39,17 @@ target-version = "py39"
 [tool.ruff.lint]
 # E: pycodestyle errors, F: Pyflakes, I: isort, UP: pyupgrade, B: flake8-bugbear, SIM: flake8-simplify
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
-ignore = ["E501"] # Ignore line-too-long (handled by formatter)
+ignore = [
+    "E501",   # Line-too-long (handled by formatter)
+    "E402",   # Module import not at top of file (intentional for config loading)
+    "E722",   # Bare except (documented in RUFF_VIOLATIONS.md, research scripts only)
+    "SIM102", # Nested if simplification (style preference)
+    "SIM103", # Negated condition simplification (style preference)
+    "SIM105", # Use contextlib.suppress (style preference)
+    "SIM116", # Dictionary instead of if/elif (style preference)
+    "SIM117", # Single with statement (style preference)
+    "B904",   # Exception chaining (not critical for research scripts)
+]
 
 [tool.ruff.format]
 quote-style = "double"

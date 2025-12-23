@@ -19,6 +19,7 @@ from variance.get_market_data import (
 # TEST CLASS 1: normalize_iv() - CRITICAL PRIORITY
 # ============================================================================
 
+
 class TestNormalizeIV:
     """
     Unit tests for IV normalization - CRITICAL for trading accuracy.
@@ -75,9 +76,11 @@ class TestNormalizeIV:
         assert iv == 1.5
         assert warning is None
 
+
 # ============================================================================
 # TEST CLASS 2: MarketCache - HIGH PRIORITY
 # ============================================================================
+
 
 class TestMarketCache:
     """Test the SQLite caching engine."""
@@ -94,9 +97,11 @@ class TestMarketCache:
         cache = MarketCache(str(temp_cache_db))
         assert cache.get("nonexistent") is None
 
+
 # ============================================================================
 # TEST CLASS 3: get_current_iv() - HIGH PRIORITY
 # ============================================================================
+
 
 class TestGetCurrentIV:
     """Test option chain IV extraction and gating."""
@@ -105,19 +110,17 @@ class TestGetCurrentIV:
         """Standard IV extraction from ATM options."""
         calls, puts = mock_option_chain
         ticker = mock_ticker_factory(
-            options=["2025-02-15"],
-            option_chain_calls=calls,
-            option_chain_puts=puts
+            options=["2025-02-15"], option_chain_calls=calls, option_chain_puts=puts
         )
 
         # Should return data dict
         result = get_current_iv(ticker, 150.0, "AAPL", hv_context=25.0)
-        assert pytest.approx(result['iv']) == 28.0
-        assert result['atm_vol'] > 0
+        assert pytest.approx(result["iv"]) == 28.0
+        assert result["atm_vol"] > 0
 
     def test_get_iv_rejects_illiquid(self, temp_cache_db, mock_ticker_factory):
         """Returns empty dict if no liquidity."""
-        empty_df = pd.DataFrame({'bid': [0], 'ask': [0]})
+        empty_df = pd.DataFrame({"bid": [0], "ask": [0]})
         ticker = mock_ticker_factory(option_chain_calls=empty_df, option_chain_puts=empty_df)
         result = get_current_iv(ticker, 150.0, "AAPL")
         assert result == {}
@@ -128,8 +131,8 @@ class TestGetCurrentIV:
         cached_value = {"iv": 28.5, "atm_vol": 1000}
         cache.set("iv_AAPL", cached_value, 3600)
 
-        with patch.object(get_market_data, 'cache', cache):
+        with patch.object(get_market_data, "cache", cache):
             ticker = Mock()
-            ticker.options = [] # Should not be called
+            ticker.options = []  # Should not be called
             result = get_current_iv(ticker, 150.0, "AAPL")
             assert result == cached_value

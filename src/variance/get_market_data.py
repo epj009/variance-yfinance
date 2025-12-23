@@ -23,34 +23,34 @@ except ModuleNotFoundError:
 
 # --- CONFIGURATION ---
 DEFAULT_TTL = {
-    'hv': 86400,        # 24 hours
-    'iv': 900,          # 15 minutes
-    'price': 600,       # 10 minutes
-    'earnings': 604800, # 7 days
-    'sector': 2592000   # 30 days
+    "hv": 86400,  # 24 hours
+    "iv": 900,  # 15 minutes
+    "price": 600,  # 10 minutes
+    "earnings": 604800,  # 7 days
+    "sector": 2592000,  # 30 days
 }
 
 from .config_loader import load_market_config, load_system_config
 
 SYS_CONFIG = load_system_config()
-DB_PATH = SYS_CONFIG.get('market_cache_db_path', '.market_cache.db')
-TTL = SYS_CONFIG.get('cache_ttl_seconds', DEFAULT_TTL)
-HV_MIN_HISTORY_DAYS = SYS_CONFIG.get('hv_min_history_days', 200)
+DB_PATH = SYS_CONFIG.get("market_cache_db_path", ".market_cache.db")
+TTL = SYS_CONFIG.get("cache_ttl_seconds", DEFAULT_TTL)
+HV_MIN_HISTORY_DAYS = SYS_CONFIG.get("hv_min_history_days", 200)
 
 _config = load_market_config()
-SKIP_EARNINGS = set(_config.get('SKIP_EARNINGS', []))
-SKIP_SYMBOLS = set(_config.get('SKIP_SYMBOLS', []))
-SYMBOL_MAP = _config.get('SYMBOL_MAP', {})
-SECTOR_OVERRIDES = _config.get('SECTOR_OVERRIDES', {})
-ETF_SYMBOLS = set(_config.get('ETF_SYMBOLS', []))
-FUTURES_PROXY = _config.get('FUTURES_PROXY', {})
-DATA_FETCHING = _config.get('DATA_FETCHING', {})
-DTE_MIN = DATA_FETCHING.get('dte_window_min', 25)
-DTE_MAX = DATA_FETCHING.get('dte_window_max', 50)
-TARGET_DTE = DATA_FETCHING.get('target_dte', 30)
-STRIKE_LOWER = DATA_FETCHING.get('strike_limit_lower', 0.8)
-STRIKE_UPPER = DATA_FETCHING.get('strike_limit_upper', 1.2)
-OPTION_CHAIN_LIMIT = DATA_FETCHING.get('option_chain_limit', 50)
+SKIP_EARNINGS = set(_config.get("SKIP_EARNINGS", []))
+SKIP_SYMBOLS = set(_config.get("SKIP_SYMBOLS", []))
+SYMBOL_MAP = _config.get("SYMBOL_MAP", {})
+SECTOR_OVERRIDES = _config.get("SECTOR_OVERRIDES", {})
+ETF_SYMBOLS = set(_config.get("ETF_SYMBOLS", []))
+FUTURES_PROXY = _config.get("FUTURES_PROXY", {})
+DATA_FETCHING = _config.get("DATA_FETCHING", {})
+DTE_MIN = DATA_FETCHING.get("dte_window_min", 25)
+DTE_MAX = DATA_FETCHING.get("dte_window_max", 50)
+TARGET_DTE = DATA_FETCHING.get("target_dte", 30)
+STRIKE_LOWER = DATA_FETCHING.get("strike_limit_lower", 0.8)
+STRIKE_UPPER = DATA_FETCHING.get("strike_limit_upper", 1.2)
+OPTION_CHAIN_LIMIT = DATA_FETCHING.get("option_chain_limit", 50)
 
 try:
     from .config_loader import load_trading_rules
@@ -61,9 +61,10 @@ HV_FLOOR_PERCENT = 5.0
 if load_trading_rules:
     try:
         _rules = load_trading_rules()
-        HV_FLOOR_PERCENT = _rules.get('hv_floor_percent', HV_FLOOR_PERCENT)
+        HV_FLOOR_PERCENT = _rules.get("hv_floor_percent", HV_FLOOR_PERCENT)
     except Exception:
         pass
+
 
 # --- OPTIMIZED SQLITE ENGINE ---
 class MarketCache:
@@ -74,28 +75,28 @@ class MarketCache:
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        if not hasattr(self._local, 'conn'):
+        if not hasattr(self._local, "conn"):
             self._local.conn = sqlite3.connect(self.db_path, timeout=5, check_same_thread=False)
-            self._local.conn.execute('PRAGMA journal_mode=WAL;')
-            self._local.conn.execute('PRAGMA synchronous=NORMAL;')
+            self._local.conn.execute("PRAGMA journal_mode=WAL;")
+            self._local.conn.execute("PRAGMA synchronous=NORMAL;")
         return self._local.conn
 
     def _init_db(self) -> None:
         with self._write_lock:
             conn = self._get_conn()
-            conn.execute('''
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,
                     value TEXT,
                     expiry INTEGER
                 )
-            ''')
+            """)
             conn.commit()
 
     def get(self, key: str) -> Optional[Any]:
         conn = self._get_conn()
         now = int(time.time())
-        cursor = conn.execute('SELECT value FROM cache WHERE key = ? AND expiry > ?', (key, now))
+        cursor = conn.execute("SELECT value FROM cache WHERE key = ? AND expiry > ?", (key, now))
         row = cursor.fetchone()
         if row:
             try:
@@ -105,45 +106,60 @@ class MarketCache:
         return None
 
     def set(self, key: str, value: Any, ttl_seconds: int) -> None:
-        if value is None: return
+        if value is None:
+            return
         with self._write_lock:
             conn = self._get_conn()
             expiry = int(time.time()) + ttl_seconds
             val_str = json.dumps(value)
-            conn.execute('INSERT OR REPLACE INTO cache (key, value, expiry) VALUES (?, ?, ?)',
-                         (key, val_str, expiry))
+            conn.execute(
+                "INSERT OR REPLACE INTO cache (key, value, expiry) VALUES (?, ?, ?)",
+                (key, val_str, expiry),
+            )
             conn.commit()
 
+
 cache = MarketCache()
+
 
 # --- UTILITIES ---
 def get_dynamic_ttl(data_type: str, default: int) -> int:
     return TTL.get(data_type, default)
+
 
 def retry_fetch(func: Callable, retries: int = 3, backoff: float = 1.0) -> Any:
     for i in range(retries):
         try:
             return func()
         except Exception as e:
-            if i == retries - 1: raise e
-            time.sleep(backoff * (2 ** i) + random.uniform(0, 0.5))
+            if i == retries - 1:
+                raise e
+            time.sleep(backoff * (2**i) + random.uniform(0, 0.5))
     return None
 
+
 def map_symbol(raw_symbol: str) -> Optional[str]:
-    if not raw_symbol: return None
-    if raw_symbol in SYMBOL_MAP: return SYMBOL_MAP[raw_symbol]
-    if raw_symbol.startswith('/'):
+    if not raw_symbol:
+        return None
+    if raw_symbol in SYMBOL_MAP:
+        return SYMBOL_MAP[raw_symbol]
+    if raw_symbol.startswith("/"):
         root = raw_symbol[1:3]
-        if f"/{root}" in SYMBOL_MAP: return SYMBOL_MAP[f"/{root}"]
+        if f"/{root}" in SYMBOL_MAP:
+            return SYMBOL_MAP[f"/{root}"]
     return raw_symbol
+
 
 def is_etf(symbol: str) -> bool:
     return symbol.upper() in ETF_SYMBOLS
 
+
 def should_skip_earnings(raw_symbol: str, yf_symbol: str) -> bool:
     upper = raw_symbol.upper()
-    if raw_symbol.startswith('/') or yf_symbol.endswith('=F') or yf_symbol.startswith('^'): return True
+    if raw_symbol.startswith("/") or yf_symbol.endswith("=F") or yf_symbol.startswith("^"):
+        return True
     return upper in SKIP_EARNINGS
+
 
 def normalize_iv(iv_raw: float, hv_context: Optional[float] = None) -> tuple[float, Optional[str]]:
     if iv_raw is None or iv_raw <= 0:
@@ -158,8 +174,11 @@ def normalize_iv(iv_raw: float, hv_context: Optional[float] = None) -> tuple[flo
         return iv_raw * 100, "iv_scale_assumed_decimal"
     return iv_raw, None
 
-def get_price(ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None) -> Optional[tuple[float, bool]]:
-    local_cache = cache if cache else globals()['cache']
+
+def get_price(
+    ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
+) -> Optional[tuple[float, bool]]:
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"price_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached is not None:
@@ -170,12 +189,12 @@ def get_price(ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = No
 
     try:
         # Use getattr to be safe with Mocks and different yfinance versions
-        fast_info = getattr(ticker_obj, 'fast_info', None)
-        price = getattr(fast_info, 'last_price', None)
+        fast_info = getattr(ticker_obj, "fast_info", None)
+        price = getattr(fast_info, "last_price", None)
 
         if price is not None:
             # Recursively drill down if we got a list/sequence
-            while hasattr(price, '__len__') and not isinstance(price, (str, bytes, dict)):
+            while hasattr(price, "__len__") and not isinstance(price, (str, bytes, dict)):
                 if len(price) > 0:
                     price = price[0]
                 else:
@@ -183,216 +202,315 @@ def get_price(ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = No
 
             price = float(price)
             if price > 0:
-                local_cache.set(cache_key, price, get_dynamic_ttl('price', 600))
+                local_cache.set(cache_key, price, get_dynamic_ttl("price", 600))
                 return price, False
-    except Exception: pass
+    except Exception:
+        pass
     return None
 
-def calculate_hv(ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None) -> Optional[dict[str, float]]:
-    local_cache = cache if cache else globals()['cache']
+
+def calculate_hv(
+    ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
+) -> Optional[dict[str, float]]:
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"hv_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached: return cached
+    if cached:
+        return cached
     try:
         hist = ticker_obj.history(period="2y")
-        if len(hist) < HV_MIN_HISTORY_DAYS: return None
-        returns = np.log(hist['Close'] / hist['Close'].shift(1)).dropna()
+        if len(hist) < HV_MIN_HISTORY_DAYS:
+            return None
+        returns = np.log(hist["Close"] / hist["Close"].shift(1)).dropna()
+
         def _vol(window):
             return float(returns.tail(window).std() * np.sqrt(252) * 100)
-        res = {
-            'hv252': _vol(252), 'hv60': _vol(60), 'hv20': _vol(20),
-            'hv20_stderr': float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100)
-        }
-        local_cache.set(cache_key, res, get_dynamic_ttl('hv', 86400))
-        return res
-    except Exception: return None
 
-def calculate_hv_rank(ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None) -> Optional[float]:
-    local_cache = cache if cache else globals()['cache']
+        res = {
+            "hv252": _vol(252),
+            "hv60": _vol(60),
+            "hv20": _vol(20),
+            "hv20_stderr": float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100),
+        }
+        local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
+        return res
+    except Exception:
+        return None
+
+
+def calculate_hv_rank(
+    ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
+) -> Optional[float]:
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"hvr_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached is not None: return cached
+    if cached is not None:
+        return cached
     try:
         hist = ticker_obj.history(period="1y")
-        if len(hist) < 252: return None
-        returns = np.log(hist['Close'] / hist['Close'].shift(1)).dropna()
+        if len(hist) < 252:
+            return None
+        returns = np.log(hist["Close"] / hist["Close"].shift(1)).dropna()
         vols = returns.rolling(window=20).std() * np.sqrt(252) * 100
         vols = vols.dropna()
         current = vols.iloc[-1]
         low, high = vols.min(), vols.max()
-        if high == low: return 0.0
+        if high == low:
+            return 0.0
         rank = float((current - low) / (high - low) * 100)
-        local_cache.set(cache_key, rank, get_dynamic_ttl('hv', 86400))
+        local_cache.set(cache_key, rank, get_dynamic_ttl("hv", 86400))
         return rank
-    except Exception: return None
+    except Exception:
+        return None
 
-def get_current_iv(ticker_obj: Any, price: float, yf_symbol: str, hv_context: Optional[float] = None, cache: Optional[MarketCache] = None) -> dict[str, Any]:
-    local_cache = cache if cache else globals()['cache']
+
+def get_current_iv(
+    ticker_obj: Any,
+    price: float,
+    yf_symbol: str,
+    hv_context: Optional[float] = None,
+    cache: Optional[MarketCache] = None,
+) -> dict[str, Any]:
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"iv_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached: return cached
+    if cached:
+        return cached
     try:
         options = ticker_obj.options
-        if not options: return {}
+        if not options:
+            return {}
         target_date = None
         now = datetime.now()
         for opt_date in options:
-            dte = (datetime.strptime(opt_date, '%Y-%m-%d') - now).days
+            dte = (datetime.strptime(opt_date, "%Y-%m-%d") - now).days
             if DTE_MIN <= dte <= DTE_MAX:
                 target_date = opt_date
                 break
-        if not target_date: target_date = options[0]
+        if not target_date:
+            target_date = options[0]
         chain = ticker_obj.option_chain(target_date)
         calls, puts = chain.calls, chain.puts
-        if calls.empty or puts.empty: return {}
-        if (calls['bid'].sum() == 0 and calls['ask'].sum() == 0) or (puts['bid'].sum() == 0 and puts['ask'].sum() == 0):
+        if calls.empty or puts.empty:
             return {}
-        calls['dist'] = abs(calls['strike'] - price)
-        puts['dist'] = abs(puts['strike'] - price)
-        atm_call = calls.sort_values('dist').iloc[0]
-        atm_put = puts.sort_values('dist').iloc[0]
-        raw_iv = (atm_call['impliedVolatility'] + atm_put['impliedVolatility']) / 2
+        if (calls["bid"].sum() == 0 and calls["ask"].sum() == 0) or (
+            puts["bid"].sum() == 0 and puts["ask"].sum() == 0
+        ):
+            return {}
+        calls["dist"] = abs(calls["strike"] - price)
+        puts["dist"] = abs(puts["strike"] - price)
+        atm_call = calls.sort_values("dist").iloc[0]
+        atm_put = puts.sort_values("dist").iloc[0]
+        raw_iv = (atm_call["impliedVolatility"] + atm_put["impliedVolatility"]) / 2
         iv, warning = normalize_iv(raw_iv, hv_context)
         res = {
-            'iv': iv, 'warning': warning,
-            'atm_vol': int(atm_call.get('volume', 0) + atm_put.get('volume', 0)),
-            'atm_oi': int(atm_call.get('openInterest', 0) + atm_put.get('openInterest', 0)),
-            'atm_bid': float((atm_call['bid'] + atm_put['bid']) / 2),
-            'atm_ask': float((atm_call['ask'] + atm_put['ask']) / 2),
-            'call_bid': float(atm_call['bid']), 'call_ask': float(atm_call['ask']),
-            'put_bid': float(atm_put['bid']), 'put_ask': float(atm_put['ask'])
+            "iv": iv,
+            "warning": warning,
+            "atm_vol": int(atm_call.get("volume", 0) + atm_put.get("volume", 0)),
+            "atm_oi": int(atm_call.get("openInterest", 0) + atm_put.get("openInterest", 0)),
+            "atm_bid": float((atm_call["bid"] + atm_put["bid"]) / 2),
+            "atm_ask": float((atm_call["ask"] + atm_put["ask"]) / 2),
+            "call_bid": float(atm_call["bid"]),
+            "call_ask": float(atm_call["ask"]),
+            "put_bid": float(atm_put["bid"]),
+            "put_ask": float(atm_put["ask"]),
         }
-        local_cache.set(cache_key, res, get_dynamic_ttl('iv', 900))
+        local_cache.set(cache_key, res, get_dynamic_ttl("iv", 900))
         return res
-    except Exception: return {}
+    except Exception:
+        return {}
 
-def get_earnings_date(ticker_obj: Any, raw_symbol: str, yf_symbol: str, cache: Optional[MarketCache] = None) -> Optional[str]:
-    local_cache = cache if cache else globals()['cache']
+
+def get_earnings_date(
+    ticker_obj: Any, raw_symbol: str, yf_symbol: str, cache: Optional[MarketCache] = None
+) -> Optional[str]:
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"earn_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached is not None: return cached
-    if should_skip_earnings(raw_symbol, yf_symbol): return None
+    if cached is not None:
+        return cached
+    if should_skip_earnings(raw_symbol, yf_symbol):
+        return None
     try:
         cal = ticker_obj.calendar
-        if cal is not None and not cal.empty and 'Earnings Date' in cal.index:
-            ed = cal.loc['Earnings Date'][0]
-            if hasattr(ed, 'to_pydatetime'): ed = ed.to_pydatetime()
+        if cal is not None and not cal.empty and "Earnings Date" in cal.index:
+            ed = cal.loc["Earnings Date"][0]
+            if hasattr(ed, "to_pydatetime"):
+                ed = ed.to_pydatetime()
             val = ed.strftime("%Y-%m-%d")
-            local_cache.set(cache_key, val, TTL.get('earnings', 604800))
+            local_cache.set(cache_key, val, TTL.get("earnings", 604800))
             return val
-    except Exception: pass
+    except Exception:
+        pass
     return None
 
-def safe_get_sector(ticker_obj: Any, raw_symbol: str, yf_symbol: str, skip_api: bool = False, cache: Optional[MarketCache] = None) -> str:
-    if raw_symbol in SECTOR_OVERRIDES: return SECTOR_OVERRIDES[raw_symbol]
-    local_cache = cache if cache else globals()['cache']
+
+def safe_get_sector(
+    ticker_obj: Any,
+    raw_symbol: str,
+    yf_symbol: str,
+    skip_api: bool = False,
+    cache: Optional[MarketCache] = None,
+) -> str:
+    if raw_symbol in SECTOR_OVERRIDES:
+        return SECTOR_OVERRIDES[raw_symbol]
+    local_cache = cache if cache else globals()["cache"]
     cache_key = f"sec_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached: return cached
-    if skip_api: return "Unknown"
+    if cached:
+        return cached
+    if skip_api:
+        return "Unknown"
     try:
         with contextlib.redirect_stderr(io.StringIO()):
-            sec = ticker_obj.info.get('sector', 'Unknown')
-        local_cache.set(cache_key, sec, TTL.get('sector', 2592000))
+            sec = ticker_obj.info.get("sector", "Unknown")
+        local_cache.set(cache_key, sec, TTL.get("sector", 2592000))
         return sec
-    except Exception: return "Unknown"
+    except Exception:
+        return "Unknown"
+
 
 def get_proxy_iv_and_hv(symbol: str) -> tuple[Optional[float], Optional[float], Optional[str]]:
     proxy = FUTURES_PROXY.get(symbol)
-    if not proxy: return None, None, None
+    if not proxy:
+        return None, None, None
     try:
-        ptype = proxy['type']
-        if ptype == 'vol_index':
-            iv_sym = proxy['iv_symbol']
+        ptype = proxy["type"]
+        if ptype == "vol_index":
+            iv_sym = proxy["iv_symbol"]
             hist = yf.Ticker(iv_sym).history(period="5d")
-            if not hist.empty: return float(hist['Close'].iloc[-1]), None, f"IV via {iv_sym}"
-        elif ptype == 'etf':
-            etf_sym = proxy.get('iv_symbol') or proxy.get('etf_symbol')
+            if not hist.empty:
+                return float(hist["Close"].iloc[-1]), None, f"IV via {iv_sym}"
+        elif ptype == "etf":
+            etf_sym = proxy.get("iv_symbol") or proxy.get("etf_symbol")
             provider = YFinanceProvider()
             data = provider.get_market_data([etf_sym]).get(etf_sym, {})
-            return data.get('iv'), data.get('hv252'), f"via {etf_sym}"
-    except Exception: pass
+            return data.get("iv"), data.get("hv252"), f"via {etf_sym}"
+    except Exception:
+        pass
     return None, None, None
 
-def process_single_symbol(raw_symbol: str, cache_instance: Optional[MarketCache] = None) -> tuple[str, dict[str, Any]]:
+
+def process_single_symbol(
+    raw_symbol: str, cache_instance: Optional[MarketCache] = None
+) -> tuple[str, dict[str, Any]]:
     local_cache = cache_instance if cache_instance else cache
     yf_symbol = map_symbol(raw_symbol)
-    if not yf_symbol: return raw_symbol, {"error": "unmapped"}
-    if raw_symbol in SKIP_SYMBOLS: return raw_symbol, {"error": "skipped"}
+    if not yf_symbol:
+        return raw_symbol, {"error": "unmapped"}
+    if raw_symbol in SKIP_SYMBOLS:
+        return raw_symbol, {"error": "skipped"}
     cache_key = f"md_{yf_symbol}"
     cached = local_cache.get(cache_key)
-    if cached: return raw_symbol, cached
+    if cached:
+        return raw_symbol, cached
     try:
         ticker = yf.Ticker(yf_symbol)
         price_data = get_price(ticker, yf_symbol, cache=local_cache)
-        if not price_data: return raw_symbol, {"error": "no_price"}
+        if not price_data:
+            return raw_symbol, {"error": "no_price"}
         hv_data = calculate_hv(ticker, yf_symbol, cache=local_cache) or {}
-        hv252 = hv_data.get('hv252')
-        iv_data = get_current_iv(ticker, price_data[0], yf_symbol, hv_context=hv252, cache=local_cache)
-        iv = iv_data.get('iv')
+        hv252 = hv_data.get("hv252")
+        iv_data = get_current_iv(
+            ticker, price_data[0], yf_symbol, hv_context=hv252, cache=local_cache
+        )
+        iv = iv_data.get("iv")
         proxy_note = None
         if not iv or hv252 is None:
             p_iv, p_hv, p_note = get_proxy_iv_and_hv(raw_symbol)
-            if p_iv: iv = p_iv
-            if p_hv: hv252 = p_hv
+            if p_iv:
+                iv = p_iv
+            if p_hv:
+                hv252 = p_hv
             proxy_note = p_note
-        if not iv or hv252 is None: return raw_symbol, {"error": "insufficient_data"}
+        if not iv or hv252 is None:
+            return raw_symbol, {"error": "insufficient_data"}
         res = {
-            "price": price_data[0], "is_stale": price_data[1], "iv": iv, "hv252": hv252,
-            "hv20": hv_data.get('hv20'), "vrp_structural": iv / hv252 if hv252 else None,
-            "vrp_tactical": iv / max(hv_data.get('hv20', 5.0), HV_FLOOR_PERCENT) if hv_data.get('hv20') else None,
-            "sector": safe_get_sector(ticker, raw_symbol, yf_symbol, skip_api=is_etf(raw_symbol), cache=local_cache),
+            "price": price_data[0],
+            "is_stale": price_data[1],
+            "iv": iv,
+            "hv252": hv252,
+            "hv20": hv_data.get("hv20"),
+            "vrp_structural": iv / hv252 if hv252 else None,
+            "vrp_tactical": iv / max(hv_data.get("hv20", 5.0), HV_FLOOR_PERCENT)
+            if hv_data.get("hv20")
+            else None,
+            "sector": safe_get_sector(
+                ticker, raw_symbol, yf_symbol, skip_api=is_etf(raw_symbol), cache=local_cache
+            ),
             "earnings_date": get_earnings_date(ticker, raw_symbol, yf_symbol, cache=local_cache),
-            "proxy": proxy_note
+            "proxy": proxy_note,
         }
         res.update(iv_data)
-        local_cache.set(cache_key, res, TTL.get('price', 600))
+        local_cache.set(cache_key, res, TTL.get("price", 600))
         return raw_symbol, res
-    except Exception as e: return raw_symbol, {"error": str(e)}
+    except Exception as e:
+        return raw_symbol, {"error": str(e)}
+
 
 from .interfaces import IMarketDataProvider, MarketData
 
 
 class YFinanceProvider(IMarketDataProvider):
     def __init__(self, cache_instance: Optional[MarketCache] = None):
-        self.cache = cache_instance if cache_instance else globals()['cache']
+        self.cache = cache_instance if cache_instance else globals()["cache"]
+
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         unique_symbols = list(set(symbols))
         results = {}
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_symbol = {executor.submit(process_single_symbol, s, self.cache): s for s in unique_symbols}
+            future_to_symbol = {
+                executor.submit(process_single_symbol, s, self.cache): s for s in unique_symbols
+            }
             for future in futures.as_completed(future_to_symbol):
                 try:
                     sym, data = future.result()
                     results[sym] = data
-                except Exception as e: results[future_to_symbol[future]] = {"error": str(e)}
+                except Exception as e:
+                    results[future_to_symbol[future]] = {"error": str(e)}
         return {s: results[s] for s in symbols if s in results}
+
     def get_current_price(self, symbol: str) -> float:
         data = self.get_market_data([symbol])
-        return data.get(symbol, {}).get('price', 0.0)
+        return data.get(symbol, {}).get("price", 0.0)
+
 
 class MarketDataFactory:
     @staticmethod
     def get_provider(provider_type: str = "yfinance") -> IMarketDataProvider:
-        if provider_type.lower() == "yfinance": return YFinanceProvider()
+        if provider_type.lower() == "yfinance":
+            return YFinanceProvider()
         raise ValueError(f"Unknown: {provider_type}")
+
 
 class MarketDataService:
     def __init__(self, cache: Optional[MarketCache] = None):
-        self._cache = cache if cache else globals()['cache']
+        self._cache = cache if cache else globals()["cache"]
         self.provider = YFinanceProvider(cache_instance=self._cache)
+
     @property
-    def cache(self): return self._cache
-    def get_market_data(self, symbols: list[str]): return self.provider.get_market_data(symbols)
+    def cache(self):
+        return self._cache
+
+    def get_market_data(self, symbols: list[str]):
+        return self.provider.get_market_data(symbols)
+
 
 _default_service: Optional[MarketDataService] = None
+
+
 def _get_default_service():
     global _default_service
-    if not _default_service: _default_service = MarketDataService()
+    if not _default_service:
+        _default_service = MarketDataService()
     return _default_service
+
+
 def get_market_data(symbols, _service=None):
     s = _service or _get_default_service()
     return s.get_market_data(symbols)
+
+
 def _reset_default_service():
     global _default_service
     _default_service = None

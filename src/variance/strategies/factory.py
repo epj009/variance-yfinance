@@ -18,7 +18,9 @@ class StrategyFactory:
     """
 
     @staticmethod
-    def get_strategy(strategy_id: str, strategies_config: dict[str, Any], rules: dict[str, Any]) -> BaseStrategy:
+    def get_strategy(
+        strategy_id: str, strategies_config: dict[str, Any], rules: dict[str, Any]
+    ) -> BaseStrategy:
         """
         Instantiates the correct strategy class.
 
@@ -40,10 +42,18 @@ class StrategyFactory:
 
         # Explicit mapping for single options and common complex setups
         short_theta_ids = [
-            "short_strangle", "short_straddle", "iron_condor", "iron_fly",
-            "jade_lizard", "reverse_jade_lizard", "short_naked_put",
-            "short_naked_call", "covered_call", "covered_put",
-            "short_call_vertical_spread", "short_put_vertical_spread"
+            "short_strangle",
+            "short_straddle",
+            "iron_condor",
+            "iron_fly",
+            "jade_lizard",
+            "reverse_jade_lizard",
+            "short_naked_put",
+            "short_naked_call",
+            "covered_call",
+            "covered_put",
+            "short_call_vertical_spread",
+            "short_put_vertical_spread",
         ]
 
         if strategy_id in short_theta_ids or strategy_id is None:
