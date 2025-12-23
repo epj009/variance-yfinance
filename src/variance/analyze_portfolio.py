@@ -375,8 +375,8 @@ def analyze_portfolio(
     # Step 8: Get Position-Aware Opportunities (vol screener with context)
     try:
         opportunities_data = get_position_aware_opportunities(
-            positions=positions,
-            clusters=clusters,
+            positions=raw_positions,
+            clusters=raw_clusters,
             net_liquidity=net_liq,
             rules=rules
         )

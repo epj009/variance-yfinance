@@ -730,13 +730,16 @@ def get_position_aware_opportunities(
 
     concentrated_roots = list(concentrated_roots_set)
 
-    # 4. Call vol screener
+    # 4. Call vol screener with position context
+    # Use a limit for TUI performance if scanning entire watchlist
+    screener_limit = rules.get('screener_tui_limit', 50)
+    
     screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
         min_vrp_structural=rules.get("vrp_structural_threshold", 0.85),
         min_variance_score=rules.get("min_variance_score", 10.0),
-        limit=None,
+        limit=screener_limit,
         allow_illiquid=False,
     )
     screener_results = screen_volatility(screener_config)
