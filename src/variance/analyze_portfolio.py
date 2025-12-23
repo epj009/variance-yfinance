@@ -46,7 +46,7 @@ def analyze_portfolio(
 
     # Step 2: Create Domain Objects
     positions = [Position.from_row(row) for row in raw_positions]
-
+    
     # Step 3: Fetch Market Data
     unique_roots = list(set(pos.root_symbol for pos in positions))
     unique_roots = [r for r in unique_roots if r]
@@ -75,7 +75,7 @@ def analyze_portfolio(
 
     # Step 4: Cluster Strategies (Using raw positions for now, to keep existing logic)
     raw_clusters = cluster_strategies(raw_positions)
-
+    
     # Convert to Domain Clusters
     domain_clusters = []
     for raw_cluster in raw_clusters:
@@ -96,7 +96,6 @@ def analyze_portfolio(
         "net_liquidity": portfolio.net_liquidity,
     }
     all_position_reports, metrics = triage_portfolio(raw_clusters, triage_context)
-
     # Unpack metrics
     total_net_pl = metrics["total_net_pl"]
     total_beta_delta = metrics["total_beta_delta"]

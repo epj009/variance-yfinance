@@ -1,22 +1,24 @@
 
 import csv
+import sys
 from collections import defaultdict
 
-from config_loader import load_config_bundle
-from get_market_data import MarketDataFactory
-from vol_screener import _is_illiquid
+from .config_loader import load_config_bundle
+from .get_market_data import MarketDataFactory
+from .vol_screener import _is_illiquid
 
 
-def diagnose_watchlist():
+def diagnose_watchlist(limit=None):
     """
     Diagnoses the entire watchlist to categorize why symbols are dropped.
     """
-    print("--- Diagnosing Full Watchlist ---")
+    print(f"--- Diagnosing Watchlist (Limit: {limit or 'Full'}) ---")
 
     # 1. Load Config & Watchlist
     config_bundle = load_config_bundle()
     rules = config_bundle['trading_rules']
-    watchlist_path = config_bundle['system_config'].get('watchlist_path', 'watchlists/default-watchlist.csv')
+    system_config = config_bundle['system_config']
+    watchlist_path = system_config.get('watchlist_path', 'watchlists/default-watchlist.csv')
 
     symbols = []
     try:
@@ -28,6 +30,9 @@ def diagnose_watchlist():
     except Exception as e:
         print(f"❌ Error reading watchlist: {e}")
         return
+
+    if limit:
+        symbols = symbols[:limit]
 
     print(f"1. Fetching Market Data for {len(symbols)} symbols...")
     provider = MarketDataFactory.get_provider()
@@ -124,4 +129,10 @@ def diagnose_watchlist():
             print(f"    - {item}")
 
 if __name__ == "__main__":
-    diagnose_watchlist()
+    limit = None
+    if len(sys.argv) > 1:
+        try:
+            limit = int(sys.argv[1])
+        except ValueError:
+            pass
+    diagnose_watchlist(limit=limit)

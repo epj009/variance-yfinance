@@ -10,8 +10,8 @@ from typing import Any, Optional, TypedDict
 
 # Import common utilities
 from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
-from .strategies.factory import StrategyFactory
 from .strategy_detector import identify_strategy, map_strategy_to_id
+from .strategies.factory import StrategyFactory
 
 
 class TriageResult(TypedDict, total=False):
@@ -226,7 +226,6 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     """
     rules = context["rules"]
     market_config = context["market_config"]
-    context["strategies"]
 
     root = get_root_symbol(legs[0]["Symbol"])
 
@@ -471,7 +470,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     ) and (
         pl_pct is not None
         and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
-    ):
+    ) and net_cost < 0:
         toxic_code, toxic_logic = strategy_obj.check_toxic_theta(metrics, market_data)
         if toxic_code:
             action_code = toxic_code
@@ -672,7 +671,6 @@ def get_position_aware_opportunities(
     Identifies concentrated vs. held positions and queries the vol screener.
     """
     from collections import defaultdict
-
     from .vol_screener import ScreenerConfig, screen_volatility
 
     # 1. Extract all unique roots
@@ -732,15 +730,12 @@ def get_position_aware_opportunities(
     concentrated_roots = list(concentrated_roots_set)
 
     # 4. Call vol screener with position context
-    # Use a limit for TUI performance if scanning entire watchlist
-    screener_limit = rules.get('screener_tui_limit', 50)
-
     screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
         min_vrp_structural=rules.get("vrp_structural_threshold", 0.85),
         min_variance_score=rules.get("min_variance_score", 10.0),
-        limit=screener_limit,
+        limit=None,
         allow_illiquid=False,
     )
     screener_results = screen_volatility(screener_config)
