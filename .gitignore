@@ -14,6 +14,7 @@ env/
 positions/
 *.csv
 !util/sample_positions.csv  # Test fixture - should be tracked
+!watchlists/default-watchlist.csv # Default search space - should be tracked
 # *.pdf  # Temporarily disabled to allow architectural review
 !docs/patterns/design-patterns-en.pdf
 
