@@ -9,9 +9,19 @@ from datetime import datetime
 from typing import Any, Optional, TypedDict
 
 # Import common utilities
-from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
+from .models import Portfolio, Position, StrategyCluster
+from .models.actions import ActionCommand, ActionFactory
+from .portfolio_parser import (
+    get_root_symbol,
+    is_stock_type,
+    parse_currency,
+    parse_dte,
+)
 from .strategies.factory import StrategyFactory
-from .strategy_detector import identify_strategy, map_strategy_to_id
+from .strategy_detector import (
+    identify_strategy,
+    map_strategy_to_id,
+)
 
 
 class TriageResult(TypedDict, total=False):
@@ -365,8 +375,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     strategies_config = context.get("strategies", {})
     strategy_obj = StrategyFactory.get_strategy(strategy_id, strategies_config, rules)
 
-    action_code = None
-    logic = ""
+    cmd: Optional[ActionCommand] = None
     is_winner = False
 
     # Retrieve live data
@@ -410,36 +419,32 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
 
     # --- 0. Expiration Day Check ---
     if dte == 0:
-        action_code = "EXPIRING"
-        logic = "Expiration Day - Manual Management Required"
+        cmd = ActionFactory.create("EXPIRING", root, "Expiration Day - Manual Management Required")
 
     # --- 1. Harvest Logic (Delegated) ---
-    if net_cost < 0 and pl_pct is not None:
-        action_code, logic = strategy_obj.check_harvest(pl_pct, days_held)
-        if action_code:
+    if not cmd and net_cost < 0 and pl_pct is not None:
+        cmd = strategy_obj.check_harvest(root, pl_pct, days_held)
+        if cmd:
             is_winner = True
 
-    if not is_winner and is_size_threat:
-        action_code = "SIZE_THREAT"
-        logic = size_logic if size_logic else "Excessive Position Size"
+    if not is_winner and not cmd and is_size_threat:
+        cmd = ActionFactory.create("SIZE_THREAT", root, size_logic if size_logic else "Excessive Position Size")
 
     # --- 2. Defense (Delegated) ---
     is_tested = strategy_obj.is_tested(legs, price)
 
-    if not is_winner and not action_code and is_tested and dte < strategy_obj.gamma_trigger_dte:
-        action_code = "DEFENSE"
-        logic = f"Tested & < {strategy_obj.gamma_trigger_dte} DTE"
+    if not is_winner and not cmd and is_tested and dte < strategy_obj.gamma_trigger_dte:
+        cmd = ActionFactory.create("DEFENSE", root, f"Tested & < {strategy_obj.gamma_trigger_dte} DTE")
 
     # --- 3. Gamma Zone ---
     if (
         not is_winner
-        and not action_code
+        and not cmd
         and not is_tested
         and dte < strategy_obj.gamma_trigger_dte
         and dte > 0
     ):
-        action_code = "GAMMA"
-        logic = f"< {strategy_obj.gamma_trigger_dte} DTE Risk"
+        cmd = ActionFactory.create("GAMMA", root, f"< {strategy_obj.gamma_trigger_dte} DTE Risk")
 
     # --- 4. Hedge Detection ---
     is_hedge = detect_hedge_tag(
@@ -454,7 +459,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     if (
         is_hedge
         and not is_winner
-        and not action_code
+        and not cmd
         and not is_tested
         and dte > strategy_obj.gamma_trigger_dte
     ):
@@ -465,14 +470,13 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
             vrp_structural is not None
             and vrp_structural < rules["dead_money_vrp_structural_threshold"]
         ):
-            action_code = "HEDGE_CHECK"
-            logic = f"Protective hedge on {root}. Review utility."
+            cmd = ActionFactory.create("HEDGE_CHECK", root, f"Protective hedge on {root}. Review utility.")
 
     # --- 5. Toxic Theta (Delegated) ---
     if (
         (
             not is_winner
-            and not action_code
+            and not cmd
             and not is_tested
             and dte > strategy_obj.gamma_trigger_dte
             and not is_hedge
@@ -483,10 +487,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         )
         and net_cost < 0
     ):
-        toxic_code, toxic_logic = strategy_obj.check_toxic_theta(metrics, market_data)
-        if toxic_code:
-            action_code = toxic_code
-            logic = toxic_logic
+        cmd = strategy_obj.check_toxic_theta(root, metrics, market_data)
 
     # --- 6. Earnings Check ---
     earnings_date = m_data.get("earnings_date")
@@ -498,28 +499,31 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
             if 0 <= days_to_earn <= rules["earnings_days_threshold"]:
                 earnings_note = f"Earnings {days_to_earn}d"
                 if strategy_obj.earnings_stance == "avoid":
-                    if not action_code:
-                        action_code = "EARNINGS_WARNING"
-                        logic = "Binary Event Risk (Avoid)"
-                    elif action_code == "HARVEST":
-                        logic = f"{logic} | Close before Earnings!"
+                    if not cmd:
+                        cmd = ActionFactory.create("EARNINGS_WARNING", root, "Binary Event Risk (Avoid)")
+                    elif cmd.action_code == "HARVEST":
+                        cmd = ActionFactory.create("HARVEST", root, f"{cmd.logic} | Close before Earnings!")
                 elif strategy_obj.earnings_stance == "long_vol":
                     earnings_note = f"{earnings_note} (Play)"
-                if action_code != "EARNINGS_WARNING":
-                    logic = f"{logic} | {earnings_note}" if logic else earnings_note
+                
+                if cmd and "Earnings" not in cmd.logic:
+                    cmd = ActionFactory.create(cmd.action_code, root, f"{cmd.logic} | {earnings_note}")
         except (ValueError, TypeError):
             pass
 
     # --- 7. VRP Momentum (SCALABLE) ---
-    if not action_code and not is_tested and dte > strategy_obj.gamma_trigger_dte and not is_hedge:
+    if not cmd and not is_tested and dte > strategy_obj.gamma_trigger_dte and not is_hedge:
         if pl_pct is not None and pl_pct < strategy_obj.profit_target_pct:
             vrp_s = m_data.get("vrp_structural", 0)
             vrp_t = m_data.get("vrp_tactical", 1.0)
             if vrp_s and vrp_t:
                 markup = (vrp_t / vrp_s) - 1 if vrp_s != 0 else 0
                 if markup > rules.get("vrp_momentum_threshold", 0.50):
-                    action_code = "SCALABLE"
-                    logic = f"VRP Surge: Tactical markup ({vrp_t:.2f}) is significantly above trend. High Alpha Opportunity."
+                    cmd = ActionFactory.create("SCALABLE", root, f"VRP Surge: Tactical markup ({vrp_t:.2f}) is significantly above trend. High Alpha Opportunity.")
+
+    # Finalize action_code and logic for the report
+    action_code = cmd.action_code if cmd else None
+    logic = cmd.logic if cmd else ""
 
     return {
         "root": root,

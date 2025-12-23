@@ -22,7 +22,7 @@ class StrategyFactory:
         strategy_id: str, strategies_config: dict[str, Any], rules: dict[str, Any]
     ) -> BaseStrategy:
         """
-        Instantiates the correct strategy class.
+        Instantiates the correct strategy class using the Registry pattern.
 
         Args:
             strategy_id: The ID mapped by strategy_detector (e.g., 'short_strangle')
@@ -30,33 +30,18 @@ class StrategyFactory:
             rules: Trading rules from trading_rules.json
         """
         config = strategies_config.get(strategy_id, {})
-
-        # Categorize by 'type' defined in metadata
         meta = config.get("metadata", {})
         strat_type = meta.get("type", "undefined")
 
-        # PREMIUM SELLERS (Theta positive / Net credit)
-        # Any 'undefined' strategy is assumed to be short theta for safety
-        if strat_type in ["undefined", "short_vol", "neutral"]:
-            return ShortThetaStrategy(strategy_id, config, rules)
+        # 1. Look up class in registry by type
+        strat_class = BaseStrategy.get_registered_class(strat_type)
+        
+        # 2. Fallback to ID-based lookup if type registry fails (legacy support)
+        if not strat_class:
+            strat_class = BaseStrategy.get_registered_class(strategy_id)
 
-        # Explicit mapping for single options and common complex setups
-        short_theta_ids = [
-            "short_strangle",
-            "short_straddle",
-            "iron_condor",
-            "iron_fly",
-            "jade_lizard",
-            "reverse_jade_lizard",
-            "short_naked_put",
-            "short_naked_call",
-            "covered_call",
-            "covered_put",
-            "short_call_vertical_spread",
-            "short_put_vertical_spread",
-        ]
+        # 3. Final fallback to ShortTheta (Institutional Conservative Default)
+        if not strat_class:
+            strat_class = ShortThetaStrategy
 
-        if strategy_id in short_theta_ids or strategy_id is None:
-            return ShortThetaStrategy(strategy_id, config, rules)
-
-        return DefaultStrategy(strategy_id, config, rules)
+        return strat_class(strategy_id, config, rules)

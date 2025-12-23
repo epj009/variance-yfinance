@@ -53,7 +53,7 @@ STRIKE_UPPER = DATA_FETCHING.get("strike_limit_upper", 1.2)
 OPTION_CHAIN_LIMIT = DATA_FETCHING.get("option_chain_limit", 50)
 
 try:
-    from .config_loader import load_trading_rules as _load_trading_rules
+    from .config_loader import load_trading_rules
     HAS_TRADING_RULES = True
 except ImportError:
     HAS_TRADING_RULES = False
@@ -62,6 +62,7 @@ HV_FLOOR_PERCENT = 5.0
 if HAS_TRADING_RULES:
     try:
         from .config_loader import load_trading_rules
+
         _rules = load_trading_rules()
         HV_FLOOR_PERCENT = float(_rules.get("hv_floor_percent", HV_FLOOR_PERCENT))
     except Exception:
@@ -452,7 +453,13 @@ def process_single_symbol(
 
 from .interfaces import IMarketDataProvider, MarketData
 
-__all__ = ["get_market_data", "MarketDataService", "MarketData", "YFinanceProvider", "MarketDataFactory"]
+__all__ = [
+    "get_market_data",
+    "MarketDataService",
+    "MarketData",
+    "YFinanceProvider",
+    "MarketDataFactory",
+]
 
 
 class YFinanceProvider(IMarketDataProvider):
@@ -472,7 +479,7 @@ class YFinanceProvider(IMarketDataProvider):
                     results[sym] = data
                 except Exception as e:
                     results[future_to_symbol[future]] = {"error": str(e)}
-        
+
         # Explicitly cast to dict[str, MarketData] to satisfy TypedDict requirements
         final_results: dict[str, MarketData] = {}
         for s in symbols:
@@ -516,7 +523,9 @@ def _get_default_service() -> MarketDataService:
     return _default_service
 
 
-def get_market_data(symbols: list[str], _service: Optional[MarketDataService] = None) -> dict[str, MarketData]:
+def get_market_data(
+    symbols: list[str], _service: Optional[MarketDataService] = None
+) -> dict[str, MarketData]:
     s = _service or _get_default_service()
     return s.get_market_data(symbols)
 

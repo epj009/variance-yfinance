@@ -10,6 +10,13 @@ from typing import Any, Optional, Union, cast
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
 from .get_market_data import MarketData, MarketDataFactory
+from .models.market_specs import (
+    DataIntegritySpec,
+    LiquiditySpec,
+    LowVolTrapSpec,
+    SectorExclusionSpec,
+    VrpStructuralSpec,
+)
 
 
 @dataclass
@@ -255,16 +262,18 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     bias = metrics.get("vrp_structural")
     bias_score = 0.0
     if bias is not None:
-        bias_dislocation = abs(float(bias) - 1.0) * float(rules.get("variance_score_dislocation_multiplier", 200))
+        bias_dislocation = abs(float(bias) - 1.0) * float(
+            rules.get("variance_score_dislocation_multiplier", 200)
+        )
         bias_score = max(0.0, min(100.0, bias_dislocation))
         score += bias_score * 0.50
 
     # 2. VRP Tactical Component (Absolute Dislocation)
     bias20 = metrics.get("vrp_tactical")
     if bias20 is not None:
-        bias20_dislocation = abs(float(bias20) - 1.0) * float(rules.get(
-            "variance_score_dislocation_multiplier", 200
-        ))
+        bias20_dislocation = abs(float(bias20) - 1.0) * float(
+            rules.get("variance_score_dislocation_multiplier", 200)
+        )
         bias20_score = max(0.0, min(100.0, bias20_dislocation))
         score += bias20_score * 0.50
     elif bias is not None:  # Fallback
@@ -276,7 +285,12 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
     rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
 
-    if bias is not None and float(bias) > rich_threshold and hv_rank is not None and float(hv_rank) < trap_threshold:
+    if (
+        bias is not None
+        and float(bias) > rich_threshold
+        and hv_rank is not None
+        and float(hv_rank) < trap_threshold
+    ):
         score *= 0.50  # Slash score by half for traps
 
     # 4. Regime Penalties (Dev Mode)
@@ -384,13 +398,27 @@ def screen_volatility(
             held_symbols_set.update(siblings_upper)
 
     # Threshold Logic
-    structural_threshold = (
+    structural_threshold = float(
         rules["vrp_structural_threshold"] if min_vrp_structural is None else min_vrp_structural
     )
+    hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
 
-    # Absolute Vol Floor: Filter out dead assets where Ratio is high only because HV is near zero
-    # Example: /ZT (HV=1.5, IV=3.5 -> Ratio 2.3). Untradable noise.
-    hv_floor_absolute = rules.get("hv_floor_percent", 5.0)
+    # --- COMPOSE SPECIFICATIONS ---
+    # Compose the "Golden Gate" for candidates
+    main_spec = DataIntegritySpec()
+    
+    if not show_all:
+        main_spec &= VrpStructuralSpec(structural_threshold)
+        main_spec &= LowVolTrapSpec(hv_floor_absolute)
+    
+    if exclude_sectors:
+        main_spec &= SectorExclusionSpec(exclude_sectors)
+    
+    if not allow_illiquid:
+        main_spec &= LiquiditySpec(
+            max_slippage=float(rules.get("max_slippage_pct", 0.05)),
+            min_vol=int(rules.get("min_atm_volume", 500))
+        )
 
     for sym, metrics in data.items():
         if "error" in metrics:
@@ -398,6 +426,20 @@ def screen_volatility(
 
         if exclude_symbols_set and sym.upper() in exclude_symbols_set:
             excluded_symbols_skipped += 1
+            continue
+
+        # Inject symbol for specs
+        metrics_dict = cast(dict[str, Any], metrics)
+        metrics_dict["symbol"] = sym
+        
+        # --- THE SPECIFICATION GATE ---
+        if not main_spec.is_satisfied_by(metrics_dict):
+            # For summary counters, we still perform minor manual checks if failed
+            # This is a trade-off for reporting accuracy vs logic purity
+            if metrics.get("vrp_structural") is None:
+                missing_bias += 1
+            elif float(metrics.get("vrp_structural", 0)) <= structural_threshold:
+                low_bias_skipped += 1
             continue
 
         iv30 = metrics.get("iv")
@@ -409,11 +451,6 @@ def screen_volatility(
         earnings_date = metrics.get("earnings_date")
         sector = str(metrics.get("sector", "Unknown"))
 
-        # --- FILTER: SECTOR & ASSET CLASS ---
-        if exclude_sectors and sector in exclude_sectors:
-            sector_skipped += 1
-            continue
-
         asset_class = map_sector_to_asset_class(sector)
         if include_asset_classes and asset_class not in include_asset_classes:
             asset_class_skipped += 1
@@ -422,50 +459,10 @@ def screen_volatility(
             asset_class_skipped += 1
             continue
 
-        # --- FILTER: LIQUIDITY ---
-        is_illiquid, is_implied = _is_illiquid(sym, cast(dict[str, Any], metrics), rules)
-        if is_illiquid and not allow_illiquid:
-            illiquid_skipped += 1
-            continue
-
+        # Liquidity Check (for implied pass counter)
+        is_illiquid, is_implied = _is_illiquid(sym, metrics_dict, rules)
         if is_implied:
             implied_liquidity_count += 1
-
-        # --- FILTER: VOLATILITY REGIME (Structural) ---
-        if vrp_structural is None:
-            missing_bias += 1
-            if not show_all:
-                continue
-        elif vrp_structural <= structural_threshold and not show_all:
-            low_bias_skipped += 1
-            continue
-
-        # --- FILTER: LOW VOL TRAP (Denominator Effect) ---
-        # If HV is below the absolute floor (e.g. 5%), the ratio is noise.
-        is_low_vol_trap = hv252 is not None and hv252 < hv_floor_absolute
-
-        if is_low_vol_trap and not show_all:
-            # We treat this effectively as "Low Bias" (Not enough juice)
-            # Or track it separately if we want granular stats
-            hv_rank_trap_skipped += 1  # Re-using trap counter for simplicity
-            continue
-
-        # --- FILTER: HV RANK TRAP (Relative) ---
-        # High Ratio but Low Rank (e.g. TSLA going sideways)
-        hv_rank = metrics.get("hv_rank")
-        rich_threshold = rules.get("vrp_structural_rich_threshold", 1.0)
-        trap_threshold = rules.get("hv_rank_trap_threshold", 15.0)
-
-        is_hv_rank_trap = (
-            vrp_structural is not None
-            and vrp_structural > rich_threshold
-            and hv_rank is not None
-            and hv_rank < trap_threshold
-        )
-
-        if is_hv_rank_trap and not show_all:
-            hv_rank_trap_skipped += 1
-            continue
 
         # 3.1. Compression Logic (Fallback)
         is_data_lean = False
@@ -517,10 +514,13 @@ def screen_volatility(
 
         # Refactored flag creation
         flags = _create_candidate_flags(
-            vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, 
-            float(hv20) if hv20 is not None else None, 
-            float(hv60) if hv60 is not None else None, 
-            rules
+            vrp_structural,
+            days_to_earnings,
+            compression_ratio,
+            vrp_t_markup,
+            float(hv20) if hv20 is not None else None,
+            float(hv60) if hv60 is not None else None,
+            rules,
         )
 
         # Determine Signal Type
@@ -584,11 +584,13 @@ def screen_volatility(
         symbol_val = c.get("Symbol")
         if symbol_val is None:
             continue
-        
+
         root = str(get_root_symbol(str(symbol_val)))
 
         # Priority: Keep the one already in deduplicated if it has a shorter name (usually the root)
-        if root not in deduplicated or len(str(c["Symbol"])) < len(str(deduplicated[root]["Symbol"])):
+        if root not in deduplicated or len(str(c["Symbol"])) < len(
+            str(deduplicated[root]["Symbol"])
+        ):
             deduplicated[root] = c
 
     final_candidates = list(deduplicated.values())

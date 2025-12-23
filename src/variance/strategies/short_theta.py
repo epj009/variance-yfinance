@@ -10,6 +10,9 @@ from ..portfolio_parser import is_stock_type, parse_currency
 from .base import BaseStrategy
 
 
+@BaseStrategy.register("short_vol")
+@BaseStrategy.register("neutral")
+@BaseStrategy.register("undefined")
 class ShortThetaStrategy(BaseStrategy):
     """
     Base for all strategies where edge is derived from time decay (Theta).
@@ -37,8 +40,8 @@ class ShortThetaStrategy(BaseStrategy):
         return False
 
     def check_toxic_theta(
-        self, metrics: dict[str, Any], market_data: dict[str, Any]
-    ) -> tuple[Optional[str], str]:
+        self, symbol: str, metrics: dict[str, Any], market_data: dict[str, Any]
+    ) -> Optional[ActionCommand]:
         """
         Calculates if the Theta 'Carry' is sufficient to cover the Gamma 'Cost'.
         Institutional standard for stop-losses on premium sellers.
@@ -48,31 +51,36 @@ class ShortThetaStrategy(BaseStrategy):
 
         # We only care if we are net short theta (collecting premium)
         if cluster_theta_raw <= 0:
-            return None, ""
+            return None
 
-        root = metrics.get("root")
+        root = symbol # Use the passed symbol
         m_data = market_data.get(root, {})
         hv_ref = m_data.get("hv20") or m_data.get("hv252")
         price = metrics.get("price") or 0.0
 
         if not hv_ref or price <= 0:
-            return None, ""
+            return None
 
-        hv_floor = self.rules.get("hv_floor_percent", 5.0)
-        hv_ref_floored = max(hv_ref, hv_floor)
+        hv_floor = float(self.rules.get("hv_floor_percent", 5.0))
+        hv_ref_floored = max(float(hv_ref), hv_floor)
 
         # 1SD move in points = Price * (HV / sqrt(252))
         # Institution uses 15.87 as constant for sqrt(252)
         em_1sd = price * (hv_ref_floored / 100.0 / 15.87)
 
         # Gamma Cost = 0.5 * Gamma * (Move^2)
-        expected_gamma_cost = 0.5 * abs(cluster_gamma_raw) * (em_1sd**2)
+        expected_gamma_cost = 0.5 * abs(float(cluster_gamma_raw)) * (em_1sd**2)
 
         if expected_gamma_cost > 0:
-            efficiency = abs(cluster_theta_raw) / expected_gamma_cost
-            threshold = self.rules.get("theta_efficiency_low", 0.10)
+            efficiency = abs(float(cluster_theta_raw)) / expected_gamma_cost
+            threshold = float(self.rules.get("theta_efficiency_low", 0.10))
 
             if efficiency < threshold:
-                return "TOXIC", f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
+                from ..models.actions import ActionFactory
+                return ActionFactory.create(
+                    "TOXIC", 
+                    symbol, 
+                    f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
+                )
 
-        return None, ""
+        return None

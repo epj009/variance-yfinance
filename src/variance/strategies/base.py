@@ -7,6 +7,8 @@ Defines the contract for all specialized strategy logic in Variance.
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from ..models.actions import ActionCommand, ActionFactory
+
 
 class BaseStrategy(ABC):
     """
@@ -14,6 +16,23 @@ class BaseStrategy(ABC):
     Each strategy implementation handles its own profit targets,
     defense mechanics, and risk classification.
     """
+
+    _registry: dict[str, type["BaseStrategy"]] = {}
+
+    @classmethod
+    def register(cls, strategy_type: str) -> Any:
+        """Decorator to register a strategy subclass."""
+
+        def decorator(subclass: type[BaseStrategy]) -> type[BaseStrategy]:
+            cls._registry[strategy_type] = subclass
+            return subclass
+
+        return decorator
+
+    @classmethod
+    def get_registered_class(cls, strat_type: str) -> Optional[type["BaseStrategy"]]:
+        """Returns the class registered for a given strategy type."""
+        return cls._registry.get(strat_type)
 
     def __init__(self, strategy_id: str, config: dict[str, Any], rules: dict[str, Any]):
         self.strategy_id = strategy_id
@@ -39,19 +58,27 @@ class BaseStrategy(ABC):
         """Determines if the strategy is currently under pressure (ITM or breached)."""
         pass
 
-    def check_harvest(self, pl_pct: float, days_held: int) -> tuple[Optional[str], str]:
-        """Generic profit harvesting logic."""
+    def check_harvest(self, symbol: str, pl_pct: float, days_held: int) -> Optional[ActionCommand]:
+        """Generic profit harvesting logic using Command Pattern."""
         if pl_pct >= self.profit_target_pct:
-            return "HARVEST", f"Profit {pl_pct:.1%} (Target: {self.profit_target_pct:.0%})"
+            return ActionFactory.create(
+                "HARVEST", 
+                symbol, 
+                f"Profit {pl_pct:.1%} (Target: {self.profit_target_pct:.0%})"
+            )
 
         if 0 < days_held < 5 and pl_pct >= 0.25:
-            return "HARVEST", f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
+            return ActionFactory.create(
+                "HARVEST", 
+                symbol, 
+                f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
+            )
 
-        return None, ""
+        return None
 
     def check_toxic_theta(
-        self, metrics: dict[str, Any], market_data: dict[str, Any]
-    ) -> tuple[Optional[str], str]:
+        self, symbol: str, metrics: dict[str, Any], market_data: dict[str, Any]
+    ) -> Optional[ActionCommand]:
         """Re-implementation of the institutional 'Toxic Theta' check."""
         # Generic implementation suitable for most short-theta strategies
         if self.type != "undefined":

@@ -4,21 +4,12 @@ import math
 import sys
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Optional
-
-# Import common utilities
-import argparse
-import json
-import math
-import sys
-from collections import defaultdict
-from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
-from .get_market_data import MarketData, MarketDataFactory
+from .get_market_data import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
 )
@@ -75,7 +66,7 @@ def analyze_portfolio(
     beta_price: float = 0.0
     try:
         if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
-            beta_price = float(beta_price_raw[0]) # type: ignore
+            beta_price = float(beta_price_raw[0])  # type: ignore
         else:
             beta_price = float(beta_price_raw)
     except (TypeError, ValueError, IndexError):
@@ -131,7 +122,9 @@ def analyze_portfolio(
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
             "total_portfolio_theta_vrp_adj": total_portfolio_theta_vrp_adj,
-            "portfolio_vrp_markup": (float(total_portfolio_theta_vrp_adj) / float(total_portfolio_theta) - 1)
+            "portfolio_vrp_markup": (
+                float(total_portfolio_theta_vrp_adj) / float(total_portfolio_theta) - 1
+            )
             if total_portfolio_theta != 0
             else 0.0,
             "friction_horizon_days": friction_horizon_days,
@@ -202,7 +195,7 @@ def analyze_portfolio(
         report["portfolio_summary"]["delta_theta_ratio"] = 0.0
 
     # Populate Delta Spectrograph
-    root_deltas: Dict[str, float] = defaultdict(float)
+    root_deltas: dict[str, float] = defaultdict(float)
     for r in all_position_reports:
         root_deltas[str(r["root"])] += float(r["delta"])
     sorted_deltas = sorted(root_deltas.items(), key=lambda x: abs(x[1]), reverse=True)
@@ -210,7 +203,7 @@ def analyze_portfolio(
         report["delta_spectrograph"].append({"symbol": root, "delta": delta})
 
     # Populate Sector Balance
-    sector_counts: Dict[str, int] = defaultdict(int)
+    sector_counts: dict[str, int] = defaultdict(int)
     for r in all_position_reports:
         sector_counts[str(r["sector"])] += 1
     total_positions = len(all_position_reports)
@@ -219,7 +212,7 @@ def analyze_portfolio(
         pct = float(count) / total_positions if total_positions > 0 else 0.0
         report["sector_balance"].append({"sector": sec, "count": count, "percentage": pct})
 
-    concentrations: List[str] = []
+    concentrations: list[str] = []
     for sec, count in sorted_sectors:
         pct = float(count) / total_positions if total_positions > 0 else 0.0
         if pct > float(rules.get("concentration_risk_pct", 0.25)):
@@ -233,7 +226,7 @@ def analyze_portfolio(
         report["sector_concentration_warning"] = {"risk": False}
 
     # Calculate Asset Mix (Equity, Commodity, Fixed Income, FX, Index)
-    asset_class_counts: Dict[str, int] = defaultdict(int)
+    asset_class_counts: dict[str, int] = defaultdict(int)
     for r in all_position_reports:
         asset_class = map_sector_to_asset_class(str(r["sector"]))
         asset_class_counts[asset_class] += 1
@@ -352,7 +345,7 @@ def analyze_portfolio(
 
                 # 2. Gamma P/L: Uses beta-weighted gamma and SPY move
                 #    P/L = 0.5 * Gamma_BW * (Move_SPY)^2
-                gamma_pl = 0.5 * pos_beta_gamma * (float(move_points)**2)
+                gamma_pl = 0.5 * pos_beta_gamma * (float(move_points) ** 2)
 
                 # 3. Vega P/L: Uses raw vega and a beta-scaled volatility move
                 #    This is an approximation, assuming vol-beta is similar to price-beta.

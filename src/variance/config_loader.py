@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict, Union, cast
+from typing import Any, Optional, TypedDict, cast
 
 # Safe import for strategy_loader to satisfy static analysis
 try:
@@ -149,7 +149,7 @@ def load_strategies(
     config_path = _resolve_config_dir(config_dir) / "strategies.json"
     if strategy_loader and hasattr(strategy_loader, "load_strategies"):
         return strategy_loader.load_strategies(str(config_path), strict=_resolve_strict(strict))
-    
+
     # Fallback if strategy_loader is missing (should not happen in prod)
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     return _ensure_dict(payload, name="strategies.json", strict=_resolve_strict(strict))

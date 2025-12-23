@@ -7,6 +7,7 @@ Variance is a systematic volatility engine. We value **Occurrences**, **Probabil
 1. **Trade Small:** Keep functions under 10 complexity points (Radon).
 2. **Trade Math:** Use logarithmic space for volatility comparisons.
 3. **No Side Effects:** Domain objects MUST be frozen dataclasses.
+4. **Read-Only Engine:** This application is for analysis and decision support only. It MUST NEVER implement trade execution or order transmission logic.
 
 ## Adding a New Strategy
 1. Create a new class in `src/variance/strategies/`.

@@ -26,9 +26,12 @@ repos:
         ]
         exclude: ^tests/
 
-  - repo: https://github.com/rubik/radon
-    rev: v6.0.1
+  - repo: local
     hooks:
       - id: radon-cc
+        name: radon-cc
+        entry: radon cc
+        language: python
+        types: [python]
         args: ["--min", "B", "--max", "B", "--show-complexity"]
         description: "Enforce cyclomatic complexity (Max 10 / Grade B)"

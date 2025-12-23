@@ -9,8 +9,12 @@ from typing import Any
 from .base import BaseStrategy
 
 
+@BaseStrategy.register("default")
 class DefaultStrategy(BaseStrategy):
-    """Fallback strategy that uses generic logic."""
+    """
+    Fallback strategy for unrecognized position clusters.
+    """
+
 
     def is_tested(self, legs: list[dict[str, Any]], underlying_price: float) -> bool:
         """Generic fallback cannot determine if tested accurately."""
