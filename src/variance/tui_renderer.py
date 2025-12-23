@@ -134,37 +134,41 @@ class TUIRenderer:
 
         # Engine (Right)
         stress_scenarios = self.data.get("stress_box", {}).get("scenarios", [])
+        
+        # Directional Mapping: 
+        # Downside = Worst result of Bearish moves (beta_move < 0)
+        # Upside   = Best result of Bullish moves (beta_move > 0)
+        bearish_scenarios = [s for s in stress_scenarios if s.get("beta_move", 0) < 0]
+        bullish_scenarios = [s for s in stress_scenarios if s.get("beta_move", 0) > 0]
+
         downside_pl = 0.0
         downside_label = "None"
-        worst_case = (
-            min(stress_scenarios, key=lambda x: x.get("est_pl", 0.0)) if stress_scenarios else None
-        )
-        if worst_case and worst_case.get("est_pl", 0) < 0:
-            downside_pl = worst_case["est_pl"]
-            downside_label = worst_case.get("label", "Tail")
+        if bearish_scenarios:
+            worst_bear = min(bearish_scenarios, key=lambda x: x.get("est_pl", 0.0))
+            downside_pl = worst_bear.get("est_pl", 0.0)
+            downside_label = worst_bear.get("label", "Bearish")
 
         upside_pl = 0.0
         upside_label = "None"
-        best_case = (
-            max(stress_scenarios, key=lambda x: x.get("est_pl", 0.0)) if stress_scenarios else None
-        )
-        if best_case and best_case.get("est_pl", 0) > 0:
-            upside_pl = best_case["est_pl"]
-            upside_label = best_case.get("label", "Rally")
+        if bullish_scenarios:
+            best_bull = max(bullish_scenarios, key=lambda x: x.get("est_pl", 0.0))
+            upside_pl = best_bull.get("est_pl", 0.0)
+            upside_label = best_bull.get("label", "Bullish")
 
         tail_risk_pct = self.portfolio_summary.get("tail_risk_pct", 0.0)
-        risk_style = (
-            "profit" if tail_risk_pct < 0.05 else "warning" if tail_risk_pct < 0.15 else "loss"
-        )
+        # Style based on outcome: Red if losing, Green if making money
+        downside_style = "loss" if downside_pl < 0 else "profit"
+        upside_style = "profit" if upside_pl > 0 else "loss"
+
         mix_warning = self.data.get("asset_mix_warning", {}).get("risk", False)
 
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
         gyro_right.append("• Downside:  ", style="label")
-        gyro_right.append(f"{fmt_currency(downside_pl)} ", style=risk_style)
+        gyro_right.append(f"{fmt_currency(downside_pl)} ", style=downside_style)
         gyro_right.append(f"({downside_label})\n", style="dim")
         gyro_right.append("• Upside:    ", style="label")
-        gyro_right.append(f"{fmt_currency(upside_pl)} ", style="profit")
+        gyro_right.append(f"{fmt_currency(upside_pl)} ", style=upside_style)
         gyro_right.append(f"({upside_label})\n", style="dim")
         gyro_right.append("• Mix:       ", style="label")
         gyro_right.append(
