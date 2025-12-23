@@ -108,8 +108,12 @@ case "$MODE" in
         echo "╚════════════════════════════════════════════════════════════════╝" >&2
         printf "Analyzing... " >&2
         
+        # Log file for errors
+        LOG_FILE="logs/variance_error.log"
+        : > "$LOG_FILE"
+
         # Run analysis pipe directly in background for spinner
-        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE") &
+        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
         echo "" >&2
@@ -117,7 +121,13 @@ case "$MODE" in
         if wait_for_json "$JSON_FILE"; then
             ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
         else
-            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            echo "Error: Analysis JSON not ready or invalid." >&2
+            if [ -s "$LOG_FILE" ]; then
+                echo "--- Error Details ---" >&2
+                cat "$LOG_FILE" >&2
+                echo "---------------------" >&2
+            fi
+            echo "Try rerunning." >&2
             exit 1
         fi
         ;;
@@ -130,8 +140,12 @@ case "$MODE" in
         echo "╚════════════════════════════════════════════════════════════════╝" >&2
         printf "Initializing Showcase Engine... " >&2
         
+        # Log file for errors
+        LOG_FILE="logs/variance_error.log"
+        : > "$LOG_FILE" # Clear log
+
         # Run analysis on showcase file
-        (./venv/bin/python3 scripts/analyze_portfolio.py "$DEMO_CSV" 2>/dev/null > "$JSON_FILE") &
+        (./venv/bin/python3 scripts/analyze_portfolio.py "$DEMO_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
         echo "" >&2
@@ -139,7 +153,13 @@ case "$MODE" in
         if wait_for_json "$JSON_FILE"; then
             ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
         else
-            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            echo "Error: Analysis JSON not ready or invalid." >&2
+            if [ -s "$LOG_FILE" ]; then
+                echo "--- Error Details ---" >&2
+                cat "$LOG_FILE" >&2
+                echo "---------------------" >&2
+            fi
+            echo "Try rerunning." >&2
             exit 1
         fi
         ;;
@@ -151,8 +171,12 @@ case "$MODE" in
         echo "╚════════════════════════════════════════════════════════════════╝" >&2
         printf "Generating analysis... " >&2
 
+        # Log file for errors
+        LOG_FILE="logs/variance_error.log"
+        : > "$LOG_FILE"
+
         # 1. Generate Data in background
-        ./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" 2>/dev/null > "$JSON_FILE" &
+        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
 
@@ -163,7 +187,13 @@ case "$MODE" in
         if wait_for_json "$JSON_FILE"; then
             ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
         else
-            echo "Error: Analysis JSON not ready or invalid. Try rerunning." >&2
+            echo "Error: Analysis JSON not ready or invalid." >&2
+            if [ -s "$LOG_FILE" ]; then
+                echo "--- Error Details ---" >&2
+                cat "$LOG_FILE" >&2
+                echo "---------------------" >&2
+            fi
+            echo "Try rerunning." >&2
             exit 1
         fi
 
