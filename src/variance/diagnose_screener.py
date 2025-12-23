@@ -39,6 +39,7 @@ def diagnose_watchlist(limit=None):
 
     # Trackers
     stats = defaultdict(list)
+    recovered = defaultdict(list)
     passed = []
 
     for sym in symbols:
@@ -54,8 +55,8 @@ def diagnose_watchlist(limit=None):
         # --- Filter Logic (Replicating vol_screener.py) ---
         dropped = False
 
-        # 1. Liquidity
-        is_illiquid = _is_illiquid(sym, data, rules)
+        # 1. Liquidity (Smart Gate)
+        is_illiquid, is_implied = _is_illiquid(sym, data, rules)
         if is_illiquid:
             # Gather details for the report
             vol = data.get("atm_volume", 0)
@@ -77,6 +78,8 @@ def diagnose_watchlist(limit=None):
 
             stats["ILLIQUID"].append(f"{sym} (Vol:{vol} | OI:{oi} | Slip:{max_slip:.1%})")
             dropped = True
+        elif is_implied:
+            recovered["IMPLIED_LIQUIDITY"].append(sym)
 
         # 2. VRP Structural (Bias)
         vrp_s = data.get("vrp_structural")
@@ -105,10 +108,15 @@ def diagnose_watchlist(limit=None):
             stats["HV_RANK_TRAP"].append(f"{sym} (Rank: {hv_rank:.1f})")
             dropped = True
 
-        # 5. Data Integrity
-        if data.get("warning"):
-            stats["DATA_INTEGRITY"].append(f"{sym}: {data['warning']}")
+        # 5. Data Integrity (Smart Gate)
+        warning = data.get("warning")
+        soft_warnings = ["iv_scale_corrected", "iv_scale_assumed_decimal"]
+
+        if warning and warning not in soft_warnings:
+            stats["DATA_INTEGRITY"].append(f"{sym}: {warning}")
             dropped = True
+        elif warning in soft_warnings:
+            recovered["SCALED_IV"].append(sym)
 
         if not dropped:
             passed.append(sym)
@@ -129,11 +137,22 @@ def diagnose_watchlist(limit=None):
     print("      SCREENER DIAGNOSTIC REPORT")
     print("=" * 40)
 
-    print(
-        f"\n✅ PASSED ({len(passed)}): {', '.join(passed[:10])}{'...' if len(passed) > 10 else ''}"
-    )
+    print(f"\n✅ FINAL CANDIDATES ({len(passed)}):")
+    print(f"   {', '.join(passed)}")
 
-    print(f"\n❌ DROPPED ({len(symbols) - len(passed)}):")
+    if recovered:
+        print("\n" + "💧" * 20)
+        print("      RECOVERY LOG (Smart Gates)")
+        print("💧" * 20)
+        for reason, items in sorted(recovered.items()):
+            count = len(items)
+            print(f"\n  • {reason} ({count}):")
+            display = items[:10] + ["..."] if count > 15 else items
+            print(f"    - {', '.join(display)}")
+
+    print("\n" + "❌" * 20)
+    print("      DROPPED LOG (Fatal Filters)")
+    print("❌" * 20)
     for reason, items in sorted(stats.items()):
         print(f"\n  • {reason} ({len(items)}):")
         # Show first 5 and last 5 if list is long

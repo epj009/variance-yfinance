@@ -78,14 +78,16 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
         return "N/A"
 
 
-def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
-    """Checks if a symbol fails the liquidity rules."""
+def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) -> tuple[bool, bool]:
+    """
+    Checks if a symbol fails the liquidity rules.
+    Returns: (is_illiquid, is_implied_pass)
+    """
     # Futures exemption: Yahoo data for futures options volume is unreliable
     if symbol.startswith("/"):
-        return False
+        return False, False
 
     # 1. Check Implied Liquidity (Bid/Ask Spread) FIRST
-    # If spreads are tight, we assume liquidity exists even if reported volume is 0
     legs = [
         ("call", metrics.get("call_bid"), metrics.get("call_ask"), metrics.get("call_vol")),
         ("put", metrics.get("put_bid"), metrics.get("put_ask"), metrics.get("put_vol")),
@@ -103,13 +105,14 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
                 if slippage > max_slippage_found:
                     max_slippage_found = slippage
 
-    # GATE: If we have valid quotes and spreads are tight, PASS immediately.
-    # This handles the "implied liquidity" case (e.g. SPY/AAPL showing 0 vol but 1 cent wide).
+    # GATE: If we have valid quotes and spreads are tight, PASS as "Implied Liquidity"
     if has_valid_quote and max_slippage_found <= rules["max_slippage_pct"]:
-        return False
+        # If volume is 0 but spread is tight, this is an implied pass
+        vol = metrics.get("atm_volume", 0) or 0
+        is_implied = vol == 0
+        return False, is_implied
 
     # 2. Fallback: Check Reported Activity (Volume or OI)
-    # If spreads are wide or missing, we require proven volume/OI.
     mode = rules.get("liquidity_mode", "volume")
 
     if mode == "open_interest":
@@ -117,19 +120,16 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
         if atm_oi is None:
             atm_volume = metrics.get("atm_volume", 0)
             if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
-                return True
+                return True, False
         elif atm_oi < rules.get("min_atm_open_interest", 500):
-            return True
+            return True, False
     else:
         # Default: Volume Mode
         atm_volume = metrics.get("atm_volume", 0)
         if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
-            return True
+            return True, False
 
-    # If we fall through to here, it means:
-    # 1. Spreads were too wide (failed implied check)
-    # 2. Volume/OI was too low (failed activity check)
-    return True
+    return True, False
 
 
 def _create_candidate_flags(
@@ -356,6 +356,7 @@ def screen_volatility(
     sector_skipped = 0
     asset_class_skipped = 0
     illiquid_skipped = 0
+    implied_liquidity_count = 0  # NEW: Recovered via tight spreads
     excluded_symbols_skipped = 0
     hv_rank_trap_skipped = 0  # Short vol trap filter
     bats_zone_count = 0  # Initialize bats zone counter
@@ -419,10 +420,13 @@ def screen_volatility(
             continue
 
         # --- FILTER: LIQUIDITY ---
-        is_illiquid = _is_illiquid(sym, metrics, rules)
+        is_illiquid, is_implied = _is_illiquid(sym, metrics, rules)
         if is_illiquid and not allow_illiquid:
             illiquid_skipped += 1
             continue
+
+        if is_implied:
+            implied_liquidity_count += 1
 
         # --- FILTER: VOLATILITY REGIME (Structural) ---
         if vrp_structural is None:
@@ -469,8 +473,11 @@ def screen_volatility(
             is_data_lean = True
 
         # --- FILTER: DATA INTEGRITY (Strict Mode) ---
-        # Reject any symbol with partial data, scaling warnings, or missing HV20
-        if metrics.get("warning"):
+        # Reject any symbol with partial data, but allow scaled corrections (Smart Gate)
+        warning = metrics.get("warning")
+        soft_warnings = ["iv_scale_corrected", "iv_scale_assumed_decimal"]
+
+        if warning and warning not in soft_warnings:
             data_integrity_skipped += 1
             continue
 
@@ -612,6 +619,7 @@ def screen_volatility(
         "asset_class_skipped_count": asset_class_skipped,
         "missing_bias_count": missing_bias,
         "illiquid_skipped_count": illiquid_skipped,
+        "implied_liquidity_count": implied_liquidity_count,
         "excluded_symbols_skipped_count": excluded_symbols_skipped,
         "hv_rank_trap_skipped_count": hv_rank_trap_skipped,
         "bats_efficiency_zone_count": bats_zone_count,
