@@ -7,14 +7,23 @@ from datetime import datetime
 from typing import Any, Optional
 
 # Import common utilities
+import argparse
+import json
+import math
+import sys
+from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
+
+# Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
-from .config_loader import load_config_bundle
-from .get_market_data import MarketDataFactory
+from .config_loader import ConfigBundle, load_config_bundle
+from .get_market_data import MarketData, MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
 )
 from .strategy_detector import cluster_strategies
-from .triage_engine import get_position_aware_opportunities, triage_portfolio
+from .triage_engine import TriageContext, get_position_aware_opportunities, triage_portfolio
 
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
@@ -25,7 +34,7 @@ from .models import Portfolio, Position, StrategyCluster
 def analyze_portfolio(
     file_path: str,
     *,
-    config: Optional[dict[str, Any]] = None,
+    config: Optional[ConfigBundle] = None,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
 ) -> dict[str, Any]:
@@ -51,7 +60,7 @@ def analyze_portfolio(
     unique_roots = list(set(pos.root_symbol for pos in positions))
     unique_roots = [r for r in unique_roots if r]
 
-    beta_sym = rules.get("beta_weighted_symbol", "SPY")
+    beta_sym = str(rules.get("beta_weighted_symbol", "SPY"))
     if beta_sym not in unique_roots:
         unique_roots.append(beta_sym)
 
@@ -60,12 +69,17 @@ def analyze_portfolio(
 
     # Step 3b: Beta Data Hard Gate
     beta_entry = market_data.get(beta_sym, {})
-    beta_price = beta_entry.get("price", 0)
+    beta_price_raw = beta_entry.get("price", 0.0)
 
-    if hasattr(beta_price, "__len__") and not isinstance(beta_price, (str, bytes)):
-        beta_price = float(beta_price[0])
-    else:
-        beta_price = float(beta_price)
+    # Convert to float safely
+    beta_price: float = 0.0
+    try:
+        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
+            beta_price = float(beta_price_raw[0]) # type: ignore
+        else:
+            beta_price = float(beta_price_raw)
+    except (TypeError, ValueError, IndexError):
+        beta_price = 0.0
 
     if not beta_entry or beta_price <= 0:
         return {
@@ -89,13 +103,13 @@ def analyze_portfolio(
 
     now = datetime.now()
     # Execute single-pass triage
-    triage_context = {
+    triage_context: TriageContext = {
         "market_data": market_data,
         "rules": rules,
         "market_config": market_config,
         "strategies": strategies,
         "traffic_jam_friction": TRAFFIC_JAM_FRICTION,
-        "net_liquidity": portfolio.net_liquidity,
+        "net_liquidity": float(portfolio.net_liquidity),
     }
     all_position_reports, metrics = triage_portfolio(raw_clusters, triage_context)
     # Unpack metrics
@@ -107,7 +121,7 @@ def analyze_portfolio(
     total_capital_at_risk = metrics["total_capital_at_risk"]
 
     # --- Generate Structured Report Data ---
-    report = {
+    report: dict[str, Any] = {
         "analysis_time": now.strftime("%Y-%m-%d %H:%M:%S"),
         "market_data_symbols_count": len(unique_roots),
         "triage_actions": [],
@@ -117,7 +131,7 @@ def analyze_portfolio(
             "total_beta_delta": total_beta_delta,
             "total_portfolio_theta": total_portfolio_theta,
             "total_portfolio_theta_vrp_adj": total_portfolio_theta_vrp_adj,
-            "portfolio_vrp_markup": (total_portfolio_theta_vrp_adj / total_portfolio_theta - 1)
+            "portfolio_vrp_markup": (float(total_portfolio_theta_vrp_adj) / float(total_portfolio_theta) - 1)
             if total_portfolio_theta != 0
             else 0.0,
             "friction_horizon_days": friction_horizon_days,
@@ -188,27 +202,27 @@ def analyze_portfolio(
         report["portfolio_summary"]["delta_theta_ratio"] = 0.0
 
     # Populate Delta Spectrograph
-    root_deltas = defaultdict(float)
+    root_deltas: Dict[str, float] = defaultdict(float)
     for r in all_position_reports:
-        root_deltas[r["root"]] += r["delta"]
+        root_deltas[str(r["root"])] += float(r["delta"])
     sorted_deltas = sorted(root_deltas.items(), key=lambda x: abs(x[1]), reverse=True)
     for root, delta in sorted_deltas[:10]:
         report["delta_spectrograph"].append({"symbol": root, "delta": delta})
 
     # Populate Sector Balance
-    sector_counts = defaultdict(int)
+    sector_counts: Dict[str, int] = defaultdict(int)
     for r in all_position_reports:
-        sector_counts[r["sector"]] += 1
+        sector_counts[str(r["sector"])] += 1
     total_positions = len(all_position_reports)
     sorted_sectors = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)
     for sec, count in sorted_sectors:
-        pct = count / total_positions if total_positions > 0 else 0
+        pct = float(count) / total_positions if total_positions > 0 else 0.0
         report["sector_balance"].append({"sector": sec, "count": count, "percentage": pct})
 
-    concentrations = []
+    concentrations: List[str] = []
     for sec, count in sorted_sectors:
-        pct = count / total_positions if total_positions > 0 else 0
-        if pct > rules["concentration_risk_pct"]:
+        pct = float(count) / total_positions if total_positions > 0 else 0.0
+        if pct > float(rules.get("concentration_risk_pct", 0.25)):
             concentrations.append(f"{sec} ({count} pos, {pct:.0%})")
     if concentrations:
         report["sector_concentration_warning"] = {
@@ -219,9 +233,9 @@ def analyze_portfolio(
         report["sector_concentration_warning"] = {"risk": False}
 
     # Calculate Asset Mix (Equity, Commodity, Fixed Income, FX, Index)
-    asset_class_counts = defaultdict(int)
+    asset_class_counts: Dict[str, int] = defaultdict(int)
     for r in all_position_reports:
-        asset_class = map_sector_to_asset_class(r["sector"])
+        asset_class = map_sector_to_asset_class(str(r["sector"]))
         asset_class_counts[asset_class] += 1
 
     # Build asset_mix dictionary with percentages
@@ -326,28 +340,28 @@ def analyze_portfolio(
 
             for pos_report in all_position_reports:
                 # Get required values from the report, with safe defaults
-                pos_beta_delta = pos_report.get("delta", 0.0)
+                pos_beta_delta = float(pos_report.get("delta") or 0.0)
                 # FIX: Use 'gamma' (beta-weighted) directly, as 'raw_gamma' is not passed by triage_engine
-                pos_beta_gamma = pos_report.get("gamma", 0.0)
+                pos_beta_gamma = float(pos_report.get("gamma") or 0.0)
 
-                pos_raw_vega = pos_report.get("raw_vega", 0.0)
-                pos_beta = pos_report.get("beta", 1.0)
+                pos_raw_vega = float(pos_report.get("raw_vega") or 0.0)
+                pos_beta = float(pos_report.get("beta") or 1.0)
 
                 # 1. Delta P/L: Uses beta-weighted delta against the SPY move
-                delta_pl = pos_beta_delta * move_points
+                delta_pl = pos_beta_delta * float(move_points)
 
                 # 2. Gamma P/L: Uses beta-weighted gamma and SPY move
                 #    P/L = 0.5 * Gamma_BW * (Move_SPY)^2
-                gamma_pl = 0.5 * pos_beta_gamma * (move_points**2)
+                gamma_pl = 0.5 * pos_beta_gamma * (float(move_points)**2)
 
                 # 3. Vega P/L: Uses raw vega and a beta-scaled volatility move
                 #    This is an approximation, assuming vol-beta is similar to price-beta.
-                vega_pl = (pos_raw_vega * pos_beta) * vol_move
+                vega_pl = (pos_raw_vega * pos_beta) * float(vol_move)
 
                 total_est_pl += delta_pl + gamma_pl + vega_pl
 
                 # Delta Drift = Gamma_BW * Move_SPY
-                total_drift += pos_beta_gamma * move_points
+                total_drift += pos_beta_gamma * float(move_points)
 
             new_delta = total_beta_delta + total_drift
 

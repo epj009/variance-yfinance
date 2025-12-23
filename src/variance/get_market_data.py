@@ -9,7 +9,7 @@ import threading
 import time
 from concurrent import futures
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 import numpy as np
 
@@ -53,15 +53,17 @@ STRIKE_UPPER = DATA_FETCHING.get("strike_limit_upper", 1.2)
 OPTION_CHAIN_LIMIT = DATA_FETCHING.get("option_chain_limit", 50)
 
 try:
-    from .config_loader import load_trading_rules
+    from .config_loader import load_trading_rules as _load_trading_rules
+    HAS_TRADING_RULES = True
 except ImportError:
-    load_trading_rules = None
+    HAS_TRADING_RULES = False
 
 HV_FLOOR_PERCENT = 5.0
-if load_trading_rules:
+if HAS_TRADING_RULES:
     try:
+        from .config_loader import load_trading_rules
         _rules = load_trading_rules()
-        HV_FLOOR_PERCENT = _rules.get("hv_floor_percent", HV_FLOOR_PERCENT)
+        HV_FLOOR_PERCENT = float(_rules.get("hv_floor_percent", HV_FLOOR_PERCENT))
     except Exception:
         pass
 
@@ -69,7 +71,7 @@ if load_trading_rules:
 # --- OPTIMIZED SQLITE ENGINE ---
 class MarketCache:
     def __init__(self, db_path: Optional[str] = None) -> None:
-        self.db_path = db_path if db_path else DB_PATH
+        self.db_path = db_path if db_path else str(DB_PATH)
         self._local = threading.local()
         self._write_lock = threading.Lock()
         self._init_db()
@@ -79,7 +81,7 @@ class MarketCache:
             self._local.conn = sqlite3.connect(self.db_path, timeout=5, check_same_thread=False)
             self._local.conn.execute("PRAGMA journal_mode=WAL;")
             self._local.conn.execute("PRAGMA synchronous=NORMAL;")
-        return self._local.conn
+        return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self) -> None:
         with self._write_lock:
@@ -100,7 +102,7 @@ class MarketCache:
         row = cursor.fetchone()
         if row:
             try:
-                return json.loads(row[0])
+                return cast(Any, json.loads(str(row[0])))
             except json.JSONDecodeError:
                 return None
         return None
@@ -124,10 +126,10 @@ cache = MarketCache()
 
 # --- UTILITIES ---
 def get_dynamic_ttl(data_type: str, default: int) -> int:
-    return TTL.get(data_type, default)
+    return int(TTL.get(data_type, default))
 
 
-def retry_fetch(func: Callable, retries: int = 3, backoff: float = 1.0) -> Any:
+def retry_fetch(func: Callable[[], Any], retries: int = 3, backoff: float = 1.0) -> Any:
     for i in range(retries):
         try:
             return func()
@@ -142,11 +144,11 @@ def map_symbol(raw_symbol: str) -> Optional[str]:
     if not raw_symbol:
         return None
     if raw_symbol in SYMBOL_MAP:
-        return SYMBOL_MAP[raw_symbol]
+        return SYMBOL_MAP[raw_symbol]  # type: ignore[no-any-return]
     if raw_symbol.startswith("/"):
         root = raw_symbol[1:3]
         if f"/{root}" in SYMBOL_MAP:
-            return SYMBOL_MAP[f"/{root}"]
+            return SYMBOL_MAP[f"/{root}"]  # type: ignore[no-any-return]
     return raw_symbol
 
 
@@ -223,7 +225,7 @@ def calculate_hv(
             return None
         returns = np.log(hist["Close"] / hist["Close"].shift(1)).dropna()
 
-        def _vol(window):
+        def _vol(window: int) -> float:
             return float(returns.tail(window).std() * np.sqrt(252) * 100)
 
         res = {
@@ -233,7 +235,7 @@ def calculate_hv(
             "hv20_stderr": float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100),
         }
         local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
-        return res
+        return res  # type: ignore[no-any-return]
     except Exception:
         return None
 
@@ -245,7 +247,7 @@ def calculate_hv_rank(
     cache_key = f"hvr_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached is not None:
-        return cached
+        return cast(float, cached)
     try:
         hist = ticker_obj.history(period="1y")
         if len(hist) < 252:
@@ -275,7 +277,7 @@ def get_current_iv(
     cache_key = f"iv_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached:
-        return cached
+        return cast(dict[str, Any], cached)
     try:
         options = ticker_obj.options
         if not options:
@@ -328,7 +330,7 @@ def get_earnings_date(
     cache_key = f"earn_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached is not None:
-        return cached
+        return cast(Optional[str], cached)
     if should_skip_earnings(raw_symbol, yf_symbol):
         return None
     try:
@@ -450,6 +452,8 @@ def process_single_symbol(
 
 from .interfaces import IMarketDataProvider, MarketData
 
+__all__ = ["get_market_data", "MarketDataService", "MarketData", "YFinanceProvider", "MarketDataFactory"]
+
 
 class YFinanceProvider(IMarketDataProvider):
     def __init__(self, cache_instance: Optional[MarketCache] = None):
@@ -457,7 +461,7 @@ class YFinanceProvider(IMarketDataProvider):
 
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         unique_symbols = list(set(symbols))
-        results = {}
+        results: dict[str, dict[str, Any]] = {}
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_symbol = {
                 executor.submit(process_single_symbol, s, self.cache): s for s in unique_symbols
@@ -468,7 +472,13 @@ class YFinanceProvider(IMarketDataProvider):
                     results[sym] = data
                 except Exception as e:
                     results[future_to_symbol[future]] = {"error": str(e)}
-        return {s: results[s] for s in symbols if s in results}
+        
+        # Explicitly cast to dict[str, MarketData] to satisfy TypedDict requirements
+        final_results: dict[str, MarketData] = {}
+        for s in symbols:
+            if s in results:
+                final_results[s] = results[s]  # type: ignore[assignment]
+        return final_results
 
     def get_current_price(self, symbol: str) -> float:
         data = self.get_market_data([symbol])
@@ -489,28 +499,28 @@ class MarketDataService:
         self.provider = YFinanceProvider(cache_instance=self._cache)
 
     @property
-    def cache(self):
+    def cache(self) -> MarketCache:
         return self._cache
 
-    def get_market_data(self, symbols: list[str]):
+    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         return self.provider.get_market_data(symbols)
 
 
 _default_service: Optional[MarketDataService] = None
 
 
-def _get_default_service():
+def _get_default_service() -> MarketDataService:
     global _default_service
     if not _default_service:
         _default_service = MarketDataService()
     return _default_service
 
 
-def get_market_data(symbols, _service=None):
+def get_market_data(symbols: list[str], _service: Optional[MarketDataService] = None) -> dict[str, MarketData]:
     s = _service or _get_default_service()
     return s.get_market_data(symbols)
 
 
-def _reset_default_service():
+def _reset_default_service() -> None:
     global _default_service
     _default_service = None

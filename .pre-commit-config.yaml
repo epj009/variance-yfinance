@@ -13,3 +13,22 @@ repos:
       # Run the formatter
       - id: ruff-format
         types_or: [python, pyi]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [
+          "pandas-stubs",
+          "types-requests",
+          "types-setuptools",
+          "types-PyYAML"
+        ]
+        exclude: ^tests/
+
+  - repo: https://github.com/rubik/radon
+    rev: v6.0.1
+    hooks:
+      - id: radon-cc
+        args: ["--min", "B", "--max", "B", "--show-complexity"]
+        description: "Enforce cyclomatic complexity (Max 10 / Grade B)"

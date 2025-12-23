@@ -7,7 +7,13 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional, TypedDict
+from typing import Any, Dict, Optional, TypedDict, Union, cast
+
+# Safe import for strategy_loader to satisfy static analysis
+try:
+    from . import strategy_loader
+except ImportError:
+    strategy_loader = None  # type: ignore
 
 CONFIG_DIR_ENV = "VARIANCE_CONFIG_DIR"
 STRICT_ENV = "VARIANCE_STRICT_CONFIG"
@@ -140,12 +146,13 @@ def load_system_config(
 def load_strategies(
     *, config_dir: Optional[str] = None, strict: Optional[bool] = None
 ) -> dict[str, dict[str, Any]]:
-    try:
-        from .strategy_loader import load_strategies as _load_strategies
-    except ImportError:
-        from strategy_loader import load_strategies as _load_strategies
     config_path = _resolve_config_dir(config_dir) / "strategies.json"
-    return _load_strategies(str(config_path), strict=_resolve_strict(strict))
+    if strategy_loader and hasattr(strategy_loader, "load_strategies"):
+        return strategy_loader.load_strategies(str(config_path), strict=_resolve_strict(strict))
+    
+    # Fallback if strategy_loader is missing (should not happen in prod)
+    payload = _load_json(config_path, strict=_resolve_strict(strict))
+    return _ensure_dict(payload, name="strategies.json", strict=_resolve_strict(strict))
 
 
 def load_config_bundle(
@@ -173,7 +180,9 @@ def load_config_bundle(
     }
 
     if overrides:
-        bundle = _deep_merge(bundle, overrides)  # type: ignore[assignment]
+        # Cast bundle to dict for deep_merge, then back to ConfigBundle
+        merged_dict = _deep_merge(cast(dict[str, Any], bundle), overrides)
+        bundle = cast(ConfigBundle, merged_dict)
 
     if overrides is None:
         _BUNDLE_CACHE[cache_key] = copy.deepcopy(bundle)

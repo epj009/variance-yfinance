@@ -4,12 +4,12 @@ import json
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
-from .config_loader import load_config_bundle
-from .get_market_data import MarketDataFactory
+from .config_loader import ConfigBundle, load_config_bundle
+from .get_market_data import MarketData, MarketDataFactory
 
 
 @dataclass
@@ -28,7 +28,7 @@ class ScreenerConfig:
 def load_profile_config(
     profile_name: str,
     *,
-    config_bundle: Optional[dict[str, Any]] = None,
+    config_bundle: Optional[ConfigBundle] = None,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
 ) -> ScreenerConfig:
@@ -38,7 +38,7 @@ def load_profile_config(
     rules = config_bundle.get("trading_rules", {})
     profile_key = profile_name.lower()
     profile_data = profiles.get(profile_key)
-    if profile_data is None:
+    if not isinstance(profile_data, dict):
         available = ", ".join(sorted(profiles.keys()))
         raise ValueError(f"Unknown profile '{profile_name}'. Available profiles: {available}")
 
@@ -98,18 +98,20 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
 
     for _side, bid, ask, _vol in legs:
         if bid is not None and ask is not None:
-            mid = (bid + ask) / 2
+            f_bid, f_ask = float(bid), float(ask)
+            mid = (f_bid + f_ask) / 2
             if mid > 0:
                 has_valid_quote = True
-                slippage = (ask - bid) / mid
+                slippage = (f_ask - f_bid) / mid
                 if slippage > max_slippage_found:
                     max_slippage_found = slippage
 
     # GATE: If we have valid quotes and spreads are tight, PASS as "Implied Liquidity"
-    if has_valid_quote and max_slippage_found <= rules["max_slippage_pct"]:
+    max_slippage_pct = float(rules.get("max_slippage_pct", 0.05))
+    if has_valid_quote and max_slippage_found <= max_slippage_pct:
         # If volume is 0 but spread is tight, this is an implied pass
         vol = metrics.get("atm_volume", 0) or 0
-        is_implied = vol == 0
+        is_implied = int(vol) == 0
         return False, is_implied
 
     # 2. Fallback: Check Reported Activity (Volume or OI)
@@ -251,29 +253,30 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     # Target: |Bias - 1.0| * 200. Max 100.
     # Example: 1.5 -> 0.5 * 200 = 100. 0.5 -> 0.5 * 200 = 100.
     bias = metrics.get("vrp_structural")
-    if bias:
-        bias_dislocation = abs(bias - 1.0) * rules.get("variance_score_dislocation_multiplier", 200)
-        bias_score = max(0, min(100, bias_dislocation))
+    bias_score = 0.0
+    if bias is not None:
+        bias_dislocation = abs(float(bias) - 1.0) * float(rules.get("variance_score_dislocation_multiplier", 200))
+        bias_score = max(0.0, min(100.0, bias_dislocation))
         score += bias_score * 0.50
 
     # 2. VRP Tactical Component (Absolute Dislocation)
     bias20 = metrics.get("vrp_tactical")
-    if bias20:
-        bias20_dislocation = abs(bias20 - 1.0) * rules.get(
+    if bias20 is not None:
+        bias20_dislocation = abs(float(bias20) - 1.0) * float(rules.get(
             "variance_score_dislocation_multiplier", 200
-        )
-        bias20_score = max(0, min(100, bias20_dislocation))
+        ))
+        bias20_score = max(0.0, min(100.0, bias20_dislocation))
         score += bias20_score * 0.50
-    elif bias:  # Fallback
+    elif bias is not None:  # Fallback
         score += bias_score * 0.50
 
     # 3. Penalties
     # HV Rank Trap: High VRP Structural but extremely low realized vol
     hv_rank = metrics.get("hv_rank")
-    trap_threshold = rules.get("hv_rank_trap_threshold", 15.0)
-    rich_threshold = rules.get("vrp_structural_rich_threshold", 1.0)
+    trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
+    rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
 
-    if bias and bias > rich_threshold and hv_rank is not None and hv_rank < trap_threshold:
+    if bias is not None and float(bias) > rich_threshold and hv_rank is not None and float(hv_rank) < trap_threshold:
         score *= 0.50  # Slash score by half for traps
 
     # 4. Regime Penalties (Dev Mode)
@@ -283,13 +286,13 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     if metrics.get("regime_type") == "COILED" or metrics.get("is_coiled"):
         score *= 0.80
 
-    return round(score, 1)
+    return round(float(score), 1)
 
 
 def screen_volatility(
     config: ScreenerConfig,
     *,
-    config_bundle: Optional[dict[str, Any]] = None,
+    config_bundle: Optional[ConfigBundle] = None,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
 ) -> dict[str, Any]:
@@ -404,7 +407,7 @@ def screen_volatility(
         vrp_structural = metrics.get("vrp_structural")
         price = metrics.get("price")
         earnings_date = metrics.get("earnings_date")
-        sector = metrics.get("sector", "Unknown")
+        sector = str(metrics.get("sector", "Unknown"))
 
         # --- FILTER: SECTOR & ASSET CLASS ---
         if exclude_sectors and sector in exclude_sectors:
@@ -420,7 +423,7 @@ def screen_volatility(
             continue
 
         # --- FILTER: LIQUIDITY ---
-        is_illiquid, is_implied = _is_illiquid(sym, metrics, rules)
+        is_illiquid, is_implied = _is_illiquid(sym, cast(dict[str, Any], metrics), rules)
         if is_illiquid and not allow_illiquid:
             illiquid_skipped += 1
             continue
@@ -514,7 +517,10 @@ def screen_volatility(
 
         # Refactored flag creation
         flags = _create_candidate_flags(
-            vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, hv20, hv60, rules
+            vrp_structural, days_to_earnings, compression_ratio, vrp_t_markup, 
+            float(hv20) if hv20 is not None else None, 
+            float(hv60) if hv60 is not None else None, 
+            rules
         )
 
         # Determine Signal Type
@@ -527,11 +533,12 @@ def screen_volatility(
         env_idea = _get_recommended_environment(signal_type)
 
         # Inject regime into metrics for scoring penalty
-        metrics["is_coiled"] = flags["is_coiled"]
-        metrics["regime_type"] = regime_type
+        metrics_dict = cast(dict[str, Any], metrics)
+        metrics_dict["is_coiled"] = flags["is_coiled"]
+        metrics_dict["regime_type"] = regime_type
 
         # Calculate Variance Score
-        variance_score = _calculate_variance_score(metrics, rules)
+        variance_score = _calculate_variance_score(metrics_dict, rules)
 
         # --- FILTER: CONVICTION FLOOR (Dev Mode) ---
         score_floor = config.min_variance_score if config.min_variance_score is not None else 10.0
@@ -570,14 +577,18 @@ def screen_volatility(
 
     # 4. Deduplicate by Root Symbol
     # If multiple symbols map to the same root (e.g., /6B and /6BH6), keep only one.
-    deduplicated = {}
+    deduplicated: dict[str, dict[str, Any]] = {}
     for c in candidates_with_status:
         from .portfolio_parser import get_root_symbol
 
-        root = get_root_symbol(c["Symbol"])
+        symbol_val = c.get("Symbol")
+        if symbol_val is None:
+            continue
+        
+        root = str(get_root_symbol(str(symbol_val)))
 
         # Priority: Keep the one already in deduplicated if it has a shorter name (usually the root)
-        if root not in deduplicated or len(c["Symbol"]) < len(deduplicated[root]["Symbol"]):
+        if root not in deduplicated or len(str(c["Symbol"])) < len(str(deduplicated[root]["Symbol"])):
             deduplicated[root] = c
 
     final_candidates = list(deduplicated.values())
