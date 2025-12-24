@@ -89,9 +89,9 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
     assert candidates[0]["is_bats_efficient"]
-    # DEF excluded by sector, GHI skipped by low bias
+    # DEF excluded by sector, GHI skipped by low VRP
     assert summary["sector_skipped_count"] == 1
-    assert summary["low_bias_skipped_count"] == 1
+    assert summary["low_vrp_structural_count"] == 1
 
 
 def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_market_provider):
