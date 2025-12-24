@@ -14,11 +14,12 @@ Variance uses institution-grade **Logarithmic Distance** for all volatility calc
 
 ## 🛠 Architecture & Standards
 
-### 🧩 Modular Design
-Variance has been refactored into a professional Python package structure:
-- **`src/variance/`**: Core engine logic.
-- **`src/variance/models/`**: Domain-driven objects (`Position`, `StrategyCluster`, `Portfolio`).
-- **`src/variance/strategies/`**: Decoupled strategy pattern for specialized trade management.
+### 🧩 Modular Design (RFC 016–019)
+Variance has been refactored into a modular, pattern-driven quantitative engine:
+- **`src/variance/triage/`**: **Chain of Responsibility** for multi-tag action detection.
+- **`src/variance/screening/`**: **Template Method** pipeline for composable market research.
+- **`src/variance/classification/`**: **Registry Pattern** for deterministic strategy identification.
+- **`src/variance/strategies/`**: **Strategy Pattern** for idiosyncratic trade mechanics (Strangles, Calendars, Butterflies).
 - **`src/variance/get_market_data.py`**: Resilient data layer with a thread-safe SQLite (WAL) cache.
 
 ### 📐 The Quantitative Standard
@@ -38,13 +39,14 @@ Variance provides a high-fidelity terminal interface (TUI) for real-time portfol
 │ • Net Liq:  $50,000.00        • Open P/L: $1,110.00  │
 │ • BP Usage: 38.1% (Deploy)    • Status:   Harvesting │
 ╰──────────────────────────────────────────────────────╯
-╭────────────────────────────────────────────────────────────────────────────────────╮
-│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)                 │
-│ • Tilt:      Neutral (+12 Δ)                 • Downside:  $-3,541.08 (Crash (-5%)) │
-│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally (+5%))  │
-│ • Stability: 0.06 (Stable)                   • Mix:       🌍 Diversified           │
-│                                              • Data Qual: 100% (Excellent)         │
-╰────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────╮
+│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)               │
+│ • Tilt:      Neutral (+12 Δ)                 • Downside:  $-3,541.08 (Crash -5%) │
+│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally +5%)  │
+│ • Stability: 0.06 (Stable)                   • Mix:       🌍 Diversified         │
+│                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
                                                                                     
 📊 DELTA SPECTROGRAPH (Portfolio Drag)                                              
                                                                                     

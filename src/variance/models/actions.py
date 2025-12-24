@@ -71,6 +71,13 @@ class HedgeCheckCommand(ActionCommand):
         return "HEDGE_CHECK"
 
 
+class ExpiringCommand(ActionCommand):
+    """Command to manage positions expiring today."""
+    @property
+    def action_code(self) -> str:
+        return "EXPIRING"
+
+
 class ActionFactory:
     """Factory to create ActionCommands from codes and logic."""
 
@@ -81,6 +88,7 @@ class ActionFactory:
         "TOXIC": ToxicCommand,
         "SCALABLE": ScalableCommand,
         "HEDGE_CHECK": HedgeCheckCommand,
+        "EXPIRING": ExpiringCommand,
     }
 
     @staticmethod

@@ -73,22 +73,21 @@ Variance separates **Valuation** (is it expensive?) from **Regime** (is it about
     *   **Lean Data:** Rejects if HV20 or IV30 are missing.
 *   **Goal:** Ensure every trade recommended in the "Opportunities" list is executable at a fair price.
 
+### 6. Scoring & Penalties (The "Institutional Brake")
+The Variance Score (0-100) is not just a measure of richness; it is a measure of **Quality-Adjusted Opportunity**. 
+
 ---
 
-## 6. Scoring & Penalties (The "Institutional Brake")
-The Variance Score (0-100) is not just a measure of richness; it is a measure of **Quality-Adjusted Opportunity**. To prevent the system from chasing dangerous "mirage" signals, two specific mechanical penalties are applied:
+## 7. Mechanical Management (The Strategy Matrix)
+Variance applies specific clinical management rules based on the strategy archetype (RFC 019).
 
-### The Volatility Trap Penalty (-50% Score)
-*   **Metric:** `HV Rank < 15`.
-*   **Definition:** Triggered when realized volatility is at its extreme bottom (bottom 15th percentile of the year).
-*   **Logic:** When a stock is "dead quiet," even a tiny amount of implied volatility makes it look "Rich" (The Numerator/Denominator Artifact). 
-*   **Philosophy:** Selling premium in a trap is "picking up pennies in front of a steamroller." The penalty forces the trade to the bottom of the list until realized movement returns to a normal range.
+### 7.1. Profit Harvesting Targets
+*   **Standard Short Vol (50%):** Strangles, Iron Condors, Covered Calls. Edge is high, but we exit at 50% to maximize the "Law of Large Numbers."
+*   **Complex Spreads (25%):** Calendars, Diagonals, Butterflies. These have more horizontal/skew risk; we take profit earlier to avoid the "Pin Trap."
 
-### The Compression Penalty (-20% Score)
-*   **Metric:** `Regime = COILED`.
-*   **Definition:** Triggered when recent movement (HV20) is significantly lower than historical averages.
-*   **Logic:** A coil represents a consolidatory spring. While the VRP may look high, the risk of a gap-opening breakout is elevated.
-*   **Philosophy:** Favor "Honest Vol" (Normal or Expanding regimes) where you are being paid for real, active movement, rather than just waiting for a breakout. The penalty acts as a tie-breaker, prioritizing liquid, active markets over consolidating ones.
+### 7.2. Defensive Thresholds
+*   **The Gamma Zone (21 DTE):** All premium selling positions are marked `[GAMMA]` when within 21 days of expiration.
+*   **Breach Detection:** A position is marked `[DEFENSE]` if the underlying price penetrates the short strike AND it is within the Gamma Zone.
 
 ---
 

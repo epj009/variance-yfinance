@@ -14,6 +14,8 @@ from .base import BaseStrategy
 @BaseStrategy.register("short_vol")
 @BaseStrategy.register("neutral")
 @BaseStrategy.register("undefined")
+@BaseStrategy.register("defined_risk")
+@BaseStrategy.register("undefined_risk")
 class ShortThetaStrategy(BaseStrategy):
     """
     Base for all strategies where edge is derived from time decay (Theta).

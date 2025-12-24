@@ -217,43 +217,24 @@ class TUIRenderer:
         strat = item.get("strategy", "Unknown")
         net_pl = item.get("net_pl", 0.0)
         dte = item.get("dte", 0)
-        code = item.get("action_code")
         logic = item.get("logic", "")
-
-        # Icon & Color Logic
-        icon = ""
-        style = "neutral"
-
-        if is_action:
-            icon = "⚠️ "
-            if code == "HARVEST":
-                icon = "💰 "
-                style = "profit"
-            elif code == "GAMMA":
-                icon = "☢️ "
-                style = "loss"
-            elif code == "DEFENSE":
-                icon = "🛡️ "
-                style = "loss"
-            elif code == "TOXIC":
-                icon = "💀 "
-                style = "loss"
-            elif code == "EXPIRING":
-                icon = "⏳ "
-                style = "warning"
+        tags = item.get("tags", [])
 
         # Format Node Text
         text = Text()
-        text.append(f"{icon}{sym} ", style="bold white")
+        text.append(f"{sym} ", style="bold white")
         text.append(f"({strat}) ", style="dim")
 
         # P/L
         pl_style = "profit" if net_pl >= 0 else "loss"
         text.append(f"{fmt_currency(net_pl)} ", style=pl_style)
 
-        # Action Code (if applicable)
-        if code:
-            text.append(f"[{code}] ", style=style)
+        # Multi-Tag Badges (New in Phase 4)
+        if tags:
+            from .tui.tag_renderer import TagRenderer
+            renderer = TagRenderer(self.portfolio_summary.get("triage_display", {}))
+            text.append(" ")
+            text.append(renderer.render_tags(tags))
 
         # Add Node
         node = parent_branch.add(text)

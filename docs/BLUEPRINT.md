@@ -2,31 +2,35 @@
 
 This document defines the structural mechanics and design patterns of the Variance Engine.
 
-## 1. Design Patterns
+## 1. Design Patterns (The "Pattern Layer")
 We leverage several Gang of Four (GoF) patterns to ensure the engine remains modular and "AI-Resistant."
 
-### 1.1 Strategy Registry (The Logic Engine)
-We use a dynamic **Registry Pattern**. Strategies are defined in `src/variance/strategies/` and register themselves with `BaseStrategy`.
-- **How to add a strategy:** Inherit from `BaseStrategy`, use `@BaseStrategy.register("your_type")`, and the `StrategyFactory` will automatically discover it.
+### 1.1 Strategy Classification (RFC 018)
+Identifies trade structures using a **Chain of Responsibility**. 
+- **Registry:** `src/variance/classification/registry.py` defines the deterministic order of identification (Stock -> Strangle -> Vertical -> etc.).
+- **Benefit:** Eliminates monolithic "If/Else" chains and allows for granular, idiosyncratic identification logic.
 
-### 1.2 Market Specifications (The Alpha Filter)
-The Vol Screener uses the **Specification Pattern** for modular filtering.
-- **Location:** `src/variance/models/market_specs.py`
-- **Composition:** Filters are combined in `vol_screener.py` using bitwise operators (`&`, `|`). This decouples "What we look for" from "How we loop through data."
+### 1.2 Strategy Logic (The Strategy Pattern - RFC 019)
+Trade management is decoupled into specialized classes in `src/variance/strategies/`.
+- **ShortThetaStrategy:** Standard premium selling (Strangles, ICs).
+- **TimeSpreadStrategy:** Horizontal/Diagonal skew (Calendars, Diagonals).
+- **ButterflyStrategy:** Narrow-tent "Pin" strategies.
 
-### 1.3 Recommendation Commands (The Actions)
-Portfolio triage actions are encapsulated as **Command Objects**.
-- **Location:** `src/variance/models/actions.py`
-- **Mandate:** Actions like `HARVEST` or `TOXIC` are rich objects that hold logic. They are **Read-Only** recommendations and never interface with brokers.
+### 1.3 Composable Screening (The Template Method - RFC 017)
+The Vol Screener uses a modular **Template Method** pipeline.
+- **Location:** `src/variance/screening/pipeline.py`
+- **Steps:** Load -> Fetch -> Filter (Specs) -> Enrich -> Sort -> Report.
+- **Customization:** New volatility signals (e.g., Gap Sensitivity) are added as pluggable `EnrichmentStrategy` objects.
 
-### 1.4 Domain Models
-All core data structures (`Position`, `Portfolio`, `StrategyCluster`) are **Frozen Dataclasses**.
-- **Immutability:** Once created, these objects cannot be changed. This prevents "State Drift" during complex mathematical analysis.
+### 1.4 Multi-Tag Triage (Chain of Responsibility - RFC 016)
+Action detection is handled by a sequential **Collector Chain**.
+- **Location:** `src/variance/triage/chain.py`
+- **Multi-Tagging:** Every position is evaluated by every handler (Harvest, Defense, Gamma, etc.). A single position can accumulate multiple tags, increasing situational alpha.
 
 ---
 
 ## 2. Technical Architecture Overview
-> **Version:** 2.0.0
+> **Version:** 2.1.0 (Pattern-Hardened)
 > **Date:** December 2025
 > **Status:** Production-Ready (Core Pipeline) / Active Development (Strategy Engine)
 

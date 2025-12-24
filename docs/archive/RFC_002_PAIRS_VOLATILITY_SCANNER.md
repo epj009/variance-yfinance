@@ -1,47 +1,32 @@
-# RFC 002: Variance Pairs Volatility Scanner
+# RFC 002: Pairs Volatility Scanner (Consensus Update)
 
-## 1. Summary
-This RFC proposes the implementation of a **Pairs Volatility Scanner** for the Variance engine. Unlike traditional equity pairs trading (which exploits *price* divergence), this system exploits **Volatility Regime Divergence** between two highly correlated assets. The goal is to identify opportunities where one asset is mechanically expensive (Rich Premium) and its correlated peer is mechanically cheap (Fair/Discount Premium), allowing for a Market-Neutral / Vol-Neutral relative value trade.
+## 1. Objective
+Identify relative value volatility dislocations between correlated pairs of assets to capture "Spread Alpha" while remaining directional-neutral.
 
-## 2. Motivation
-*   **True Alpha:** Isolate "Idiosyncratic Volatility" by hedging out the broad sector/asset-class variance.
-*   **Regime Independence:** Allows for trading opportunities even when the broad market is efficient or quiet, by focusing on relative mispricing.
-*   **Risk Reduction:** theoretically lower beta than naked short premium strategies.
+## 2. Quantitative Context (Consensus)
+The debate on technical feasibility concluded that tick-level arbitrage is impossible with current retail data sources (yfinance). The scanner will focus on **Strategic Spread Dislocation** over a daily/weekly time horizon.
 
-## 3. Technical Implementation
+## 3. Implementation Path
+### 3.1 Dynamic Pair Discovery
+- **Mechanism:** Leverages **RFC 013 (Rolling Correlation Matrix)**.
+- **Criteria:** Symbols are considered a "Pair" if their 60-day price correlation is $> 0.85$.
+- **Scope Limiter:** To prevent computational explosion, the scanner only evaluates:
+    - **Intra-Sector Pairs** (e.g., /CL vs /BZ, GLD vs SLV).
+    - **Explicit Proxy Pairs** (e.g., SPY vs QQQ).
 
-### 3.1 Configuration (`config/pairs.json`)
-A strict definition of tradable pairs to ensure correlation integrity.
+### 3.2 The Metric: Volatility Spread Z-Score
+Instead of simple subtraction, we use logarithmic space to identify statistical outliers in the richness gap:
+1.  **Calculate Spread:** $\text{Spread}_{t} = ln(VRP_{A} / VRP_{B})$
+2.  **Calculate Z-Score:** $\text{Z} = \frac{\text{Spread}_{current} - \text{Mean}(\text{Spread}_{20d})}{\text{StdDev}(\text{Spread}_{20d})}$
 
-```json
-{
-  "PAIRS": [
-    {"id": "PRECIOUS_METALS", "leg_a": "GLD", "leg_b": "SLV", "correlation_threshold": 0.75},
-    {"id": "OIL_MAJORS", "leg_a": "XOM", "leg_b": "CVX", "correlation_threshold": 0.85},
-    {"id": "SEMI_CONDUCTORS", "leg_a": "NVDA", "leg_b": "AMD", "correlation_threshold": 0.80},
-    {"id": "BANKS", "leg_a": "JPM", "leg_b": "BAC", "correlation_threshold": 0.85},
-    {"id": "BEVERAGES", "leg_a": "KO", "leg_b": "PEP", "correlation_threshold": 0.70}
-  ]
-}
-```
+### 3.3 Signal Thresholds
+- **Z > 2.0:** Significant Dislocation. Sell premium in Asset A, potentially hedge in Asset B.
+- **Z < -2.0:** Significant Dislocation. Sell premium in Asset B, potentially hedge in Asset A.
 
-### 3.2 The Logic (The "Spread")
-We do not look at Price Spread. We look at the **VRP Spread**.
+## 4. Architectural Constraints
+- **Asynchronous Execution:** The Pairs Scan must run in a background thread to avoid blocking the main Triage Engine.
+- **Synchronicity Gate:** If the data snapshots for Asset A and B are $> 30$ seconds apart, the signal is invalidated to prevent "Temporal Slippage."
+- **Read-Only:** Recommendations will be output as `ActionCommand` pairs for manual entry.
 
-$$ \text{Spread} = \text{VRP Structural}_A - \text{VRP Structural}_B $$
-
-*   **VRP Structural:** $IV_{30} / HV_{252}$
-
-### 3.3 Signals
-*   **CONVERGENCE:** If `Spread > 0.5` (one is 1.5x rich, the other is 1.0x fair).
-*   **Action:**
-    *   **Leg A (Rich):** Sell Premium (Short Strangle/Iron Condor).
-    *   **Leg B (Cheap):** Buy Premium (Long Straddle/Calendar) OR No Trade (just avoiding the cheap one).
-
-## 4. Operational Challenges
-1.  **Capital Efficiency:** In standard Margin accounts, this consumes double the Buying Power (BPR) for a "hedged" return. It is extremely capital inefficient without Portfolio Margin.
-2.  **Legging Risk:** Entering two complex option spreads simultaneously is difficult.
-3.  **Correlation Breakdown:** If the correlation breaks (e.g., specific news on Leg A), the hedge fails, and you may lose on both volatility regimes.
-
-## 5. Recommendation
-**DEFER.** While mathematically sound, the capital inefficiency for non-PM accounts makes this a lower priority than the "Sector Divergence" approach (RFC 003), which achieves similar "Relative Value" discovery without the rigid execution requirement.
+## 5. Status
+**Back-Burner (Verified Feasibility).** Ready for implementation phase when "Price-History Alpha" cycle commences.
