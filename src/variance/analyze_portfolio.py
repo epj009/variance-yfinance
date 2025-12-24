@@ -172,6 +172,43 @@ def analyze_portfolio(
             entry["action_code"] = None
             report["portfolio_overview"].append(entry)
 
+    # Step 6: Exposure & Concentration Analysis
+    unique_roots = list(set(pos.root_symbol for pos in positions if pos.root_symbol))
+    
+    # Calculate Macro Correlation (RFC 020)
+    from variance.models.correlation import CorrelationEngine
+    import numpy as np
+    
+    portfolio_returns_list = []
+    for root in unique_roots:
+        m_data = market_data.get(root, {})
+        ret = m_data.get("returns")
+        if ret:
+            portfolio_returns_list.append(np.array(ret))
+            
+    avg_correlation = 0.0
+    correlation_status = "DIVERSIFIED"
+    if len(portfolio_returns_list) > 1:
+        correlations = []
+        for i in range(len(portfolio_returns_list)):
+            for j in range(i + 1, len(portfolio_returns_list)):
+                c = CorrelationEngine.calculate_correlation(
+                    portfolio_returns_list[i], 
+                    portfolio_returns_list[j]
+                )
+                correlations.append(c)
+        avg_correlation = sum(correlations) / len(correlations) if correlations else 0.0
+        
+        if avg_correlation >= 0.65:
+            correlation_status = "CONCENTRATED"
+        elif avg_correlation >= 0.40:
+            correlation_status = "BOUND"
+
+    report["portfolio_summary"]["avg_correlation"] = avg_correlation
+    report["portfolio_summary"]["correlation_status"] = correlation_status
+
+    # Asset Allocation Logic
+
     # Step 7: Finalize Portfolio Summary and Report
     net_liq = rules["net_liquidity"]
     report["portfolio_summary"]["net_liquidity"] = net_liq

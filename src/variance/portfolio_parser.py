@@ -193,36 +193,39 @@ def parse_dte(value: Optional[str]) -> int:
 
 def get_root_symbol(raw_symbol: Optional[str]) -> str:
     """
-    Extract the root symbol from a ticker, handling futures (e.g., /ESZ4 -> /ES).
-
-    Args:
-        raw_symbol: Raw symbol string that may include expiration codes.
-
-    Returns:
-        Root symbol string.
+    Extract the root ticker from a potentially complex symbol string.
+    Hardened for Tastytrade exports.
     """
     if not raw_symbol:
         return ""
-    # Normalize multi-space and single-space separated symbols
-    token = raw_symbol.strip().split()[0] if raw_symbol else ""
 
-    # Handle underscore separators: MSFT_2025-01-17_400_P -> MSFT
+    # 1. Strip whitespace and common Tastytrade/OCC prefixes
+    token = raw_symbol.strip()
+    if token.startswith("$"):
+        token = token[1:]
+
+    # 2. Extract first space-separated token
+    token = token.split()[0] if token else ""
+
+    # 3. Handle underscore separators: MSFT_2025-01-17_400_P -> MSFT
     if "_" in token:
         token = token.split("_")[0]
 
-    # Handle Futures: ./CLG6 LOG6 ... -> /CL
+    # 4. Handle Futures roots in exports: ./CLG6 -> /CL
     if token.startswith("./"):
-        token = token.replace("./", "/")
+        token = "/" + token[2:]
 
-    # Futures roots like /ESZ4 -> /ES, /MESZ4 -> /MES, /6EZ4 -> /6E (case-insensitive)
+    # 5. Normalize Futures Roots (Strip expiration code/year)
+    # e.g. /6AH6 -> /6A, /ESZ5 -> /ES
     if token.startswith("/"):
         upper_token = token.upper()
-        match = re.match(r"^(/[A-Z0-9]+)([FGHJKMNQUVXZ])(\d{1,2})$", upper_token)
+        # Look for the root part before the contract month code (FGHJKMNQUVXZ)
+        match = re.match(r"^(/[A-Z0-9]{1,3})[FGHJKMNQUVXZ]\d{1,2}$", upper_token)
         if match:
             return match.group(1)
         return token
 
-    # Handle crypto/forex/class shares: ETH/USD -> ETH-USD, BRK/B -> BRK-B
+    # 6. Handle crypto/forex/class shares: ETH/USD -> ETH-USD
     if "/" in token and not token.startswith("/"):
         token = token.replace("/", "-")
 

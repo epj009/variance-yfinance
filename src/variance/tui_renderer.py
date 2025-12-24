@@ -159,7 +159,20 @@ class TUIRenderer:
         downside_style = "loss" if downside_pl < 0 else "profit"
         upside_style = "profit" if upside_pl > 0 else "loss"
 
-        mix_warning = self.data.get("asset_mix_warning", {}).get("risk", False)
+        # Mix Status based on correlation (RFC 020)
+        avg_corr = self.portfolio_summary.get("avg_correlation", 0.0)
+        corr_status = self.portfolio_summary.get("correlation_status", "DIVERSIFIED")
+
+        mix_labels = {
+            "DIVERSIFIED": "🌍 Diversified",
+            "BOUND": "⚖️  Bound",
+            "CONCENTRATED": "🪤  CONCENTRATED",
+        }
+        mix_styles = {
+            "DIVERSIFIED": "profit",
+            "BOUND": "warning",
+            "CONCENTRATED": "loss bold",
+        }
 
         gyro_right = Text()
         gyro_right.append("THE ENGINE (Exposure)\n", style="header")
@@ -171,8 +184,8 @@ class TUIRenderer:
         gyro_right.append(f"({upside_label})\n", style="dim")
         gyro_right.append("• Mix:       ", style="label")
         gyro_right.append(
-            "⚠️ Equity Heavy\n" if mix_warning else "🌍 Diversified\n",
-            style="warning" if mix_warning else "profit",
+            f"{mix_labels.get(corr_status)} ({avg_corr:.2f} ρ)\n",
+            style=mix_styles.get(corr_status),
         )
 
         gyro_grid.add_row(gyro_left, gyro_right)
