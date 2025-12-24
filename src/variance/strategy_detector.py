@@ -36,65 +36,6 @@ def _leg_dte(leg: dict[str, Any]) -> int:
         return 0
 
 
-def _underlying_price(legs: list[dict[str, Any]]) -> float:
-    if not legs:
-        return 0.0
-    return parse_currency(legs[0].get("Underlying Last Price", "0"))
-
-
-def _aggregate_by_strike(legs: list[dict[str, Any]]) -> list[tuple[float, float]]:
-    agg: dict[float, float] = {}
-    for leg in legs:
-        strike = parse_currency(leg.get("Strike Price", "0"))
-        qty = parse_currency(leg.get("Quantity", "0"))
-        agg[strike] = agg.get(strike, 0.0) + qty
-    return sorted(agg.items(), key=lambda item: item[0])
-
-
-def _is_pmcc_pair(
-    long_leg: dict[str, Any], short_leg: dict[str, Any], underlying_price: float
-) -> bool:
-    long_dte = _leg_dte(long_leg)
-    short_dte = _leg_dte(short_leg)
-    if long_dte < 60 or long_dte < short_dte + 30:
-        return False
-
-    long_delta = parse_currency(long_leg.get("Delta", "0"))
-    short_delta = parse_currency(short_leg.get("Delta", "0"))
-    if long_delta != 0 and short_delta != 0:
-        if long_delta < 0.60 or short_delta > 0.35 or short_delta <= 0:
-            return False
-    else:
-        long_strike = parse_currency(long_leg.get("Strike Price", "0"))
-        short_strike = parse_currency(short_leg.get("Strike Price", "0"))
-        if underlying_price and not (long_strike < underlying_price < short_strike):
-            return False
-
-    return True
-
-
-def _is_pmcp_pair(
-    long_leg: dict[str, Any], short_leg: dict[str, Any], underlying_price: float
-) -> bool:
-    long_dte = _leg_dte(long_leg)
-    short_dte = _leg_dte(short_leg)
-    if long_dte < 60 or long_dte < short_dte + 30:
-        return False
-
-    long_delta = parse_currency(long_leg.get("Delta", "0"))
-    short_delta = parse_currency(short_leg.get("Delta", "0"))
-    if long_delta != 0 and short_delta != 0:
-        if long_delta > -0.60 or short_delta < -0.35 or short_delta >= 0:
-            return False
-    else:
-        long_strike = parse_currency(long_leg.get("Strike Price", "0"))
-        short_strike = parse_currency(short_leg.get("Strike Price", "0"))
-        if underlying_price and not (short_strike < underlying_price < long_strike):
-            return False
-
-    return True
-
-
 from .classification.registry import ClassifierChain
 
 # Module-level chain (singleton)

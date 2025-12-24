@@ -26,7 +26,13 @@ def take_named_clusters(
         name = identify_strategy(window_legs)
 
         # If we found a specific named strategy (not just Single or Combo)
-        is_named = name not in ["Single Option", "Custom Combo", "Unknown Strategy"]
+        lowered = name.lower()
+        is_named = not (
+            "single option" in lowered
+            or "custom" in lowered
+            or "unknown" in lowered
+            or lowered == "stock"
+        )
 
         if is_named:
             clusters.append(window_legs)

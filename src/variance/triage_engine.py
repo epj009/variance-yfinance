@@ -93,22 +93,26 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
         if "OPTION" not in l_type:
             continue
 
-        exp_str = leg.get("Exp Date")
-        if not exp_str or exp_str == "None" or exp_str == "":
-            val = parse_dte(leg.get("DTE"))
+        dte_val = parse_dte(leg.get("DTE"))
+        if dte_val > 0:
+            val = dte_val
         else:
-            try:
-                # Try ISO format: 2026-01-23
-                exp_date = datetime.strptime(str(exp_str), "%Y-%m-%d").date()
-                val = (exp_date - datetime.now().date()).days
-            except ValueError:
+            exp_str = leg.get("Exp Date")
+            if not exp_str or exp_str == "None" or exp_str == "":
+                val = 999
+            else:
                 try:
-                    # Try Human formats: "Jan 23 2026" or "Jan 23, 2026"
-                    clean_exp = str(exp_str).replace(",", "").strip()
-                    exp_date = datetime.strptime(clean_exp, "%b %d %Y").date()
+                    # Try ISO format: 2026-01-23
+                    exp_date = datetime.strptime(str(exp_str), "%Y-%m-%d").date()
                     val = (exp_date - datetime.now().date()).days
                 except ValueError:
-                    val = 999  # Data integrity fail fallback
+                    try:
+                        # Try Human formats: "Jan 23 2026" or "Jan 23, 2026"
+                        clean_exp = str(exp_str).replace(",", "").strip()
+                        exp_date = datetime.strptime(clean_exp, "%b %d %Y").date()
+                        val = (exp_date - datetime.now().date()).days
+                    except ValueError:
+                        val = 999  # Data integrity fail fallback
         dtes.append(val)
 
     # Use 999 as sentinel for non-expiring/unknown
@@ -232,10 +236,27 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     proxy_note = m_data.get("proxy")
     sector = m_data.get("sector", "Unknown")
     earnings_date = m_data.get("earnings_date")
+    hv20 = m_data.get("hv20")
+    hv252 = m_data.get("hv252")
 
     # --- Phase 2: Strategy Pattern Delegation ---
     strategies_config = context.get("strategies", {})
     strategy_obj = StrategyFactory.get_strategy(strategy_id, strategies_config, rules)
+
+    beta_symbol = rules.get("beta_weighted_symbol", "SPY")
+    beta_price_raw = market_data.get(beta_symbol, {}).get("price", 0.0)
+    try:
+        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
+            beta_price = float(beta_price_raw[0])
+        else:
+            beta_price = float(beta_price_raw)
+    except (TypeError, ValueError, IndexError):
+        beta_price = None
+    beta_iv_raw = market_data.get(beta_symbol, {}).get("iv")
+    try:
+        beta_iv = float(beta_iv_raw) if beta_iv_raw is not None else None
+    except (TypeError, ValueError):
+        beta_iv = None
 
     # Build Immutable Request
     request = TriageRequest(
@@ -259,6 +280,13 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         portfolio_beta_delta=context.get("portfolio_beta_delta", 0.0),
         net_liquidity=net_liquidity,
         strategy_obj=strategy_obj,
+        cluster_theta_raw=metrics.get("cluster_theta_raw", 0.0),
+        cluster_gamma_raw=metrics.get("cluster_gamma_raw", 0.0),
+        hv20=hv20,
+        hv252=hv252,
+        beta_symbol=beta_symbol,
+        beta_price=beta_price,
+        beta_iv=beta_iv,
     )
 
     # Execute deterministic chain
@@ -285,6 +313,10 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     }
     badge = f"[{icon_map.get(action_code, '•')} {action_code}] " if action_code else ""
     final_logic = badge + (primary.logic if primary else logic)
+    if primary:
+        earnings_notes = [t.logic for t in final_request.tags if t.tag_type == "EARNINGS_WARNING"]
+        if earnings_notes and primary.tag_type != "EARNINGS_WARNING":
+            final_logic = f"{final_logic} | {'; '.join(earnings_notes)}"
 
     return {
         "root": root,
@@ -453,7 +485,7 @@ def get_position_aware_opportunities(
     clusters: list[list[dict[str, Any]]],
     net_liquidity: float,
     rules: dict[str, Any],
-    market_data: dict[str, Any] = None,
+    market_data: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
     Identifies concentrated vs. held positions and queries the vol screener.
@@ -491,7 +523,7 @@ def get_position_aware_opportunities(
             if root:
                 root_clusters[root].append(cluster)
 
-    root_exposure = defaultdict(float)
+    root_exposure: defaultdict[str, float] = defaultdict(float)
     for pos in positions:
         root = get_root_symbol(pos.get("Symbol", ""))
         if root:
@@ -566,36 +598,58 @@ def get_position_aware_opportunities(
     }
 
 
-def validate_futures_delta(root: str, beta_delta: float, market_config: dict, rules: dict) -> dict:
+def validate_futures_delta(
+    root: str, beta_delta: float, market_config: dict[str, Any], rules: dict[str, Any]
+) -> dict[str, Any]:
     """
     Check if a futures position has potentially unmultiplied beta-weighted delta.
     """
     val_config = rules.get("futures_delta_validation", {})
     if not val_config.get("enabled", True):
-        return {"potential_issue": False}
+        return {
+            "is_futures": root.startswith("/"),
+            "potential_issue": False,
+            "message": "",
+            "multiplier": None,
+        }
 
     futures_multipliers = market_config.get("FUTURES_MULTIPLIERS", {})
     is_future = root.startswith("/")
+    multiplier = futures_multipliers.get(root)
     # If it starts with / but isn't in multipliers, check if any multiplier key is a prefix
     if not is_future:
         for prefix in futures_multipliers:
             if root.startswith(prefix):
                 is_future = True
+                multiplier = futures_multipliers.get(prefix)
                 break
 
+    threshold = val_config.get("min_abs_delta_threshold", 1.0)
     if is_future:
-        threshold = val_config.get("min_abs_delta_threshold", 1.0)
         if 0 < abs(beta_delta) < threshold:
             return {
+                "is_futures": True,
                 "potential_issue": True,
-                "message": f"Low Beta Delta ({beta_delta:.2f}) for future {root}; check multiplier.",
+                "message": f"Low Beta Delta ({beta_delta:.2f}) for future {root}; likely unmultiplied; check multiplier.",
+                "multiplier": multiplier,
+                "expected_min": threshold,
             }
 
-    return {"potential_issue": False}
+    return {
+        "is_futures": is_future,
+        "potential_issue": False,
+        "message": "",
+        "multiplier": multiplier,
+        "expected_min": threshold if is_future else None,
+    }
 
 
 def detect_hedge_tag(
-    root: str, strategy_name: str, strategy_delta: float, portfolio_beta_delta: float, rules: dict
+    root: str,
+    strategy_name: str,
+    strategy_delta: float,
+    portfolio_beta_delta: float,
+    rules: dict[str, Any],
 ) -> bool:
     """
     Detect if a position is serving as a structural portfolio hedge.
@@ -626,6 +680,9 @@ def detect_hedge_tag(
 def _beta_weight_gamma(leg: dict[str, Any]) -> float:
     """Calculates beta-weighted gamma for a single leg."""
     gamma = parse_currency(leg.get("Gamma", "0"))
+    beta_gamma = leg.get("beta_gamma")
+    if beta_gamma is not None and str(beta_gamma).strip() != "":
+        return parse_currency(beta_gamma)
     b_delta_str = leg.get("beta_delta")
     raw_delta_str = leg.get("Delta")
 

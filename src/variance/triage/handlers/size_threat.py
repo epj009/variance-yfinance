@@ -14,7 +14,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class SizeThreatHandler(TriageHandler):
+class SizeThreatHandler(TriageHandler[TriageRequest]):
     """
     Detects positions with tail risk exceeding NLV threshold.
 
@@ -42,10 +42,6 @@ class SizeThreatHandler(TriageHandler):
         Returns:
             New TriageRequest with SIZE_THREAT tag added if condition met
         """
-        # Only check losing positions (tail risk only applies to losses)
-        if request.net_pl >= 0:
-            return self._pass_to_next(request)
-
         # Calculate tail risk percentage
         tail_risk_pct = self._calculate_tail_risk_pct(request)
 
@@ -72,10 +68,9 @@ class SizeThreatHandler(TriageHandler):
         if request.net_liquidity <= 0:
             return None
 
-        # Determine max potential loss based on position type
         max_loss = self._estimate_max_loss(request)
 
-        if max_loss <= 0:
+        if max_loss == 0:
             return None
 
         # Calculate percentage of net liquidity
@@ -85,26 +80,23 @@ class SizeThreatHandler(TriageHandler):
         """
         Estimate maximum potential loss for the position.
 
-        For credit positions (net_cost < 0): We use the actual credit collected
-        as a proxy for the 'at-risk' capital in standard triage.
+        Uses a -2SD move against the beta-weighted index when available,
+        otherwise falls back to current P/L as a simple tail proxy.
         """
-        # Credit position: Max loss is often tied to credit collected or spread width
-        if request.net_cost < 0:
-            return abs(request.net_cost)
+        if request.beta_price is not None and request.beta_iv is not None:
+            # 1-day expected move (1SD)
+            em_1sd = request.beta_price * (request.beta_iv / 100.0 / 15.87)
+            move_2sd = em_1sd * -2.0
+            delta_pl = request.strategy_delta * move_2sd
+            gamma_pl = 0.5 * request.strategy_gamma * (move_2sd**2)
+            return delta_pl + gamma_pl
 
-        # Debit position: Max loss is the debit paid
-        if request.net_cost > 0:
-            return abs(request.net_cost)
+        if request.net_pl < 0:
+            return abs(request.net_pl)
 
         return 0.0
 
     def _build_logic_message(self, tail_risk_pct: float, request: TriageRequest) -> str:
         """Build human-readable explanation of tail risk."""
         pct_display = f"{tail_risk_pct * 100:.1f}%"
-        nlv_display = f"${request.net_liquidity:,.0f}"
-        max_loss_display = f"${self._estimate_max_loss(request):,.0f}"
-
-        return (
-            f"Tail risk {pct_display} of NLV ({max_loss_display} / {nlv_display}) "
-            f"exceeds {self.threshold * 100:.0f}% threshold"
-        )
+        return f"Tail Risk: {pct_display} of Net Liq in -2SD move"

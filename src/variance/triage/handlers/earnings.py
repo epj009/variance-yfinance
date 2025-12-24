@@ -11,7 +11,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class EarningsHandler(TriageHandler):
+class EarningsHandler(TriageHandler[TriageRequest]):
     """Handles logic for upcoming earnings events."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

@@ -26,14 +26,26 @@ class TestGammaHandler:
         strat.is_tested.return_value = False
 
         request = TriageRequest(
-            root="AAPL", strategy_name="Strangle", strategy_id="ss",
+            root="AAPL",
+            strategy_name="Strangle",
+            strategy_id="ss",
             dte=15,  # Within 21 DTE
-            net_pl=0, net_cost=-1000.0,
-            strategy_delta=0, strategy_gamma=0, pl_pct=0,
-            days_held=10, price=150.0, legs=(),
-            vrp_structural=1.0, vrp_tactical=1.0, is_stale=False,
-            sector="Tech", earnings_date=None, portfolio_beta_delta=0,
-            net_liquidity=50000, strategy_obj=strat
+            net_pl=0,
+            net_cost=-1000.0,
+            strategy_delta=0,
+            strategy_gamma=0,
+            pl_pct=0,
+            days_held=10,
+            price=150.0,
+            legs=(),
+            vrp_structural=1.0,
+            vrp_tactical=1.0,
+            is_stale=False,
+            sector="Tech",
+            earnings_date=None,
+            portfolio_beta_delta=0,
+            net_liquidity=50000,
+            strategy_obj=strat,
         )
 
         # Act
@@ -52,13 +64,25 @@ class TestGammaHandler:
             # ...
             dte=45,  # Outside window
             # ...
-            root="AAPL", strategy_name="Strangle", strategy_id="ss",
-            net_pl=0, net_cost=-1000.0,
-            strategy_delta=0, strategy_gamma=0, pl_pct=0,
-            days_held=10, price=150.0, legs=(),
-            vrp_structural=1.0, vrp_tactical=1.0, is_stale=False,
-            sector="Tech", earnings_date=None, portfolio_beta_delta=0,
-            net_liquidity=50000, strategy_obj=strat
+            root="AAPL",
+            strategy_name="Strangle",
+            strategy_id="ss",
+            net_pl=0,
+            net_cost=-1000.0,
+            strategy_delta=0,
+            strategy_gamma=0,
+            pl_pct=0,
+            days_held=10,
+            price=150.0,
+            legs=(),
+            vrp_structural=1.0,
+            vrp_tactical=1.0,
+            is_stale=False,
+            sector="Tech",
+            earnings_date=None,
+            portfolio_beta_delta=0,
+            net_liquidity=50000,
+            strategy_obj=strat,
         )
         result = handler.handle(request)
         assert len(result.tags) == 0

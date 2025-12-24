@@ -22,11 +22,6 @@ class MockMarketDataProvider(IMarketDataProvider):
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         return {s: self.data[s] for s in symbols if s in self.data}
 
-    def get_current_price(self, symbol: str) -> float:
-        if symbol in self.data:
-            return self.data[symbol].get("price", 0.0)
-        return 0.0
-
 
 @pytest.fixture
 def mock_market_provider():

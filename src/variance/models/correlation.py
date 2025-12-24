@@ -5,25 +5,30 @@ Calculates rolling correlation matrices and portfolio-relative correlation
 to detect macro concentration risks.
 """
 
+from typing import cast
+
 import numpy as np
+from numpy.typing import NDArray
 
 
 class CorrelationEngine:
     """Mathematical engine for calculating asset correlations."""
 
     @staticmethod
-    def calculate_log_returns(prices: list[float]) -> np.ndarray:
+    def calculate_log_returns(prices: list[float]) -> NDArray[np.float64]:
         """Converts a price series into log returns."""
         if len(prices) < 2:
-            return np.array([])
+            return cast(NDArray[np.float64], np.asarray([], dtype=float))
 
-        arr = np.array(prices)
+        arr = cast(NDArray[np.float64], np.asarray(prices, dtype=float))
         # ln(P_t / P_t-1)
         returns = np.log(arr[1:] / arr[:-1])
         return returns
 
     @staticmethod
-    def calculate_correlation(returns_a: np.ndarray, returns_b: np.ndarray) -> float:
+    def calculate_correlation(
+        returns_a: NDArray[np.float64], returns_b: NDArray[np.float64]
+    ) -> float:
         """Calculates Pearson Correlation Coefficient between two return series."""
         if len(returns_a) == 0 or len(returns_b) == 0:
             return 0.0
@@ -40,13 +45,15 @@ class CorrelationEngine:
         return float(correlation_matrix[0, 1])
 
     @staticmethod
-    def get_portfolio_proxy_returns(portfolio_returns: list[np.ndarray]) -> np.ndarray:
+    def get_portfolio_proxy_returns(
+        portfolio_returns: list[NDArray[np.float64]],
+    ) -> NDArray[np.float64]:
         """
         Creates a synthetic 'Portfolio Return' series by averaging returns
         across all held positions.
         """
         if not portfolio_returns:
-            return np.array([])
+            return cast(NDArray[np.float64], np.asarray([], dtype=float))
 
         # Find minimum length to align series
         min_len = min(len(r) for r in portfolio_returns)
@@ -54,4 +61,4 @@ class CorrelationEngine:
 
         # Simple average (could be weighted by BPR in future)
         proxy = np.mean(aligned, axis=0)
-        return proxy
+        return cast(NDArray[np.float64], np.asarray(proxy, dtype=float))

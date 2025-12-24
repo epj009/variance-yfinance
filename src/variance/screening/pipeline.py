@@ -22,6 +22,7 @@ class ScreeningContext:
     config_bundle: ConfigBundle
     symbols: list[str] = field(default_factory=list)
     raw_data: dict[str, Any] = field(default_factory=dict)
+    market_data_diagnostics: dict[str, int] = field(default_factory=dict)
     candidates: list[dict[str, Any]] = field(default_factory=list)
     counters: dict[str, int] = field(default_factory=dict)
     portfolio_returns: Optional[np.ndarray] = None
@@ -67,7 +68,7 @@ class ScreeningPipeline:
         """Step 2: Fetch market data (Hook)."""
         from .steps.fetch import fetch_market_data
 
-        self.ctx.raw_data = fetch_market_data(self.ctx.symbols)
+        self.ctx.raw_data, self.ctx.market_data_diagnostics = fetch_market_data(self.ctx.symbols)
 
     def _filter_candidates(self) -> None:
         """Step 3: Apply specifications (Hook)."""
@@ -102,6 +103,7 @@ class ScreeningPipeline:
             self.ctx.counters,
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {}),
+            self.ctx.market_data_diagnostics,
         )
 
     def _build_enrichment_chain(self) -> list[EnrichmentStrategy]:

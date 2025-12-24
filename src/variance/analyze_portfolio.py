@@ -9,6 +9,7 @@ from typing import Any, Optional
 # Import common utilities
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
+from .diagnostics import MarketDataDiagnostics, TriageDiagnostics
 from .get_market_data import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
@@ -57,6 +58,7 @@ def analyze_portfolio(
 
     provider = MarketDataFactory.get_provider()
     market_data = provider.get_market_data(unique_roots)
+    market_data_diagnostics = MarketDataDiagnostics.from_payload(market_data).to_dict()
 
     # Step 3b: Beta Data Hard Gate
     beta_entry = market_data.get(beta_sym, {})
@@ -115,6 +117,7 @@ def analyze_portfolio(
     report: dict[str, Any] = {
         "analysis_time": now.strftime("%Y-%m-%d %H:%M:%S"),
         "market_data_symbols_count": len(unique_roots),
+        "market_data_diagnostics": market_data_diagnostics,
         "triage_actions": [],
         "portfolio_overview": [],
         "portfolio_summary": {
@@ -144,6 +147,7 @@ def analyze_portfolio(
     }
 
     # Populate Triage Actions
+    triage_diagnostics = TriageDiagnostics.create()
     for r in all_position_reports:
         entry = {
             "symbol": r["root"],
@@ -171,6 +175,10 @@ def analyze_portfolio(
         else:
             entry["action_code"] = None
             report["portfolio_overview"].append(entry)
+
+        triage_diagnostics.record_position(r, market_data)
+
+    report["triage_diagnostics"] = triage_diagnostics.to_dict()
 
     # Step 6: Exposure & Concentration Analysis
     unique_roots = list(set(pos.root_symbol for pos in positions if pos.root_symbol))
@@ -313,7 +321,7 @@ def analyze_portfolio(
 
     # Robust Type Handling: Ensure price is a float
     try:
-        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
+        if isinstance(beta_price_raw, (list, tuple)) and beta_price_raw:
             beta_price = float(beta_price_raw[0])
         else:
             beta_price = float(beta_price_raw)
@@ -322,7 +330,8 @@ def analyze_portfolio(
 
     if beta_price > 0:
         # Get Beta (SPY) IV for Expected Move calculation
-        beta_iv = market_data.get(beta_sym, {}).get("iv", 15.0)  # Default to 15% if missing
+        beta_iv_raw = market_data.get(beta_sym, {}).get("iv")
+        beta_iv = float(beta_iv_raw) if isinstance(beta_iv_raw, (int, float)) else 15.0
 
         # 1-Day Expected Move (1SD) = Price * (IV / sqrt(252))
         em_1sd = beta_price * (beta_iv / 100.0 / math.sqrt(252))
@@ -374,8 +383,11 @@ def analyze_portfolio(
                 # FIX: Use 'gamma' (beta-weighted) directly, as 'raw_gamma' is not passed by triage_engine
                 pos_beta_gamma = float(pos_report.get("gamma") or 0.0)
 
-                pos_raw_vega = float(pos_report.get("raw_vega") or 0.0)
-                pos_beta = float(pos_report.get("beta") or 1.0)
+                raw_vega = pos_report.get("raw_vega")
+                pos_raw_vega = float(raw_vega) if isinstance(raw_vega, (int, float)) else 0.0
+
+                beta_val = pos_report.get("beta")
+                pos_beta = float(beta_val) if isinstance(beta_val, (int, float)) else 1.0
 
                 # 1. Delta P/L: Uses beta-weighted delta against the SPY move
                 delta_pl = pos_beta_delta * float(move_points)
@@ -457,7 +469,7 @@ def analyze_portfolio(
     return report
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyze current portfolio positions and generate a triage report."
     )

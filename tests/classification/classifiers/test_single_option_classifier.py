@@ -13,6 +13,7 @@ def test_identifies_long_call():
     assert classifier.can_classify(legs, ctx) is True
     assert classifier.classify(legs, ctx) == "Long Call"
 
+
 def test_identifies_short_put():
     legs = [{"Call/Put": "Put", "Quantity": "-1", "Type": "Option"}]
     ctx = ClassificationContext.from_legs(legs)

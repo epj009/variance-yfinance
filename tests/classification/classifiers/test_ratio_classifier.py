@@ -16,6 +16,7 @@ def test_identifies_ratio_spread():
     assert classifier.can_classify(legs, ctx) is True
     assert classifier.classify(legs, ctx) == "Ratio Spread (Call)"
 
+
 def test_identifies_zebra():
     legs = [
         {"Call/Put": "Call", "Quantity": "2", "Strike Price": "100", "Type": "Option"},

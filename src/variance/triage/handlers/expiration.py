@@ -9,7 +9,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class ExpirationHandler(TriageHandler):
+class ExpirationHandler(TriageHandler[TriageRequest]):
     """Handles logic for day-of-expiration management."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

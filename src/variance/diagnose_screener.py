@@ -1,13 +1,15 @@
 import csv
 import sys
 from collections import defaultdict
+from typing import Any, Optional, cast
 
 from .config_loader import load_config_bundle
+from .diagnostics import ScreenerDiagnostics
 from .get_market_data import MarketDataFactory
 from .vol_screener import _is_illiquid
 
 
-def diagnose_watchlist(limit=None):
+def diagnose_watchlist(limit: Optional[int] = None) -> None:
     """
     Diagnoses the entire watchlist to categorize why symbols are dropped.
     """
@@ -19,7 +21,7 @@ def diagnose_watchlist(limit=None):
     system_config = config_bundle["system_config"]
     watchlist_path = system_config.get("watchlist_path", "watchlists/default-watchlist.csv")
 
-    symbols = []
+    symbols: list[str] = []
     try:
         with open(watchlist_path) as f:
             reader = csv.reader(f)
@@ -35,21 +37,24 @@ def diagnose_watchlist(limit=None):
 
     print(f"1. Fetching Market Data for {len(symbols)} symbols...")
     provider = MarketDataFactory.get_provider()
-    market_data = provider.get_market_data(symbols)
+    market_data = cast(dict[str, dict[str, Any]], provider.get_market_data(symbols))
 
     # Trackers
-    stats = defaultdict(list)
-    recovered = defaultdict(list)
-    passed = []
+    diagnostics = ScreenerDiagnostics.create()
+    stats: defaultdict[str, list[str]] = defaultdict(list)
+    recovered: defaultdict[str, list[str]] = defaultdict(list)
+    passed: list[str] = []
 
     for sym in symbols:
         if sym not in market_data:
             stats["DATA_FETCH_ERROR"].append(sym)
+            diagnostics.incr("market_data_error_count")
             continue
 
         data = market_data[sym]
         if "error" in data:
             stats[f"API_ERROR_{data['error']}"].append(sym)
+            diagnostics.record_market_data_error(data.get("error"))
             continue
 
         # --- Filter Logic (Replicating vol_screener.py) ---
@@ -69,7 +74,7 @@ def diagnose_watchlist(limit=None):
                 ("P", data.get("put_bid"), data.get("put_ask")),
             ]
             for _side, bid, ask in legs:
-                if bid is not None and ask is not None:
+                if isinstance(bid, (int, float)) and isinstance(ask, (int, float)):
                     mid = (bid + ask) / 2
                     if mid > 0:
                         slip = (ask - bid) / mid
@@ -77,9 +82,11 @@ def diagnose_watchlist(limit=None):
                             max_slip = slip
 
             stats["ILLIQUID"].append(f"{sym} (Vol:{vol} | OI:{oi} | Slip:{max_slip:.1%})")
+            diagnostics.incr("illiquid_skipped_count")
             dropped = True
         elif is_implied:
             recovered["IMPLIED_LIQUIDITY"].append(sym)
+            diagnostics.incr("implied_liquidity_count")
 
         # 2. VRP Structural (Bias)
         vrp_s = data.get("vrp_structural")
@@ -87,16 +94,19 @@ def diagnose_watchlist(limit=None):
 
         if vrp_s is None:
             stats["MISSING_METRICS"].append(sym)
+            diagnostics.incr("missing_bias_count")
             dropped = True
-        elif vrp_s <= threshold:
+        elif isinstance(vrp_s, (int, float)) and vrp_s <= threshold:
             stats["LOW_VRP_STRUCTURAL"].append(f"{sym} ({vrp_s:.2f})")
+            diagnostics.incr("low_bias_skipped_count")
             dropped = True
 
         # 3. Low Vol Trap (Absolute)
         hv252 = data.get("hv252")
         hv_floor = rules.get("hv_floor_percent", 5.0)
-        if hv252 is not None and hv252 < hv_floor:
+        if isinstance(hv252, (int, float)) and hv252 < hv_floor:
             stats["LOW_VOL_TRAP"].append(f"{sym} (HV: {hv252:.1f})")
+            diagnostics.incr("low_vol_trap_skipped_count")
             dropped = True
 
         # 4. HV Rank Trap (Relative)
@@ -104,8 +114,14 @@ def diagnose_watchlist(limit=None):
         trap_thresh = rules.get("hv_rank_trap_threshold", 15.0)
         rich_thresh = rules.get("vrp_structural_rich_threshold", 1.0)
 
-        if vrp_s and vrp_s > rich_thresh and hv_rank is not None and hv_rank < trap_thresh:
+        if (
+            isinstance(vrp_s, (int, float))
+            and vrp_s > rich_thresh
+            and isinstance(hv_rank, (int, float))
+            and hv_rank < trap_thresh
+        ):
             stats["HV_RANK_TRAP"].append(f"{sym} (Rank: {hv_rank:.1f})")
+            diagnostics.incr("hv_rank_trap_skipped_count")
             dropped = True
 
         # 5. Data Integrity (Smart Gate)
@@ -114,6 +130,7 @@ def diagnose_watchlist(limit=None):
 
         if warning and warning not in soft_warnings:
             stats["DATA_INTEGRITY"].append(f"{sym}: {warning}")
+            diagnostics.incr("data_integrity_skipped_count")
             dropped = True
         elif warning in soft_warnings:
             recovered["SCALED_IV"].append(sym)
@@ -122,7 +139,7 @@ def diagnose_watchlist(limit=None):
             passed.append(sym)
 
     # --- Phase 4: Deduplicate Passed by Root ---
-    deduplicated_passed = {}
+    deduplicated_passed: dict[str, str] = {}
     for sym in passed:
         from .portfolio_parser import get_root_symbol
 
@@ -159,6 +176,13 @@ def diagnose_watchlist(limit=None):
         display = items[:5] + ["..."] + items[-5:] if len(items) > 10 else items
         for item in display:
             print(f"    - {item}")
+
+    print("\n" + "-" * 40)
+    print("      DIAGNOSTICS SUMMARY")
+    print("-" * 40)
+    for key, value in sorted(diagnostics.to_dict().items()):
+        if value:
+            print(f"  • {key}: {value}")
 
 
 if __name__ == "__main__":

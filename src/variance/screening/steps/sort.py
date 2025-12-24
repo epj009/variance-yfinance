@@ -28,7 +28,7 @@ def sort_and_dedupe(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     final_list = list(deduplicated.values())
 
     # 2. Sort by Signal Quality
-    def _signal_key(c):
+    def _signal_key(c: dict[str, Any]) -> tuple[float, float, int]:
         score = float(c.get("Score", 0.0))
         vtm = float(c.get("VRP_Tactical_Markup", -9.9))
         proxy = c.get("proxy") or c.get("Proxy")

@@ -31,7 +31,7 @@ def test_sector_exclusion_spec():
 
     assert spec.is_satisfied_by({"sector": "Healthcare"}) is True
     assert spec.is_satisfied_by({"sector": "Technology"}) is False
-    assert spec.is_satisfied_by({"sector": "energy"}) is False # Case insensitive
+    assert spec.is_satisfied_by({"sector": "energy"}) is False  # Case insensitive
 
 
 def test_specification_and_operator():

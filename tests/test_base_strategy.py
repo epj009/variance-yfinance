@@ -166,9 +166,7 @@ class TestCheckToxicTheta:
 
     def test_check_toxic_theta_returns_none_for_base(self, default_strategy):
         """Base class should return None for toxic check (not defined)."""
-        cmd = default_strategy.check_toxic_theta(
-            symbol="TEST", metrics={}, market_data={}
-        )
+        cmd = default_strategy.check_toxic_theta(symbol="TEST", metrics={}, market_data={})
 
         assert cmd is None
 

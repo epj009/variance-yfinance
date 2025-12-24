@@ -119,14 +119,6 @@ def load_trading_rules(
     return _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
 
 
-def load_screener_profiles(
-    *, config_dir: Optional[str] = None, strict: Optional[bool] = None
-) -> dict[str, Any]:
-    strict_flag = _resolve_strict(strict)
-    runtime_config = load_runtime_config(config_dir=config_dir, strict=strict_flag)
-    return _extract_section(runtime_config, "screener_profiles", strict=strict_flag)
-
-
 def load_market_config(
     *, config_dir: Optional[str] = None, strict: Optional[bool] = None
 ) -> dict[str, Any]:

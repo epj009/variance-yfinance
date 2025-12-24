@@ -32,6 +32,7 @@ repos:
         name: radon-cc
         entry: radon cc
         language: python
+        additional_dependencies: ["radon"]
         types: [python]
         args: ["--min", "B", "--max", "B", "--show-complexity"]
         description: "Enforce cyclomatic complexity (Max 10 / Grade B)"

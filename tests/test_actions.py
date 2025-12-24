@@ -19,13 +19,16 @@ def test_action_factory_creation():
     assert isinstance(toxic, ToxicCommand)
     assert toxic.action_code == "TOXIC"
 
+
 def test_action_factory_case_insensitivity():
     cmd = ActionFactory.create("harvest", "NVDA", "logic")
     assert isinstance(cmd, HarvestCommand)
 
+
 def test_action_factory_invalid_code():
     assert ActionFactory.create("INVALID_CODE", "X", "Y") is None
     assert ActionFactory.create(None, "X", "Y") is None
+
 
 def test_action_command_serialization():
     cmd = ActionFactory.create("HARVEST", "GLD", "50% reached")
@@ -35,9 +38,10 @@ def test_action_command_serialization():
     assert data["action_code"] == "HARVEST"
     assert data["logic"] == "50% reached"
 
+
 def test_action_command_immutability():
     cmd = ActionFactory.create("HARVEST", "GLD", "logic")
     assert cmd is not None
     with pytest.raises(AttributeError):
         # Frozen dataclass should prevent modification
-        cmd.symbol = "NEW_SYM" # type: ignore
+        cmd.symbol = "NEW_SYM"  # type: ignore

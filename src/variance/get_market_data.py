@@ -2,7 +2,6 @@ import contextlib
 import io
 import json
 import math
-import random
 import sqlite3
 import sys
 import threading
@@ -10,7 +9,7 @@ import time
 from concurrent import futures
 from datetime import datetime
 from datetime import time as pytime
-from typing import Any, Callable, Optional, cast
+from typing import Any, Optional, cast
 
 import numpy as np
 import pytz
@@ -118,7 +117,7 @@ class MarketCache:
         row = cursor.fetchone()
         if row:
             try:
-                return cast(Any, json.loads(str(row[0])))  # type: ignore[no-any-return]
+                return cast(Any, json.loads(str(row[0])))
             except json.JSONDecodeError:
                 return None
         return None
@@ -145,17 +144,6 @@ def get_dynamic_ttl(data_type: str, default: int) -> int:
     return int(TTL.get(data_type, default))
 
 
-def retry_fetch(func: Callable[[], Any], retries: int = 3, backoff: float = 1.0) -> Any:
-    for i in range(retries):
-        try:
-            return func()
-        except Exception as e:
-            if i == retries - 1:
-                raise e
-            time.sleep(backoff * (2**i) + random.uniform(0, 0.5))
-    return None
-
-
 def map_symbol(raw_symbol: str) -> Optional[str]:
     if not raw_symbol:
         return None
@@ -169,10 +157,18 @@ def map_symbol(raw_symbol: str) -> Optional[str]:
 
 
 def is_etf(symbol: str) -> bool:
+    if isinstance(symbol, dict):
+        return False  # Not an ETF if invalid input
     return symbol.upper() in ETF_SYMBOLS
 
 
 def should_skip_earnings(raw_symbol: str, yf_symbol: str) -> bool:
+    # Defensive: Handle case where parameters might be dicts
+    if isinstance(raw_symbol, dict):
+        return True  # Skip earnings for invalid input
+    if isinstance(yf_symbol, dict):
+        return True
+
     upper = raw_symbol.upper()
     if raw_symbol.startswith("/") or yf_symbol.endswith("=F") or yf_symbol.startswith("^"):
         return True
@@ -252,33 +248,7 @@ def calculate_hv(
             "raw_returns": returns.tolist(),  # Store list for JSON serialization
         }
         local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
-        return res  # type: ignore[no-any-return]
-    except Exception:
-        return None
-
-
-def calculate_hv_rank(
-    ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
-) -> Optional[float]:
-    local_cache = cache if cache else globals()["cache"]
-    cache_key = f"hvr_{yf_symbol}"
-    cached = local_cache.get(cache_key)
-    if cached is not None:
-        return cast(float, cached)
-    try:
-        hist = ticker_obj.history(period="1y")
-        if len(hist) < 252:
-            return None
-        returns = np.log(hist["Close"] / hist["Close"].shift(1)).dropna()
-        vols = returns.rolling(window=20).std() * np.sqrt(252) * 100
-        vols = vols.dropna()
-        current = vols.iloc[-1]
-        low, high = vols.min(), vols.max()
-        if high == low:
-            return 0.0
-        rank = float((current - low) / (high - low) * 100)
-        local_cache.set(cache_key, rank, get_dynamic_ttl("hv", 86400))
-        return rank
+        return res
     except Exception:
         return None
 
@@ -319,16 +289,7 @@ def get_current_iv(
         )
 
         if is_zero_bid:
-            # CLINICAL CACHE RESCUE: Attempt to return the last known good IV
-            # We don't want to return an empty dict and break the dashboard.
-            # We check the cache but we don't return immediately, we want to
-            # flag it as stale.
-            if cached:
-                res = cast(dict[str, Any], cached)
-                res["is_stale"] = True
-                res["warning"] = "after_hours_stale"
-                return res
-            return {"error": "after_hours_no_cache"}
+            return {}
 
         calls["dist"] = abs(calls["strike"] - price)
         puts["dist"] = abs(puts["strike"] - price)
@@ -370,7 +331,7 @@ def get_earnings_date(
             ed = cal.loc["Earnings Date"][0]
             if hasattr(ed, "to_pydatetime"):
                 ed = ed.to_pydatetime()
-            val = ed.strftime("%Y-%m-%d")
+            val = str(ed.strftime("%Y-%m-%d"))
             local_cache.set(cache_key, val, TTL.get("earnings", 604800))
             return val
     except Exception:
@@ -386,83 +347,105 @@ def safe_get_sector(
     cache: Optional[MarketCache] = None,
 ) -> str:
     if raw_symbol in SECTOR_OVERRIDES:
-        return SECTOR_OVERRIDES[raw_symbol]
+        return str(SECTOR_OVERRIDES[raw_symbol])
     local_cache = cache if cache else globals()["cache"]
     cache_key = f"sec_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached:
-        return cached
+        return str(cached)
     if skip_api:
         return "Unknown"
     try:
         with contextlib.redirect_stderr(io.StringIO()):
             sec = ticker_obj.info.get("sector", "Unknown")
         local_cache.set(cache_key, sec, TTL.get("sector", 2592000))
-        return sec
+        return str(sec)
     except Exception:
         return "Unknown"
-
-
-def get_proxy_iv_and_hv(symbol: str) -> tuple[Optional[float], Optional[float], Optional[str]]:
-    proxy = FUTURES_PROXY.get(symbol)
-    if not proxy:
-        return None, None, None
-    try:
-        ptype = proxy["type"]
-        if ptype == "vol_index":
-            iv_sym = proxy["iv_symbol"]
-            hist = yf.Ticker(iv_sym).history(period="5d")
-            if not hist.empty:
-                return float(hist["Close"].iloc[-1]), None, f"IV via {iv_sym}"
-        elif ptype == "etf":
-            etf_sym = proxy.get("iv_symbol") or proxy.get("etf_symbol")
-            provider = YFinanceProvider()
-            data = provider.get_market_data([etf_sym]).get(etf_sym, {})
-            return data.get("iv"), data.get("hv252"), f"via {etf_sym}"
-    except Exception:
-        pass
-    return None, None, None
 
 
 def process_single_symbol(
     raw_symbol: str, cache_instance: Optional[MarketCache] = None
 ) -> tuple[str, dict[str, Any]]:
-    local_cache = cache_instance if cache_instance else cache
-    yf_symbol = map_symbol(raw_symbol)
-    if not yf_symbol:
-        return raw_symbol, {"error": "unmapped"}
-    if raw_symbol in SKIP_SYMBOLS:
-        return raw_symbol, {"error": "skipped"}
-    cache_key = f"md_{yf_symbol}"
-    cached = local_cache.get(cache_key)
-    if cached:
-        return raw_symbol, cached
+    """
+    Fetches and processes all metrics for a single ticker.
+    Implements 'Bifurcated Proxy' logic for futures.
+    """
+    local_cache = cache_instance if cache_instance else globals()["cache"]
+
+    # Defensive: Handle case where raw_symbol might be a dict (shouldn't happen)
+    if isinstance(raw_symbol, dict):
+        symbol_str = str(raw_symbol.get("symbol", "UNKNOWN"))
+        return symbol_str, {
+            "error": f"Invalid symbol type: dict with keys {list(raw_symbol.keys())}"
+        }
+
+    cache_key = f"market_data_{raw_symbol}"
+    cached_all = local_cache.get(cache_key)
+    if cached_all is None:
+        cached_all = local_cache.get(f"md_{raw_symbol}")
+    if cached_all:
+        return raw_symbol, cast(dict[str, Any], cached_all)
+
     try:
-        ticker = yf.Ticker(yf_symbol)
-        price_data = get_price(ticker, yf_symbol, cache=local_cache)
+        # 1. Resolve Symbols
+        # yf_symbol is the 'Cleanest' version of the root (e.g. CL=F)
+        # proxy_symbol is the 'Liquid' version for greeks/history (e.g. USO).
+        yf_symbol = SYMBOL_MAP.get(raw_symbol, raw_symbol)
+
+        # For futures, prefer ETF proxy from FAMILY_MAP for clock-aligned math
+        proxy_symbol = None
+        if raw_symbol.startswith("/"):
+            market_config = load_market_config()
+            family_map = market_config.get("FAMILY_MAP", {})
+
+            # Find ETF in same family
+            for _family_name, members in family_map.items():
+                if raw_symbol in members:
+                    for member in members:
+                        if not member.startswith("/") and not member.startswith("^"):
+                            proxy_symbol = member
+                            break
+                    if proxy_symbol:
+                        break
+
+        # If no FAMILY_MAP proxy, fall back to FUTURES_PROXY
+        if not proxy_symbol:
+            proxy_config = FUTURES_PROXY.get(raw_symbol)
+            if isinstance(proxy_config, dict):
+                proxy_symbol = proxy_config.get("iv_symbol")
+            elif isinstance(proxy_config, str):
+                proxy_symbol = proxy_config
+
+        proxy_note = f"via {proxy_symbol}" if proxy_symbol else None
+
+        # We prioritize the proxy for ALL math (IV, HV, Correlation)
+        # to ensure NYSE clock alignment and data liquidity.
+        math_symbol = proxy_symbol if proxy_symbol else yf_symbol
+        math_ticker = yf.Ticker(math_symbol)
+
+        # 2. Fetch Base Price
+        price_data = get_price(math_ticker, math_symbol, cache=local_cache)
         if not price_data:
-            return raw_symbol, {"error": "no_price"}
-        hv_data = calculate_hv(ticker, yf_symbol, cache=local_cache) or {}
-        hv252 = hv_data.get("hv252")
+            return raw_symbol, {"error": "price_unavailable"}
+
+        # 3. Calculate History (HV and Correlation Returns)
+        hv_data = calculate_hv(math_ticker, math_symbol, cache=local_cache)
+        if not hv_data:
+            return raw_symbol, {"error": "history_unavailable"}
+
+        # 4. Fetch Implied Volatility
         iv_data = get_current_iv(
-            ticker, price_data[0], yf_symbol, hv_context=hv252, cache=local_cache
+            math_ticker, price_data[0], math_symbol, hv_data.get("hv20"), cache=local_cache
         )
-        iv = iv_data.get("iv")
-        proxy_note = None
-        if not iv or hv252 is None:
-            p_iv, p_hv, p_note = get_proxy_iv_and_hv(raw_symbol)
-            if p_iv:
-                iv = p_iv
-            if p_hv:
-                hv252 = p_hv
-            proxy_note = p_note
-        if not iv or hv252 is None:
-            return raw_symbol, {"error": "insufficient_data"}
+        if not iv_data:
+            return raw_symbol, {"error": "iv_unavailable"}
+
         # Combine and Cache
         iv = iv_data.get("iv")
         hv252 = hv_data.get("hv252")
 
-        # After-Hours Integrity Force (RFC Fix)
+        # After-Hours Integrity Force
         market_is_open = is_market_open()
 
         res = {
@@ -477,9 +460,15 @@ def process_single_symbol(
             if hv_data.get("hv20")
             else None,
             "sector": safe_get_sector(
-                ticker, raw_symbol, yf_symbol, skip_api=is_etf(raw_symbol), cache=local_cache
+                math_ticker,
+                raw_symbol,
+                math_symbol,
+                skip_api=is_etf(math_symbol),
+                cache=local_cache,
             ),
-            "earnings_date": get_earnings_date(ticker, raw_symbol, yf_symbol, cache=local_cache),
+            "earnings_date": get_earnings_date(
+                math_ticker, raw_symbol, math_symbol, cache=local_cache
+            ),
             "proxy": proxy_note,
         }
         res.update(iv_data)
@@ -491,7 +480,10 @@ def process_single_symbol(
         local_cache.set(cache_key, res, TTL.get("price", 600))
         return raw_symbol, res
     except Exception as e:
-        return raw_symbol, {"error": str(e)}
+        import traceback
+
+        error_trace = traceback.format_exc()
+        return raw_symbol, {"error": str(e), "trace": error_trace[:500]}
 
 
 from .interfaces import IMarketDataProvider, MarketData
@@ -511,7 +503,7 @@ class YFinanceProvider(IMarketDataProvider):
 
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         unique_symbols = list(set(symbols))
-        results: dict[str, dict[str, Any]] = {}
+        results: dict[str, MarketData] = {}
 
         # After-Hours Global Check
         market_is_open = is_market_open()
@@ -528,14 +520,10 @@ class YFinanceProvider(IMarketDataProvider):
                     if not market_is_open and "error" not in data:
                         data["is_stale"] = True
 
-                    results[sym] = data
+                    results[sym] = cast(MarketData, data)
                 except Exception as e:
-                    results[future_to_symbol[future]] = {"error": str(e)}
+                    results[future_to_symbol[future]] = cast(MarketData, {"error": str(e)})
         return results
-
-    def get_current_price(self, symbol: str) -> float:
-        data = self.get_market_data([symbol])
-        return data.get(symbol, {}).get("price", 0.0)
 
 
 class MarketDataFactory:

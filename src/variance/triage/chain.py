@@ -24,7 +24,7 @@ class TriageChain:
 
     def __init__(self, rules: dict[str, Any]):
         self.rules = rules
-        self._head: Optional[TriageHandler] = None
+        self._head: Optional[TriageHandler[TriageRequest]] = None
         self._build_chain()
 
     def _build_chain(self) -> None:

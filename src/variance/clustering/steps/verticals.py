@@ -9,8 +9,8 @@ def pair_verticals(
     leg_infos: list[dict[str, Any]], used_indices: set[int]
 ) -> tuple[list[list[dict[str, Any]]], list[list[dict[str, Any]]]]:
     """Identifies and pairs remaining legs into vertical spreads."""
-    call_verticals = []
-    put_verticals = []
+    call_verticals: list[list[dict[str, Any]]] = []
+    put_verticals: list[list[dict[str, Any]]] = []
 
     available = [li for li in leg_infos if li["idx"] not in used_indices]
 
@@ -21,8 +21,10 @@ def pair_verticals(
     long_puts = [li for li in available if li["side"] == "Put" and li["qty"] > 0]
 
     # Helper to pair by strike proximity
-    def _pair(shorts, longs):
-        paired = []
+    def _pair(
+        shorts: list[dict[str, Any]], longs: list[dict[str, Any]]
+    ) -> list[list[dict[str, Any]]]:
+        paired: list[list[dict[str, Any]]] = []
         s_idx = 0
         while s_idx < len(shorts):
             s_li = shorts[s_idx]

@@ -29,38 +29,41 @@ VARIANCE_THEME = Theme(
 
 
 class TUIRenderer:
-    def __init__(self, data: dict[str, Any]):
+    def __init__(self, data: dict[str, Any], *, show_diagnostics: bool = False):
         self.data = data
         self.console = Console(theme=VARIANCE_THEME)
         self.portfolio_summary = self.data.get("portfolio_summary", {})
+        self.show_diagnostics = show_diagnostics
 
     def render(self) -> None:
         """Main entry point for TUI rendering."""
         self.render_integrity_banner()
         self.render_header()
+        if self.show_diagnostics:
+            self.render_diagnostics()
         self.render_triage()
         self.render_opportunities()
 
     def render_integrity_banner(self) -> None:
         """Renders a high-visibility warning if data is stale or after-hours."""
-        # Check staleness across all market data (RFC 020 fix)
-        market_data = self.data.get("market_data", {})
-        stale_symbols = [s for s in market_data if market_data[s].get("is_stale")]
-
-        if not stale_symbols:
-            return
-
         from variance.get_market_data import is_market_open
 
         market_closed = not is_market_open()
 
-        msg = "AFTER-HOURS MODE" if market_closed else "DATA INTEGRITY WARNING"
-        details = f"{len(stale_symbols)} symbols rescued from cache"
+        if not market_closed:
+            return
+
+        details = (
+            "Quotes may be stale and options IV may be unavailable.\n"
+            "For full coverage, run during market hours."
+        )
 
         banner = Panel(
-            Text.assemble((f" ⚠️  {msg}: ", "bold yellow"), (details, "dim")),
+            Text(details, style="dim"),
+            title="[bold yellow]⚠️  AFTER-HOURS MODE ⚠️[/bold yellow]",
+            title_align="center",
             border_style="yellow",
-            box=box.HORIZONTALS,
+            box=box.ROUNDED,
             expand=False,
         )
         self.console.print(banner)
@@ -277,105 +280,46 @@ class TUIRenderer:
 
         node.add(detail_text)
 
-    def render_spectrograph(self) -> None:
-        deltas = self.data.get("delta_spectrograph", [])
-        if not deltas:
-            return
-
-        table = Table(
-            title="\n[header]📊 DELTA SPECTROGRAPH (Portfolio Drag)[/header]\n[dim]Visualizing position contribution to Beta-Weighted Delta[/dim]",
-            box=box.SIMPLE,
-            title_justify="left",
-            show_header=False,
-            expand=False,
-            padding=(0, 2),
-        )
-        table.add_column("Rank", width=4, justify="right")
-        table.add_column("Symbol", width=10, style="neutral")
-        table.add_column("Bar", width=35)
-        table.add_column("Delta", width=14, justify="right")
-
-        max_val = max([abs(d.get("delta", 0.0)) for d in deltas]) if deltas else 1.0
-        if max_val == 0:
-            max_val = 1.0
-
-        for rank, item in enumerate(deltas[:10], start=1):
-            delta = item.get("delta", 0.0)
-            # Use fixed max bar length for functional visualization
-            bar_len = int((abs(delta) / max_val) * 30)
-            bar_style = "profit" if delta >= 0 else "loss"
-            bar = Text("┃" * bar_len, style=bar_style)
-
-            table.add_row(str(rank), item.get("symbol", ""), bar, f"{delta:+.2f} Δ")
-
-        self.console.print(table)
-
-    def render_composition(self) -> None:
-        """Renders Asset Class and Sector breakdown side-by-side"""
-        asset_mix = self.data.get("asset_mix", [])
-        sector_balance = self.data.get("sector_balance", [])
-
-        if not asset_mix and not sector_balance:
-            return
-
-        # Main Layout: 2 Columns - Tighten horizontal padding
-        grid = Table.grid(padding=(0, 2), expand=False)
-        grid.add_column()
-        grid.add_column()
-
-        # Helper to build inner tables
-        def build_sub_table(title: str, items: list[dict[str, Any]], label_key: str) -> Table:
-            t = Table(
-                title=title,
-                title_style="bold white",
-                title_justify="left",
-                box=box.SIMPLE,
-                show_header=False,
-                padding=(0, 1),
-                collapse_padding=True,
-            )
-            # Shrink label width to 18
-            t.add_column("Label", style="dim cyan", width=18)
-            t.add_column("Bar", width=6)
-            t.add_column("Pct", justify="right", style="bold white", width=5)
-
-            # Sort and slice
-            sorted_items = sorted(items, key=lambda x: x.get("percentage", 0), reverse=True)
-
-            for item in sorted_items[:6]:
-                label = item.get(label_key, "Unknown")
-                pct = item.get("percentage", 0.0)
-
-                # Bar - Slightly smaller
-                filled = int(pct * 6)
-                bar_str = "━" * filled
-                bar = Text(bar_str, style="blue")
-
-                t.add_row(label, bar, f"{pct:.0%}")
-            return t
-
-        asset_table = build_sub_table("Asset Allocation", asset_mix, "asset_class")
-        sector_table = build_sub_table("Sector Concentration", sector_balance, "sector")
-
-        grid.add_row(asset_table, sector_table)
-
-        panel = Panel(
-            grid,
-            title="[header]📊 EXPOSURE ANALYSIS[/header]",
-            border_style="dim",
-            box=box.ROUNDED,
-            expand=False,
-        )
-
-        self.console.print(panel)
-
     def render_opportunities(self) -> None:
         """Renders top vol screener opportunities using Rich Table"""
         opportunities = self.data.get("opportunities", {})
         candidates = opportunities.get("candidates", [])
         meta = opportunities.get("meta", {})
+        summary = opportunities.get("summary", {})
 
         if not candidates:
+            if not summary:
+                return
+
+            self.console.print("\n[header]🔍 VOL SCREENER OPPORTUNITIES[/header]")
+            self.console.print("   [dim]No candidates available for this scan[/dim]")
+
+            scanned = summary.get("scanned_symbols_count", 0)
+            if scanned:
+                self.console.print(f"   [dim]Scanned {scanned} symbols[/dim]")
+
+            excluded_count = meta.get("excluded_count", 0)
+            if excluded_count > 0:
+                excluded = meta.get("excluded_symbols", [])
+                self.console.print(
+                    f"   [warning]⚠️  {excluded_count} concentrated position(s) excluded: {', '.join(excluded[:3])}[/warning]"
+                )
+
+            drop_reasons = [
+                ("missing IV", summary.get("iv_unavailable_count", 0)),
+                ("illiquid", summary.get("illiquid_skipped_count", 0)),
+                ("low bias", summary.get("low_bias_skipped_count", 0)),
+                ("missing tactical VRP", summary.get("tactical_skipped_count", 0)),
+                ("market data errors", summary.get("market_data_error_count", 0)),
+                ("low vol trap", summary.get("low_vol_trap_skipped_count", 0)),
+                ("data integrity", summary.get("data_integrity_skipped_count", 0)),
+            ]
+            drop_reasons = [r for r in drop_reasons if r[1]]
+            drop_reasons.sort(key=lambda x: x[1], reverse=True)
+            if drop_reasons:
+                top = ", ".join(f"{label}: {count}" for label, count in drop_reasons[:3])
+                self.console.print(f"   [dim]Top filters: {top}[/dim]")
+
             return
 
         self.console.print("\n[header]🔍 VOL SCREENER OPPORTUNITIES[/header]")
@@ -390,9 +334,11 @@ class TUIRenderer:
             )
 
         # Show Illiquid & Implied Info
-        summary = self.data.get("opportunities", {}).get("summary", {})
         illiquid_count = summary.get("illiquid_skipped_count", 0)
         implied_count = summary.get("implied_liquidity_count", 0)
+        correlation_skips = summary.get("correlation_skipped_count", 0)
+        tactical_skips = summary.get("tactical_skipped_count", 0)
+        correlation_max = summary.get("correlation_max")
 
         if illiquid_count > 0 or implied_count > 0:
             liq_text = Text("   ", style="dim")
@@ -404,27 +350,40 @@ class TUIRenderer:
                 )
             self.console.print(liq_text)
 
+        if correlation_skips > 0:
+            corr_note = ""
+            if isinstance(correlation_max, (int, float)):
+                corr_note = f" (ρ>{correlation_max:.2f})"
+            self.console.print(
+                f"   [dim]🔗 {correlation_skips} high correlation excluded{corr_note}[/dim]"
+            )
+
+        if tactical_skips > 0:
+            self.console.print(f"   [dim]🧮 {tactical_skips} missing tactical VRP excluded[/dim]")
+
         # Check for Data Integrity Skips (Strict Mode)
-        summary = self.data.get("opportunities", {}).get("summary", {})
         integrity_skips = summary.get("data_integrity_skipped_count", 0)
         lean_skips = summary.get("lean_data_skipped_count", 0)
         anomalous_skips = summary.get("anomalous_data_skipped_count", 0)
-        correlation_skips = summary.get("correlation_skipped_count", 0)
 
-        total_hidden = integrity_skips + lean_skips + anomalous_skips + correlation_skips
+        total_hidden = (
+            integrity_skips + lean_skips + anomalous_skips + correlation_skips + tactical_skips
+        )
         if total_hidden > 0:
-            reasons = []
+            filter_reasons: list[str] = []
             if integrity_skips:
-                reasons.append(f"{integrity_skips} bad data")
+                filter_reasons.append(f"{integrity_skips} bad data")
             if lean_skips:
-                reasons.append(f"{lean_skips} lean data")
+                filter_reasons.append(f"{lean_skips} lean data")
             if anomalous_skips:
-                reasons.append(f"{anomalous_skips} anomalies")
+                filter_reasons.append(f"{anomalous_skips} anomalies")
             if correlation_skips:
-                reasons.append(f"{correlation_skips} high correlation")
+                filter_reasons.append(f"{correlation_skips} high correlation")
+            if tactical_skips:
+                filter_reasons.append(f"{tactical_skips} missing tactical VRP")
 
             self.console.print(
-                f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]"
+                f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(filter_reasons)}[/dim]"
             )
 
         table = Table(
@@ -453,11 +412,14 @@ class TUIRenderer:
             rho_str = f"{rho:.2f}" if rho is not None else "N/A"
             rho_style = "profit" if (rho or 0) < 0.4 else "warning" if (rho or 0) < 0.65 else "loss"
 
+            vtm = c.get("vrp_tactical_markup")
+            vtm_str = f"{vtm:+.0%}" if isinstance(vtm, (int, float)) else "N/A"
+
             table.add_row(
                 c.get("symbol", "N/A"),
                 fmt_currency(c.get("price", 0)),
                 f"{c.get('vrp_structural', 0):.2f}",
-                f"{c.get('vrp_tactical_markup', 0):+.0%}",
+                vtm_str,
                 f"[{sig_style}]{sig}[/]",
                 f"{c.get('Score', 0):.1f}",
                 f"[{rho_style}]{rho_str}[/]",
@@ -468,6 +430,94 @@ class TUIRenderer:
         self.console.print(
             "   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]"
         )
+
+    def render_diagnostics(self) -> None:
+        """Renders diagnostics panels for pipeline visibility."""
+        panels = []
+
+        market_diag = self.data.get("market_data_diagnostics", {})
+        if market_diag:
+            items = [
+                ("Symbols", market_diag.get("symbols_total", 0)),
+                ("Stale", market_diag.get("stale_count", 0)),
+                ("Errors", market_diag.get("market_data_error_count", 0)),
+                ("Missing IV", market_diag.get("iv_unavailable_count", 0)),
+                ("Missing Hist", market_diag.get("history_unavailable_count", 0)),
+                ("Missing Price", market_diag.get("price_unavailable_count", 0)),
+                ("Unknown", market_diag.get("unknown_error_count", 0)),
+            ]
+            panels.append(self._build_diag_panel("MARKET DATA", items))
+
+        triage_diag = self.data.get("triage_diagnostics", {})
+        if triage_diag:
+            items = [
+                ("Positions", triage_diag.get("positions_total", 0)),
+                ("Tagged", triage_diag.get("positions_with_tags", 0)),
+                ("Stale", triage_diag.get("positions_stale", 0)),
+                ("Missing Data", triage_diag.get("missing_market_data_count", 0)),
+                ("Missing VRP T", triage_diag.get("missing_vrp_tactical_count", 0)),
+                ("Missing VRP S", triage_diag.get("missing_vrp_structural_count", 0)),
+            ]
+
+            tag_items = [
+                (k.replace("tag_", "").upper(), v)
+                for k, v in triage_diag.items()
+                if k.startswith("tag_") and v
+            ]
+            tag_items.sort(key=lambda x: x[1], reverse=True)
+            for tag, count in tag_items[:4]:
+                items.append((f"Tag {tag}", count))
+
+            panels.append(self._build_diag_panel("TRIAGE", items))
+
+        opportunities = self.data.get("opportunities", {})
+        summary = opportunities.get("summary", {})
+        if summary:
+            items = [
+                ("Scanned", summary.get("scanned_symbols_count", 0)),
+                ("Candidates", summary.get("candidates_count", 0)),
+                ("Low Bias", summary.get("low_bias_skipped_count", 0)),
+                ("Missing Bias", summary.get("missing_bias_count", 0)),
+                ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
+                ("Illiquid", summary.get("illiquid_skipped_count", 0)),
+                ("High Corr", summary.get("correlation_skipped_count", 0)),
+                ("Data Errors", summary.get("market_data_error_count", 0)),
+            ]
+
+            fetch_diag = opportunities.get("meta", {}).get("market_data_diagnostics", {})
+            if fetch_diag:
+                items.append(("Fetch Errors", fetch_diag.get("symbols_with_errors", 0)))
+                items.append(("Fetch Stale", fetch_diag.get("stale_count", 0)))
+
+            panels.append(self._build_diag_panel("SCREENER", items))
+
+        if not panels:
+            return
+
+        grid = Table.grid(padding=(0, 2))
+        grid.add_column()
+        grid.add_column()
+
+        row = []
+        for panel in panels:
+            row.append(panel)
+            if len(row) == 2:
+                grid.add_row(*row)
+                row = []
+
+        if row:
+            grid.add_row(row[0], "")
+
+        self.console.print("\n[header]DIAGNOSTICS[/header]")
+        self.console.print(grid)
+
+    def _build_diag_panel(self, title: str, items: list[tuple[str, Any]]) -> Panel:
+        grid = Table.grid(padding=(0, 1))
+        grid.add_column(justify="left")
+        grid.add_column(justify="right")
+        for label, value in items:
+            grid.add_row(str(label), str(value))
+        return Panel(grid, title=f"[header]{title}[/header]", border_style="blue", box=box.ROUNDED)
 
 
 # --- Formatting Helpers ---
@@ -488,6 +538,13 @@ def fmt_percent(val: Optional[float]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Variance Rich TUI Renderer")
     parser.add_argument("input_file", nargs="?", help="Input JSON file path")
+    parser.add_argument(
+        "--debug",
+        "--diag",
+        action="store_true",
+        dest="show_diagnostics",
+        help="Show diagnostics panels",
+    )
     args = parser.parse_args()
 
     data = {}
@@ -500,7 +557,7 @@ def main() -> None:
     if not data:
         return
 
-    renderer = TUIRenderer(data)
+    renderer = TUIRenderer(data, show_diagnostics=args.show_diagnostics)
     renderer.render()
 
 

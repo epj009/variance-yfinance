@@ -7,9 +7,14 @@ from typing import Any
 
 
 def build_report(
-    candidates: list[dict[str, Any]], counters: dict[str, int], config: Any, rules: dict[str, Any]
+    candidates: list[dict[str, Any]],
+    counters: dict[str, int],
+    config: Any,
+    rules: dict[str, Any],
+    market_data_diagnostics: dict[str, int],
 ) -> dict[str, Any]:
     """Constructs the final serialized report."""
+    from variance.common import map_sector_to_asset_class
 
     # 1. Final Summary Formatting
     structural_threshold = float(rules.get("vrp_structural_threshold", 0.85))
@@ -31,15 +36,30 @@ def build_report(
         + sum(v for k, v in counters.items() if "skipped" in k),
         "candidates_count": len(candidates),
         "filter_note": f"{bias_note}; {liquidity_note}",
+        "correlation_max": float(rules.get("max_portfolio_correlation", 0.95)),
         "correlation_skipped_count": counters.get("correlation_skipped_count", 0),
         **counters,
     }
 
+    held_symbols = set(s.upper() for s in config.held_symbols)
+    display_candidates = []
+    for candidate in candidates:
+        display = dict(candidate)
+        display["Symbol"] = candidate.get("symbol")
+        display["Price"] = candidate.get("price", 0.0)
+        asset_class = candidate.get("asset_class") or map_sector_to_asset_class(
+            str(candidate.get("sector", "Unknown"))
+        )
+        display["Asset Class"] = asset_class
+        display["is_held"] = str(candidate.get("symbol", "")).upper() in held_symbols
+        display_candidates.append(display)
+
     return {
-        "candidates": candidates,
+        "candidates": display_candidates,
         "summary": summary,
         "meta": {
             "scan_timestamp": datetime.now().isoformat(),
             "profile": getattr(config, "profile", "default"),
+            "market_data_diagnostics": market_data_diagnostics,
         },
     }

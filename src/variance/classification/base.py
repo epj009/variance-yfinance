@@ -46,7 +46,7 @@ class ClassificationContext:
         stock_legs = [leg for leg in legs if is_stock_type(leg.get("Type", ""))]
         option_legs = [leg for leg in legs if not is_stock_type(leg.get("Type", ""))]
 
-        def _get_side(leg):
+        def _get_side(leg: dict[str, Any]) -> str:
             s = str(leg.get("Call/Put", "")).strip().upper()
             if s in ["CALL", "C"]:
                 return "Call"
@@ -54,10 +54,10 @@ class ClassificationContext:
                 return "Put"
             return ""
 
-        def _get_qty(leg):
+        def _get_qty(leg: dict[str, Any]) -> float:
             return float(parse_currency(leg.get("Quantity", "0")))
 
-        def _get_strike(leg):
+        def _get_strike(leg: dict[str, Any]) -> float:
             return float(parse_currency(leg.get("Strike Price", "0")))
 
         call_legs = [leg for leg in option_legs if _get_side(leg) == "Call"]

@@ -29,17 +29,3 @@ class ScoreEnrichmentStrategy(EnrichmentStrategy):
         from variance.vol_screener import _calculate_variance_score
 
         candidate["Score"] = _calculate_variance_score(candidate, rules)
-
-        # 3. TUI Mapping
-        candidate["Symbol"] = candidate.get("symbol")
-        candidate["Price"] = candidate.get("price", 0.0)
-
-        from variance.common import map_sector_to_asset_class
-
-        candidate["Asset Class"] = map_sector_to_asset_class(
-            str(candidate.get("sector", "Unknown"))
-        )
-
-        # 4. Held Status
-        held_symbols = set(s.upper() for s in ctx.config.held_symbols)
-        candidate["is_held"] = str(candidate.get("symbol", "")).upper() in held_symbols

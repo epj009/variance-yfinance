@@ -4,6 +4,7 @@ from typing import Optional, Protocol, TypedDict
 class MarketData(TypedDict, total=False):
     """Standardized Market Data Model"""
 
+    error: Optional[str]
     price: float
     iv: Optional[float]
     iv_rank: Optional[float]
@@ -34,8 +35,4 @@ class IMarketDataProvider(Protocol):
         Returns:
             Dictionary mapping symbols to their MarketData
         """
-        ...
-
-    def get_current_price(self, symbol: str) -> float:
-        """Get real-time price for a single symbol."""
         ...

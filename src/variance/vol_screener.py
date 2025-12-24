@@ -317,7 +317,7 @@ def screen_volatility(
     return pipeline.execute()
 
 
-def main():
+def main() -> None:
     warn_if_not_venv()
 
     parser = argparse.ArgumentParser(description="Screen for high volatility opportunities.")

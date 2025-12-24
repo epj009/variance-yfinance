@@ -50,6 +50,15 @@ class TriageRequest:
     # Strategy Object (for delegation)
     strategy_obj: Any  # BaseStrategy instance
 
+    # Strategy Metrics (for downstream checks)
+    cluster_theta_raw: float = 0.0
+    cluster_gamma_raw: float = 0.0
+    hv20: Optional[float] = None
+    hv252: Optional[float] = None
+    beta_symbol: Optional[str] = None
+    beta_price: Optional[float] = None
+    beta_iv: Optional[float] = None
+
     # Multi-Tag System (collector pattern)
     tags: tuple[TriageTag, ...] = ()
 

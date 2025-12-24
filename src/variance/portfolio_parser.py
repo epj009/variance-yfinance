@@ -8,32 +8,7 @@ Extracted from analyze_portfolio.py to improve maintainability.
 import csv
 import re
 import sys
-from typing import Optional, TypedDict
-
-
-class NormalizedPosition(TypedDict, total=False):
-    """Type definition for a normalized position row."""
-
-    Symbol: str
-    Type: str
-    Quantity: str
-    Exp_Date: str
-    DTE: str
-    Strike_Price: str
-    Call_Put: str
-    Underlying_Last_Price: str
-    PL_Open: str
-    Cost: str
-    IV_Rank: str
-    beta_delta: str
-    Delta: str
-    Theta: str
-    Gamma: str
-    beta_gamma: str
-    Vega: str
-    Bid: str
-    Ask: str
-    Mark: str
+from typing import Optional
 
 
 class PortfolioParser:

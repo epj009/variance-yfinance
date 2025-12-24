@@ -9,7 +9,13 @@ from variance.classification.classifiers.covered import CoveredClassifier
 def test_identifies_covered_call():
     legs = [
         {"Symbol": "AAPL", "Type": "Stock", "Quantity": "100"},
-        {"Symbol": "AAPL", "Type": "Option", "Call/Put": "Call", "Quantity": "-1", "Strike Price": "160"}
+        {
+            "Symbol": "AAPL",
+            "Type": "Option",
+            "Call/Put": "Call",
+            "Quantity": "-1",
+            "Strike Price": "160",
+        },
     ]
     ctx = ClassificationContext.from_legs(legs)
     classifier = CoveredClassifier()

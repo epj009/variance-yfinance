@@ -9,7 +9,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class GammaHandler(TriageHandler):
+class GammaHandler(TriageHandler[TriageRequest]):
     """Handles alerts for low-DTE positions not currently under pressure."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

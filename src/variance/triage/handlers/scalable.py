@@ -9,7 +9,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class ScalableHandler(TriageHandler):
+class ScalableHandler(TriageHandler[TriageRequest]):
     """Handles detection of VRP momentum surges."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

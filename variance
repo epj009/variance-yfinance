@@ -5,8 +5,10 @@
 #   ./variance          # Default: Hybrid Mode (TUI + Interactive Strategy)
 #   ./variance --tui    # TUI Only (Fast, Deterministic)
 #   ./variance --chat   # Chat Only (No pre-analysis)
+#   ./variance --debug  # Show diagnostics panels in the TUI
 
 MODE="hybrid"
+SHOW_DIAGNOSTICS=0
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -27,10 +29,15 @@ while [[ $# -gt 0 ]]; do
             MODE="hybrid"
             shift
             ;;
+        --debug|--diag)
+            SHOW_DIAGNOSTICS=1
+            shift
+            ;;
         -h|--help)
             echo "Usage: ./variance [options]"
             echo "Options:"
             echo "  --tui     Run Python TUI dashboard only (fast)"
+            echo "  --debug   Show diagnostics panels"
             echo "  --chat    Run Gemini chat only (no pre-analysis)"
             echo "  --hybrid  Run TUI then start interactive Gemini strategy session (default)"
             exit 0
@@ -113,13 +120,21 @@ case "$MODE" in
         : > "$LOG_FILE"
 
         # Run analysis pipe directly in background for spinner
-        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
+        ANALYSIS_ARGS=("$LATEST_CSV")
+        if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+            ANALYSIS_ARGS+=("--diag")
+        fi
+        (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
         echo "" >&2
         
         if wait_for_json "$JSON_FILE"; then
-            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+            TUI_ARGS=("$JSON_FILE")
+            if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+                TUI_ARGS+=("--diag")
+            fi
+            ./venv/bin/python3 scripts/tui_renderer.py "${TUI_ARGS[@]}"
         else
             echo "Error: Analysis JSON not ready or invalid." >&2
             if [ -s "$LOG_FILE" ]; then
@@ -145,13 +160,21 @@ case "$MODE" in
         : > "$LOG_FILE" # Clear log
 
         # Run analysis on showcase file
-        (./venv/bin/python3 scripts/analyze_portfolio.py "$DEMO_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
+        ANALYSIS_ARGS=("$DEMO_CSV")
+        if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+            ANALYSIS_ARGS+=("--diag")
+        fi
+        (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
         echo "" >&2
         
         if wait_for_json "$JSON_FILE"; then
-            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE"
+            TUI_ARGS=("$JSON_FILE")
+            if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+                TUI_ARGS+=("--diag")
+            fi
+            ./venv/bin/python3 scripts/tui_renderer.py "${TUI_ARGS[@]}"
         else
             echo "Error: Analysis JSON not ready or invalid." >&2
             if [ -s "$LOG_FILE" ]; then
@@ -176,7 +199,11 @@ case "$MODE" in
         : > "$LOG_FILE"
 
         # 1. Generate Data in background
-        (./venv/bin/python3 scripts/analyze_portfolio.py "$LATEST_CSV" > "$JSON_FILE" 2> "$LOG_FILE") &
+        ANALYSIS_ARGS=("$LATEST_CSV")
+        if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+            ANALYSIS_ARGS+=("--diag")
+        fi
+        (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
 
@@ -185,7 +212,11 @@ case "$MODE" in
         echo " PORTFOLIO DASHBOARD" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         if wait_for_json "$JSON_FILE"; then
-            ./venv/bin/python3 scripts/tui_renderer.py "$JSON_FILE" | tee "$TUI_FILE"
+            TUI_ARGS=("$JSON_FILE")
+            if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
+                TUI_ARGS+=("--diag")
+            fi
+            ./venv/bin/python3 scripts/tui_renderer.py "${TUI_ARGS[@]}" | tee "$TUI_FILE"
         else
             echo "Error: Analysis JSON not ready or invalid." >&2
             if [ -s "$LOG_FILE" ]; then

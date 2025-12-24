@@ -9,7 +9,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class DefenseHandler(TriageHandler):
+class DefenseHandler(TriageHandler[TriageRequest]):
     """Handles logic for defending tested/breached positions."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

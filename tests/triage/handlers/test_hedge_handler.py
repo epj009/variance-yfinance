@@ -25,16 +25,26 @@ class TestHedgeHandler:
 
     def test_adds_hedge_check_on_dead_money(self, handler):
         request = TriageRequest(
-            root="SPY", strategy_name="Long Put", strategy_id="lp",
-            dte=45, net_pl=0, net_cost=1000.0,
-            strategy_delta=-10.0, # Negative delta
-            strategy_gamma=0, pl_pct=0.05, # Within dead money
-            days_held=10, price=450.0, legs=(),
-            vrp_structural=0.5, # Low VRP
-            vrp_tactical=0.5, is_stale=False,
-            sector="Index", # Required
-            earnings_date=None, portfolio_beta_delta=0,
-            net_liquidity=50000, strategy_obj=Mock()
+            root="SPY",
+            strategy_name="Long Put",
+            strategy_id="lp",
+            dte=45,
+            net_pl=0,
+            net_cost=1000.0,
+            strategy_delta=-10.0,  # Negative delta
+            strategy_gamma=0,
+            pl_pct=0.05,  # Within dead money
+            days_held=10,
+            price=450.0,
+            legs=(),
+            vrp_structural=0.5,  # Low VRP
+            vrp_tactical=0.5,
+            is_stale=False,
+            sector="Index",  # Required
+            earnings_date=None,
+            portfolio_beta_delta=0,
+            net_liquidity=50000,
+            strategy_obj=Mock(),
         )
         result = handler.handle(request)
         tags = [t for t in result.tags if t.tag_type == "HEDGE_CHECK"]
@@ -42,14 +52,26 @@ class TestHedgeHandler:
 
     def test_skips_if_profitable(self, handler):
         request = TriageRequest(
-            root="SPY", strategy_name="Long Put", strategy_id="lp",
-            dte=45, net_pl=500, net_cost=1000.0,
+            root="SPY",
+            strategy_name="Long Put",
+            strategy_id="lp",
+            dte=45,
+            net_pl=500,
+            net_cost=1000.0,
             strategy_delta=-10.0,
-            strategy_gamma=0, pl_pct=0.50, # Outside dead money
-            days_held=10, price=450.0, legs=(),
-            vrp_structural=0.5, vrp_tactical=0.5, is_stale=False,
-            sector="Index", earnings_date=None, portfolio_beta_delta=0,
-            net_liquidity=50000, strategy_obj=Mock()
+            strategy_gamma=0,
+            pl_pct=0.50,  # Outside dead money
+            days_held=10,
+            price=450.0,
+            legs=(),
+            vrp_structural=0.5,
+            vrp_tactical=0.5,
+            is_stale=False,
+            sector="Index",
+            earnings_date=None,
+            portfolio_beta_delta=0,
+            net_liquidity=50000,
+            strategy_obj=Mock(),
         )
         result = handler.handle(request)
         assert len(result.tags) == 0

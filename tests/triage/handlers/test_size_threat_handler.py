@@ -12,13 +12,26 @@ def test_adds_size_threat_on_tail_risk():
 
     # $600 loss on $5000 liquidity = 12% (> 5%)
     request = TriageRequest(
-        root="AAPL", strategy_name="Strangle", strategy_id="ss",
-        dte=30, net_pl=-600.0, net_cost=-1000.0,
-        strategy_delta=0, strategy_gamma=0, pl_pct=-0.60,
-        days_held=10, price=150.0, legs=(),
-        vrp_structural=1.0, vrp_tactical=1.0, is_stale=False,
-        sector="Tech", earnings_date=None, portfolio_beta_delta=0,
-        net_liquidity=5000, strategy_obj=None
+        root="AAPL",
+        strategy_name="Strangle",
+        strategy_id="ss",
+        dte=30,
+        net_pl=-600.0,
+        net_cost=-1000.0,
+        strategy_delta=0,
+        strategy_gamma=0,
+        pl_pct=-0.60,
+        days_held=10,
+        price=150.0,
+        legs=(),
+        vrp_structural=1.0,
+        vrp_tactical=1.0,
+        is_stale=False,
+        sector="Tech",
+        earnings_date=None,
+        portfolio_beta_delta=0,
+        net_liquidity=5000,
+        strategy_obj=None,
     )
 
     result = handler.handle(request)

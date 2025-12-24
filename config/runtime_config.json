@@ -183,6 +183,30 @@
         "VIX",
         "UVXY",
         "VXX"
+      ],
+      "EURO": [
+        "/6E",
+        "FXE"
+      ],
+      "POUND": [
+        "/6B",
+        "FXB"
+      ],
+      "YEN": [
+        "/6J",
+        "FXY"
+      ],
+      "AUD": [
+        "/6A",
+        "FXA"
+      ],
+      "CAD": [
+        "/6C",
+        "FXC"
+      ],
+      "COPPER": [
+        "/HG",
+        "CPER"
       ]
     },
     "SECTOR_OVERRIDES": {

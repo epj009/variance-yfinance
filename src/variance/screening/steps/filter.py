@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from variance.diagnostics import ScreenerDiagnostics
 from variance.models.market_specs import (
     CorrelationSpec,
     DataIntegritySpec,
@@ -13,6 +14,7 @@ from variance.models.market_specs import (
     LowVolTrapSpec,
     SectorExclusionSpec,
     VrpStructuralSpec,
+    VrpTacticalSpec,
 )
 from variance.models.specs import Specification
 
@@ -27,15 +29,7 @@ def apply_specifications(
     """Applies composable filters to the candidate pool."""
 
     # 1. Setup Counters
-    counters = {
-        "low_bias_skipped_count": 0,
-        "missing_bias_count": 0,
-        "sector_skipped_count": 0,
-        "illiquid_skipped_count": 0,
-        "data_integrity_skipped_count": 0,
-        "correlation_skipped_count": 0,
-        "bats_efficiency_zone_count": 0,
-    }
+    diagnostics = ScreenerDiagnostics.create()
 
     # 2. Compose Specs
     structural_threshold = float(
@@ -46,11 +40,14 @@ def apply_specifications(
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
 
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
+    corr_spec = None
 
     show_all = config.min_vrp_structural is not None and config.min_vrp_structural <= 0
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
+
+    tactical_spec = VrpTacticalSpec(hv_floor_absolute)
 
     if config.exclude_sectors:
         main_spec &= SectorExclusionSpec(config.exclude_sectors)
@@ -63,21 +60,38 @@ def apply_specifications(
 
     # 4. Correlation Guard (RFC 013)
     if portfolio_returns is not None and not show_all:
-        max_corr = float(rules.get("max_portfolio_correlation", 0.70))
-        main_spec &= CorrelationSpec(portfolio_returns, max_corr)
+        max_corr = float(rules.get("max_portfolio_correlation", 0.95))
+        corr_spec = CorrelationSpec(portfolio_returns, max_corr, raw_data)
 
     # 3. Apply Gate
     candidates = []
     held_roots = set(str(s).upper() for s in getattr(config, "held_symbols", []))
     scalable_markup_threshold = float(rules.get("scalable_vrp_markup_threshold", 0.50))
+    include_assets = [s.lower() for s in getattr(config, "include_asset_classes", [])]
+    exclude_assets = [s.lower() for s in getattr(config, "exclude_asset_classes", [])]
 
     for sym, metrics in raw_data.items():
-        if "error" in metrics:
+        error = metrics.get("error")
+        if error:
+            diagnostics.record_market_data_error(error)
             continue
 
         # Normalize keys to lowercase for internal consistency
         metrics_dict = {str(k).lower(): v for k, v in metrics.items()}
         metrics_dict["symbol"] = sym
+
+        # --- ASSET CLASS FILTER ---
+        from variance.common import map_sector_to_asset_class
+
+        asset_class = map_sector_to_asset_class(str(metrics_dict.get("sector", "Unknown")))
+        metrics_dict["asset_class"] = asset_class
+
+        if include_assets and asset_class.lower() not in include_assets:
+            diagnostics.incr("asset_class_skipped_count")
+            continue
+        if exclude_assets and asset_class.lower() in exclude_assets:
+            diagnostics.incr("asset_class_skipped_count")
+            continue
 
         # --- HOLDING FILTER (RFC 013/020) ---
         if sym.upper() in held_roots:
@@ -96,38 +110,71 @@ def apply_specifications(
 
         if not main_spec.is_satisfied_by(metrics_dict):
             _update_counters(
-                sym, metrics_dict, config, rules, counters, structural_threshold, portfolio_returns
+                sym,
+                metrics_dict,
+                config,
+                rules,
+                diagnostics,
+                structural_threshold,
+                hv_floor_absolute,
+                portfolio_returns,
+                raw_data,
             )
+            continue
+
+        if not tactical_spec.is_satisfied_by(metrics_dict):
+            diagnostics.incr("tactical_skipped_count")
+            continue
+
+        if corr_spec and not corr_spec.is_satisfied_by(metrics_dict):
+            diagnostics.incr("correlation_skipped_count")
             continue
 
         candidates.append(metrics_dict)
 
-    return candidates, counters
+    return candidates, diagnostics.to_dict()
 
 
-def _update_counters(sym, metrics, config, rules, counters, threshold, portfolio_returns):
+def _update_counters(
+    sym: str,
+    metrics: dict[str, Any],
+    config: Any,
+    rules: dict[str, Any],
+    diagnostics: ScreenerDiagnostics,
+    threshold: float,
+    hv_floor: float,
+    portfolio_returns: Optional[np.ndarray],
+    raw_data: Optional[dict[str, Any]] = None,
+) -> None:
     """Internal helper for reporting accuracy."""
     sector = str(metrics.get("sector", "Unknown"))
     if config.exclude_sectors and sector in config.exclude_sectors:
-        counters["sector_skipped_count"] += 1
+        diagnostics.incr("sector_skipped_count")
 
     # Re-import locally to avoid cycle
     from variance.vol_screener import _is_illiquid
 
     is_illiquid, _ = _is_illiquid(sym, metrics, rules)
     if is_illiquid and not config.allow_illiquid:
-        counters["illiquid_skipped_count"] += 1
+        diagnostics.incr("illiquid_skipped_count")
 
     if metrics.get("vrp_structural") is None:
-        counters["missing_bias_count"] += 1
+        diagnostics.incr("missing_bias_count")
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
-        counters["low_bias_skipped_count"] += 1
+        diagnostics.incr("low_bias_skipped_count")
 
-    # Check for correlation skip specifically
-    if portfolio_returns is not None:
-        from variance.models.market_specs import CorrelationSpec
+    hv252 = metrics.get("hv252")
+    if hv252 is not None and float(hv252) < hv_floor:
+        diagnostics.incr("low_vol_trap_skipped_count")
 
-        max_corr = float(rules.get("max_portfolio_correlation", 0.70))
-        spec = CorrelationSpec(portfolio_returns, max_corr)
-        if not spec.is_satisfied_by(metrics):
-            counters["correlation_skipped_count"] += 1
+    warning = metrics.get("warning")
+    soft_warnings = [
+        "iv_scale_corrected",
+        "iv_scale_assumed_decimal",
+        "after_hours_stale",
+        None,
+    ]
+    if warning not in soft_warnings:
+        diagnostics.incr("data_integrity_skipped_count")
+
+    # Correlation count handled after main spec pass

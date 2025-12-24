@@ -8,7 +8,7 @@ from variance.triage.handler import TriageHandler
 from variance.triage.request import TriageRequest, TriageTag
 
 
-class HarvestHandler(TriageHandler):
+class HarvestHandler(TriageHandler[TriageRequest]):
     """Handles profit harvesting logic."""
 
     def handle(self, request: TriageRequest) -> TriageRequest:

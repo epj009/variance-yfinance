@@ -22,7 +22,7 @@ from .classifiers.vertical import VerticalClassifier
 class ClassifierChain:
     """Executes classifiers in explicit priority order."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Explicit priority order (Clinical Order: Simple -> Complex)
         self._chain: list[StrategyClassifier] = [
             StockClassifier(),

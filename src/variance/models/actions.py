@@ -83,6 +83,22 @@ class ExpiringCommand(ActionCommand):
         return "EXPIRING"
 
 
+class EarningsWarningCommand(ActionCommand):
+    """Command to flag upcoming earnings risk."""
+
+    @property
+    def action_code(self) -> str:
+        return "EARNINGS_WARNING"
+
+
+class SizeThreatCommand(ActionCommand):
+    """Command to flag tail-risk sizing issues."""
+
+    @property
+    def action_code(self) -> str:
+        return "SIZE_THREAT"
+
+
 class ActionFactory:
     """Factory to create ActionCommands from codes and logic."""
 
@@ -94,6 +110,8 @@ class ActionFactory:
         "SCALABLE": ScalableCommand,
         "HEDGE_CHECK": HedgeCheckCommand,
         "EXPIRING": ExpiringCommand,
+        "EARNINGS_WARNING": EarningsWarningCommand,
+        "SIZE_THREAT": SizeThreatCommand,
     }
 
     @staticmethod

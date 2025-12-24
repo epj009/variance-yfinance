@@ -16,9 +16,11 @@ from variance.models.correlation import CorrelationEngine
 from variance.portfolio_parser import PortfolioParser, get_root_symbol
 
 
-def diagnose(portfolio_path: str, check_symbols: list[str]):
+def diagnose(portfolio_path: str, check_symbols: list[str]) -> None:
     console = Console()
-    console.print(f"[bold cyan]🔬 Correlation Diagnostic - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/bold cyan]")
+    console.print(
+        f"[bold cyan]🔬 Correlation Diagnostic - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/bold cyan]"
+    )
 
     # 1. Load Portfolio
     parser = PortfolioParser()
@@ -43,11 +45,15 @@ def diagnose(portfolio_path: str, check_symbols: list[str]):
             console.print(f"   [dim]• Added {root} ({len(ret)} days of returns)[/dim]")
 
     if not portfolio_returns:
-        console.print("[bold red]❌ ERROR: No return data found for portfolio positions. Verification failed.[/bold red]")
+        console.print(
+            "[bold red]❌ ERROR: No return data found for portfolio positions. Verification failed.[/bold red]"
+        )
         return
 
     proxy = CorrelationEngine.get_portfolio_proxy_returns(portfolio_returns)
-    console.print(f"   [bold green]✅ Synthetic Portfolio Proxy built ({len(proxy)} days aligned).[/bold green]")
+    console.print(
+        f"   [bold green]✅ Synthetic Portfolio Proxy built ({len(proxy)} days aligned).[/bold green]"
+    )
 
     # 4. Check Candidates
     table = Table(title="Correlation Audit (Target: < 0.70)")
@@ -70,19 +76,20 @@ def diagnose(portfolio_path: str, check_symbols: list[str]):
         color = "green" if corr < 0.70 else "red"
         decision = "PASS" if corr < 0.70 else "REJECT (Macro Trap)"
 
-        table.add_row(
-            sym,
-            f"[{color}]{corr:.3f}[/{color}]",
-            status,
-            decision
-        )
+        table.add_row(sym, f"[{color}]{corr:.3f}[/{color}]", status, decision)
 
     console.print(table)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Diagnose portfolio correlation risk.")
     parser.add_argument("portfolio", help="Path to portfolio CSV")
-    parser.add_argument("--check", nargs="+", default=["SPY", "QQQ", "IWM", "GLD", "TLT", "/ES"], help="Symbols to test against portfolio")
+    parser.add_argument(
+        "--check",
+        nargs="+",
+        default=["SPY", "QQQ", "IWM", "GLD", "TLT", "/ES"],
+        help="Symbols to test against portfolio",
+    )
 
     args = parser.parse_args()
     diagnose(args.portfolio, args.check)
