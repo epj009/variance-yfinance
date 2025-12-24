@@ -2,7 +2,7 @@
 VRP Enrichment Strategy
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from .base import EnrichmentStrategy
 
@@ -10,7 +10,7 @@ from .base import EnrichmentStrategy
 class VrpEnrichmentStrategy(EnrichmentStrategy):
     """Calculates VRP-related metrics and regime types."""
 
-    def enrich(self, candidate: Dict[str, Any], ctx: Any) -> None:
+    def enrich(self, candidate: dict[str, Any], ctx: Any) -> None:
         rules = ctx.config_bundle.get("trading_rules", {})
 
         # 1. Basic Stats (Use legacy keys for TUI compat)
@@ -50,7 +50,7 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
             candidate["VRP_Tactical_Markup"],
             float(hv20) if hv20 is not None else None,
             float(candidate.get("hv60", 0)) or None,
-            rules
+            rules,
         )
 
         # Restore TUI keys

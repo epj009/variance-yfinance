@@ -4,7 +4,7 @@ Classifier Registry
 Manages the explicit chain of strategy classifiers.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from .base import ClassificationContext, StrategyClassifier
 from .classifiers.butterfly import ButterflyClassifier
@@ -24,7 +24,7 @@ class ClassifierChain:
 
     def __init__(self):
         # Explicit priority order (Clinical Order: Simple -> Complex)
-        self._chain: List[StrategyClassifier] = [
+        self._chain: list[StrategyClassifier] = [
             StockClassifier(),
             SingleOptionClassifier(),
             StrangleClassifier(),
@@ -37,7 +37,7 @@ class ClassifierChain:
             RatioClassifier(),
         ]
 
-    def classify(self, legs: List[Dict[str, Any]]) -> str:
+    def classify(self, legs: list[dict[str, Any]]) -> str:
         """
         Classifies legs using the chain. First match wins.
         """

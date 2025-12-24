@@ -3,15 +3,12 @@ Report Construction Step
 """
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 
 def build_report(
-    candidates: List[Dict[str, Any]],
-    counters: Dict[str, int],
-    config: Any,
-    rules: Dict[str, Any]
-) -> Dict[str, Any]:
+    candidates: list[dict[str, Any]], counters: dict[str, int], config: Any, rules: dict[str, Any]
+) -> dict[str, Any]:
     """Constructs the final serialized report."""
 
     # 1. Final Summary Formatting
@@ -30,11 +27,12 @@ def build_report(
         liquidity_note = f"Illiquid filtered ({liq_mode} check)"
 
     summary = {
-        "scanned_symbols_count": len(candidates) + sum(v for k, v in counters.items() if "skipped" in k),
+        "scanned_symbols_count": len(candidates)
+        + sum(v for k, v in counters.items() if "skipped" in k),
         "candidates_count": len(candidates),
         "filter_note": f"{bias_note}; {liquidity_note}",
         "correlation_skipped_count": counters.get("correlation_skipped_count", 0),
-        **counters
+        **counters,
     }
 
     return {
@@ -42,6 +40,6 @@ def build_report(
         "summary": summary,
         "meta": {
             "scan_timestamp": datetime.now().isoformat(),
-            "profile": getattr(config, "profile", "default")
-        }
+            "profile": getattr(config, "profile", "default"),
+        },
     }

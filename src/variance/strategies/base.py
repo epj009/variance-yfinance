@@ -62,16 +62,12 @@ class BaseStrategy(ABC):
         """Generic profit harvesting logic using Command Pattern."""
         if pl_pct >= self.profit_target_pct:
             return ActionFactory.create(
-                "HARVEST",
-                symbol,
-                f"Profit {pl_pct:.1%} (Target: {self.profit_target_pct:.0%})"
+                "HARVEST", symbol, f"Profit {pl_pct:.1%} (Target: {self.profit_target_pct:.0%})"
             )
 
         if 0 < days_held < 5 and pl_pct >= 0.25:
             return ActionFactory.create(
-                "HARVEST",
-                symbol,
-                f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
+                "HARVEST", symbol, f"Velocity: {pl_pct:.1%} in {days_held}d (Early Win)"
             )
 
         return None

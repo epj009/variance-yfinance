@@ -2,14 +2,14 @@
 Condor Combination Step
 """
 
-from typing import Any, Dict, List, Set
+from typing import Any
 
 
 def combine_into_condors(
-    call_verticals: List[List[Dict[str, Any]]],
-    put_verticals: List[List[Dict[str, Any]]],
-    used_indices: Set[int]
-) -> List[List[Dict[str, Any]]]:
+    call_verticals: list[list[dict[str, Any]]],
+    put_verticals: list[list[dict[str, Any]]],
+    used_indices: set[int],
+) -> list[list[dict[str, Any]]]:
     """Combines matching verticals into Iron Condors."""
     clusters = []
 

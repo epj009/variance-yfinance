@@ -2,13 +2,12 @@
 Vertical Spread Pairing Step
 """
 
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 
 def pair_verticals(
-    leg_infos: List[Dict[str, Any]],
-    used_indices: Set[int]
-) -> Tuple[List[List[Dict[str, Any]]], List[List[Dict[str, Any]]]]:
+    leg_infos: list[dict[str, Any]], used_indices: set[int]
+) -> tuple[list[list[dict[str, Any]]], list[list[dict[str, Any]]]]:
     """Identifies and pairs remaining legs into vertical spreads."""
     call_verticals = []
     put_verticals = []
@@ -29,11 +28,12 @@ def pair_verticals(
             s_li = shorts[s_idx]
             # Find closest long by strike
             best_l = None
-            best_dist = float('inf')
+            best_dist = float("inf")
             best_l_idx = -1
 
             for i, l_li in enumerate(longs):
-                if l_li["idx"] in used_indices: continue
+                if l_li["idx"] in used_indices:
+                    continue
                 dist = abs(s_li["strike"] - l_li["strike"])
                 if dist < best_dist:
                     best_dist = dist
@@ -44,7 +44,7 @@ def pair_verticals(
                 paired.append([s_li["leg"], best_l["leg"]])
                 used_indices.add(s_li["idx"])
                 used_indices.add(best_l["idx"])
-                longs.pop(best_l_idx) # Remove used long
+                longs.pop(best_l_idx)  # Remove used long
             s_idx += 1
         return paired
 

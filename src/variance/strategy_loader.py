@@ -22,7 +22,7 @@ def validate_strategy(strategy: dict[str, Any]) -> bool:
         "butterfly",
         "short_vol",
         "neutral",
-        "long_vol"
+        "long_vol",
     ]
     if strategy["type"] not in valid_types:
         return False

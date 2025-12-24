@@ -2,7 +2,7 @@
 Butterfly Strategy Classifier
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -10,10 +10,10 @@ from ..base import ClassificationContext, StrategyClassifier
 class ButterflyClassifier(StrategyClassifier):
     """Identifies Butterflies and Broken Wing variants."""
 
-    def can_classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
         return len(ctx.option_legs) == 4 and (len(ctx.call_legs) == 4 or len(ctx.put_legs) == 4)
 
-    def classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
         side = "Call" if ctx.call_legs else "Put"
 
         # Simple butterfly has 1-2-1 ratio

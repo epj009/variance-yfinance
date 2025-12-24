@@ -9,9 +9,23 @@ import threading
 import time
 from concurrent import futures
 from datetime import datetime
+from datetime import time as pytime
 from typing import Any, Callable, Optional, cast
 
 import numpy as np
+import pytz
+
+
+def is_market_open() -> bool:
+    """Checks if the NYSE is currently open."""
+    tz = pytz.timezone("US/Eastern")
+    now = datetime.now(tz)
+    # Weekends
+    if now.weekday() >= 5:
+        return False
+    # Standard Hours (9:30 AM - 4:00 PM ET)
+    return pytime(9, 30) <= now.time() <= pytime(16, 0)
+
 
 # Import Variance Logger
 
@@ -54,6 +68,7 @@ OPTION_CHAIN_LIMIT = DATA_FETCHING.get("option_chain_limit", 50)
 
 try:
     from .config_loader import load_trading_rules
+
     HAS_TRADING_RULES = True
 except ImportError:
     HAS_TRADING_RULES = False
@@ -234,7 +249,7 @@ def calculate_hv(
             "hv60": _vol(60),
             "hv20": _vol(20),
             "hv20_stderr": float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100),
-            "raw_returns": returns.tolist(), # Store list for JSON serialization
+            "raw_returns": returns.tolist(),  # Store list for JSON serialization
         }
         local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
         return res  # type: ignore[no-any-return]
@@ -297,10 +312,24 @@ def get_current_iv(
         calls, puts = chain.calls, chain.puts
         if calls.empty or puts.empty:
             return {}
-        if (calls["bid"].sum() == 0 and calls["ask"].sum() == 0) or (
+
+        # AFTER-HOURS CHECK: If bid/asks are zero, the live data is "Bad"
+        is_zero_bid = (calls["bid"].sum() == 0 and calls["ask"].sum() == 0) or (
             puts["bid"].sum() == 0 and puts["ask"].sum() == 0
-        ):
-            return {}
+        )
+
+        if is_zero_bid:
+            # CLINICAL CACHE RESCUE: Attempt to return the last known good IV
+            # We don't want to return an empty dict and break the dashboard.
+            # We check the cache but we don't return immediately, we want to
+            # flag it as stale.
+            if cached:
+                res = cast(dict[str, Any], cached)
+                res["is_stale"] = True
+                res["warning"] = "after_hours_stale"
+                return res
+            return {"error": "after_hours_no_cache"}
+
         calls["dist"] = abs(calls["strike"] - price)
         puts["dist"] = abs(puts["strike"] - price)
         atm_call = calls.sort_values("dist").iloc[0]
@@ -429,13 +458,20 @@ def process_single_symbol(
             proxy_note = p_note
         if not iv or hv252 is None:
             return raw_symbol, {"error": "insufficient_data"}
+        # Combine and Cache
+        iv = iv_data.get("iv")
+        hv252 = hv_data.get("hv252")
+
+        # After-Hours Integrity Force (RFC Fix)
+        market_is_open = is_market_open()
+
         res = {
             "price": price_data[0],
-            "is_stale": price_data[1],
+            "is_stale": price_data[1] or not market_is_open,
             "iv": iv,
             "hv252": hv252,
             "hv20": hv_data.get("hv20"),
-            "returns": list(hv_data.get("raw_returns", [])[-60:]), # Last 60 days for correlation
+            "returns": list(hv_data.get("raw_returns", [])[-60:]),  # Last 60 days for correlation
             "vrp_structural": iv / hv252 if hv252 else None,
             "vrp_tactical": iv / max(hv_data.get("hv20", 5.0), HV_FLOOR_PERCENT)
             if hv_data.get("hv20")
@@ -447,6 +483,11 @@ def process_single_symbol(
             "proxy": proxy_note,
         }
         res.update(iv_data)
+
+        # Override staleness if market is closed
+        if not market_is_open:
+            res["is_stale"] = True
+
         local_cache.set(cache_key, res, TTL.get("price", 600))
         return raw_symbol, res
     except Exception as e:
@@ -471,6 +512,10 @@ class YFinanceProvider(IMarketDataProvider):
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         unique_symbols = list(set(symbols))
         results: dict[str, dict[str, Any]] = {}
+
+        # After-Hours Global Check
+        market_is_open = is_market_open()
+
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_symbol = {
                 executor.submit(process_single_symbol, s, self.cache): s for s in unique_symbols
@@ -478,16 +523,15 @@ class YFinanceProvider(IMarketDataProvider):
             for future in futures.as_completed(future_to_symbol):
                 try:
                     sym, data = future.result()
+
+                    # ENFORCEMENT: If market is closed, force is_stale to True
+                    if not market_is_open and "error" not in data:
+                        data["is_stale"] = True
+
                     results[sym] = data
                 except Exception as e:
                     results[future_to_symbol[future]] = {"error": str(e)}
-
-        # Explicitly cast to dict[str, MarketData] to satisfy TypedDict requirements
-        final_results: dict[str, MarketData] = {}
-        for s in symbols:
-            if s in results:
-                final_results[s] = results[s]  # type: ignore[assignment]
-        return final_results
+        return results
 
     def get_current_price(self, symbol: str) -> float:
         data = self.get_market_data([symbol])

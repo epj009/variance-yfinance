@@ -56,7 +56,7 @@ class ShortThetaStrategy(BaseStrategy):
         if cluster_theta_raw <= 0:
             return None
 
-        root = symbol # Use the passed symbol
+        root = symbol  # Use the passed symbol
         m_data = market_data.get(root, {})
         hv_ref = m_data.get("hv20") or m_data.get("hv252")
         price = metrics.get("price") or 0.0
@@ -80,10 +80,9 @@ class ShortThetaStrategy(BaseStrategy):
 
             if efficiency < threshold:
                 from ..models.actions import ActionFactory
+
                 return ActionFactory.create(
-                    "TOXIC",
-                    symbol,
-                    f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
+                    "TOXIC", symbol, f"Toxic Theta: Carry/Cost {efficiency:.2f}x < {threshold:.2f}x"
                 )
 
         return None

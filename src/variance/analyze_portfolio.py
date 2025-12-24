@@ -174,18 +174,19 @@ def analyze_portfolio(
 
     # Step 6: Exposure & Concentration Analysis
     unique_roots = list(set(pos.root_symbol for pos in positions if pos.root_symbol))
-    
+
     # Calculate Macro Correlation (RFC 020)
-    from variance.models.correlation import CorrelationEngine
     import numpy as np
-    
+
+    from variance.models.correlation import CorrelationEngine
+
     portfolio_returns_list = []
     for root in unique_roots:
         m_data = market_data.get(root, {})
         ret = m_data.get("returns")
         if ret:
             portfolio_returns_list.append(np.array(ret))
-            
+
     avg_correlation = 0.0
     correlation_status = "DIVERSIFIED"
     if len(portfolio_returns_list) > 1:
@@ -193,12 +194,11 @@ def analyze_portfolio(
         for i in range(len(portfolio_returns_list)):
             for j in range(i + 1, len(portfolio_returns_list)):
                 c = CorrelationEngine.calculate_correlation(
-                    portfolio_returns_list[i], 
-                    portfolio_returns_list[j]
+                    portfolio_returns_list[i], portfolio_returns_list[j]
                 )
                 correlations.append(c)
         avg_correlation = sum(correlations) / len(correlations) if correlations else 0.0
-        
+
         if avg_correlation >= 0.65:
             correlation_status = "CONCENTRATED"
         elif avg_correlation >= 0.40:
@@ -436,7 +436,7 @@ def analyze_portfolio(
             clusters=raw_clusters,
             net_liquidity=net_liq,
             rules=rules,
-            market_data=market_data
+            market_data=market_data,
         )
         report["opportunities"] = opportunities_data
     except Exception as e:
@@ -453,6 +453,7 @@ def analyze_portfolio(
         }
 
     # Step 7: Return Complete Report
+    report["market_data"] = market_data
     return report
 
 

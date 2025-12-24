@@ -38,10 +38,7 @@ class HedgeHandler(TriageHandler):
             cmd = ActionFactory.create("Hedge_Check", request.root, logic)
             if cmd:
                 tag = TriageTag(
-                    tag_type="HEDGE_CHECK",
-                    priority=50,
-                    logic=cmd.logic,
-                    action_cmd=cmd
+                    tag_type="HEDGE_CHECK", priority=50, logic=cmd.logic, action_cmd=cmd
                 )
                 request = request.with_tag(tag)
 

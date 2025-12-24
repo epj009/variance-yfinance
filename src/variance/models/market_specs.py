@@ -3,6 +3,7 @@ Concrete Market Specifications
 
 Implementations of the Specification pattern for volatility filtering.
 """
+
 from typing import Any, Optional
 
 import numpy as np
@@ -11,8 +12,8 @@ from .specs import Specification
 
 
 class LiquiditySpec(Specification[dict[str, Any]]):
-
     """Filters based on bid/ask spread and volume."""
+
     def __init__(self, max_slippage: float, min_vol: int, allow_illiquid: bool = False):
         self.max_slippage = max_slippage
         self.min_vol = min_vol
@@ -24,7 +25,7 @@ class LiquiditySpec(Specification[dict[str, Any]]):
 
         symbol = str(metrics.get("symbol", ""))
         if symbol.startswith("/"):
-            return True # Futures exemption
+            return True  # Futures exemption
 
         # Implied Liquidity Check
         call_bid = metrics.get("call_bid")
@@ -52,6 +53,7 @@ class LiquiditySpec(Specification[dict[str, Any]]):
 
 class VrpStructuralSpec(Specification[dict[str, Any]]):
     """Filters based on Structural VRP (IV/HV252)."""
+
     def __init__(self, threshold: float):
         self.threshold = threshold
 
@@ -62,6 +64,7 @@ class VrpStructuralSpec(Specification[dict[str, Any]]):
 
 class LowVolTrapSpec(Specification[dict[str, Any]]):
     """Prevents symbols with extremely low realized vol (noise) from passing."""
+
     def __init__(self, hv_floor: float):
         self.hv_floor = hv_floor
 
@@ -74,6 +77,7 @@ class LowVolTrapSpec(Specification[dict[str, Any]]):
 
 class SectorExclusionSpec(Specification[dict[str, Any]]):
     """Excludes specific sectors."""
+
     def __init__(self, excluded_sectors: list[str]):
         self.excluded = [s.lower() for s in excluded_sectors]
 
@@ -84,14 +88,22 @@ class SectorExclusionSpec(Specification[dict[str, Any]]):
 
 class DataIntegritySpec(Specification[dict[str, Any]]):
     """Rejects candidates with critical data warnings."""
+
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         warning = metrics.get("warning")
-        soft_warnings = ["iv_scale_corrected", "iv_scale_assumed_decimal", None]
+        # Allow soft warnings and after-hours rescued data
+        soft_warnings = [
+            "iv_scale_corrected",
+            "iv_scale_assumed_decimal",
+            "after_hours_stale",
+            None,
+        ]
         return warning in soft_warnings
 
 
 class CorrelationSpec(Specification[dict[str, Any]]):
     """Filters based on correlation with the current portfolio."""
+
     def __init__(self, portfolio_returns: Optional[np.ndarray], max_correlation: float):
         self.portfolio_returns = portfolio_returns
         self.max_correlation = max_correlation
@@ -102,12 +114,17 @@ class CorrelationSpec(Specification[dict[str, Any]]):
 
         candidate_returns = metrics.get("returns")
         if not candidate_returns:
-            return True
+            # CLINICAL HARDENING: If we have a portfolio but no candidate data,
+            # we cannot guarantee diversification. Reject.
+            return False
 
         from .correlation import CorrelationEngine
+
         corr = CorrelationEngine.calculate_correlation(
-            self.portfolio_returns,
-            np.array(candidate_returns)
+            self.portfolio_returns, np.array(candidate_returns)
         )
+
+        # Attach the rho for downstream TUI rendering
+        metrics["portfolio_rho"] = corr
 
         return corr <= self.max_correlation

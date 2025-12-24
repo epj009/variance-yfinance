@@ -5,7 +5,7 @@ Transforms triage tags into formatted Rich text badges.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from rich.text import Text
 
@@ -37,11 +37,11 @@ class TagRenderer:
         "SCALABLE": "bold cyan",
     }
 
-    def __init__(self, display_rules: Optional[Dict[str, Any]] = None):
+    def __init__(self, display_rules: Optional[dict[str, Any]] = None):
         self.rules = display_rules or {}
         self.max_secondary = self.rules.get("max_secondary_tags", 3)
 
-    def render_tags(self, tags: List[Dict[str, Any]]) -> Text:
+    def render_tags(self, tags: list[dict[str, Any]]) -> Text:
         """Renders a list of tag dictionaries into a single Rich Text object."""
         if not tags:
             return Text()
@@ -64,7 +64,7 @@ class TagRenderer:
 
         return result
 
-    def _render_badge(self, tag: Dict[str, Any], is_primary: bool) -> Text:
+    def _render_badge(self, tag: dict[str, Any], is_primary: bool) -> Text:
         tag_type = tag.get("type", "UNKNOWN")
         icon = self.TAG_ICONS.get(tag_type, "•")
         color = self.TAG_COLORS.get(tag_type, "white")

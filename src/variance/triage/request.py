@@ -5,9 +5,7 @@ Defines the immutable data objects passed through the Triage Chain.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
-
-from ..models.actions import ActionCommand
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -17,7 +15,7 @@ class TriageTag:
     tag_type: str  # "HARVEST", "GAMMA", "EARNINGS_WARNING", etc.
     priority: int  # Lower = more urgent
     logic: str  # Human-readable reason
-    action_cmd: Optional[ActionCommand] = None  # Optional actionable command
+    action_cmd: Optional[Any] = None  # Optional actionable command
 
 
 @dataclass(frozen=True)
@@ -36,7 +34,7 @@ class TriageRequest:
     pl_pct: Optional[float]
     days_held: int
     price: float
-    legs: Tuple[dict[str, Any], ...]
+    legs: tuple[dict[str, Any], ...]
 
     # Market Context
     vrp_structural: Optional[float]
@@ -53,7 +51,7 @@ class TriageRequest:
     strategy_obj: Any  # BaseStrategy instance
 
     # Multi-Tag System (collector pattern)
-    tags: Tuple[TriageTag, ...] = ()
+    tags: tuple[TriageTag, ...] = ()
 
     def with_tag(self, tag: TriageTag) -> "TriageRequest":
         """Returns a new request with an additional tag."""

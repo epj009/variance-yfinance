@@ -358,7 +358,9 @@ def _cluster_cross_expiration_options(
     return clusters, used_indices
 
 
-def _cluster_same_open_date(legs_with_idx: list[tuple[int, dict[str, Any]]]) -> tuple[list[list[dict[str, Any]]], set[int]]:
+def _cluster_same_open_date(
+    legs_with_idx: list[tuple[int, dict[str, Any]]],
+) -> tuple[list[list[dict[str, Any]]], set[int]]:
     """
     Groups options into logical clusters using the Clustering Pipeline.
     """

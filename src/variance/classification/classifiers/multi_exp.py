@@ -2,7 +2,7 @@
 Multi-Expiry Strategy Classifier
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -10,10 +10,10 @@ from ..base import ClassificationContext, StrategyClassifier
 class MultiExpClassifier(StrategyClassifier):
     """Identifies Calendars and Diagonals."""
 
-    def can_classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
         return ctx.is_multi_exp and len(ctx.option_legs) == 2
 
-    def classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
         if len(ctx.call_legs) == 2:
             if ctx.long_call_strikes == ctx.short_call_strikes:
                 return "Calendar Spread (Call)"

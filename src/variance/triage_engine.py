@@ -86,27 +86,33 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
 
     root = get_root_symbol(legs[0]["Symbol"])
 
-    # Calculate DTE
+    # Calculate DTE (Only for Options)
     dtes = []
     for leg in legs:
+        l_type = str(leg.get("Type", "")).upper()
+        if "OPTION" not in l_type:
+            continue
+
         exp_str = leg.get("Exp Date")
         if not exp_str or exp_str == "None" or exp_str == "":
             val = parse_dte(leg.get("DTE"))
         else:
             try:
-                # Try ISO format
+                # Try ISO format: 2026-01-23
                 exp_date = datetime.strptime(str(exp_str), "%Y-%m-%d").date()
                 val = (exp_date - datetime.now().date()).days
             except ValueError:
                 try:
-                    # Try Human format: Jan 23 2026
-                    exp_date = datetime.strptime(str(exp_str), "%b %d %Y").date()
+                    # Try Human formats: "Jan 23 2026" or "Jan 23, 2026"
+                    clean_exp = str(exp_str).replace(",", "").strip()
+                    exp_date = datetime.strptime(clean_exp, "%b %d %Y").date()
                     val = (exp_date - datetime.now().date()).days
                 except ValueError:
-                    val = 0
+                    val = 999  # Data integrity fail fallback
         dtes.append(val)
 
-    dte = min(dtes) if dtes else 0
+    # Use 999 as sentinel for non-expiring/unknown
+    dte = min(dtes) if dtes else 999
 
     strategy_name = identify_strategy(legs)
     net_pl = sum(parse_currency(leg["P/L Open"]) for leg in legs)
@@ -269,7 +275,14 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         logic = "Using unweighted Delta (Beta Delta missing)"
 
     # Badge Injection (Strategic Visibility)
-    icon_map = {"HARVEST": "💰", "DEFENSE": "🛡️", "GAMMA": "☢️", "EXPIRING": "⏳", "TOXIC": "💀", "SCALABLE": "➕"}
+    icon_map = {
+        "HARVEST": "💰",
+        "DEFENSE": "🛡️",
+        "GAMMA": "☢️",
+        "EXPIRING": "⏳",
+        "TOXIC": "💀",
+        "SCALABLE": "➕",
+    }
     badge = f"[{icon_map.get(action_code, '•')} {action_code}] " if action_code else ""
     final_logic = badge + (primary.logic if primary else logic)
 
@@ -300,9 +313,7 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
             rules=rules,
         ),
         "futures_multiplier_warning": (
-            metrics["futures_delta_warnings"][0]
-            if metrics.get("futures_delta_warnings")
-            else None
+            metrics["futures_delta_warnings"][0] if metrics.get("futures_delta_warnings") else None
         ),
     }
 
@@ -498,14 +509,19 @@ def get_position_aware_opportunities(
     if not rules.get("allow_proxy_stacking", False):
         try:
             from .common import get_equivalent_exposures as _get_equiv
+
             get_equiv = _get_equiv
         except ImportError:
+
             def _local_fallback(symbol: str) -> set[str]:
                 return {symbol}
+
             get_equiv = _local_fallback
     else:
+
         def _local_fallback(symbol: str) -> set[str]:
             return {symbol}
+
         get_equiv = _local_fallback
 
     for root in held_roots:
@@ -535,8 +551,7 @@ def get_position_aware_opportunities(
         allow_illiquid=False,
     )
     screener_results = screen_volatility(
-        screener_config,
-        portfolio_returns=proxy_returns if len(proxy_returns) > 0 else None
+        screener_config, portfolio_returns=proxy_returns if len(proxy_returns) > 0 else None
     )
 
     # 6. Package results
@@ -551,9 +566,7 @@ def get_position_aware_opportunities(
     }
 
 
-def validate_futures_delta(
-    root: str, beta_delta: float, market_config: dict, rules: dict
-) -> dict:
+def validate_futures_delta(root: str, beta_delta: float, market_config: dict, rules: dict) -> dict:
     """
     Check if a futures position has potentially unmultiplied beta-weighted delta.
     """
@@ -565,7 +578,7 @@ def validate_futures_delta(
     is_future = root.startswith("/")
     # If it starts with / but isn't in multipliers, check if any multiplier key is a prefix
     if not is_future:
-        for prefix in futures_multipliers.keys():
+        for prefix in futures_multipliers:
             if root.startswith(prefix):
                 is_future = True
                 break

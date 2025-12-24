@@ -7,7 +7,7 @@ percentage of net liquidity. Default threshold: 5% of NLV.
 This prevents portfolio blow-up scenarios from oversized positions.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from variance.models.actions import ActionFactory
 from variance.triage.handler import TriageHandler
@@ -22,7 +22,7 @@ class SizeThreatHandler(TriageHandler):
     Actionable: Yes (reduce position size)
     """
 
-    def __init__(self, rules: Dict[str, Any]) -> None:
+    def __init__(self, rules: dict[str, Any]) -> None:
         """
         Initialize handler with trading rules.
 
@@ -58,10 +58,7 @@ class SizeThreatHandler(TriageHandler):
             cmd = ActionFactory.create("SIZE_THREAT", request.root, logic)
             if cmd:
                 tag = TriageTag(
-                    tag_type="SIZE_THREAT",
-                    priority=20,
-                    logic=cmd.logic,
-                    action_cmd=cmd
+                    tag_type="SIZE_THREAT", priority=20, logic=cmd.logic, action_cmd=cmd
                 )
                 request = request.with_tag(tag)
 
@@ -87,8 +84,8 @@ class SizeThreatHandler(TriageHandler):
     def _estimate_max_loss(self, request: TriageRequest) -> float:
         """
         Estimate maximum potential loss for the position.
-        
-        For credit positions (net_cost < 0): We use the actual credit collected 
+
+        For credit positions (net_cost < 0): We use the actual credit collected
         as a proxy for the 'at-risk' capital in standard triage.
         """
         # Credit position: Max loss is often tied to credit collected or spread width

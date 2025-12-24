@@ -5,8 +5,6 @@ Calculates rolling correlation matrices and portfolio-relative correlation
 to detect macro concentration risks.
 """
 
-from typing import List
-
 import numpy as np
 
 
@@ -14,7 +12,7 @@ class CorrelationEngine:
     """Mathematical engine for calculating asset correlations."""
 
     @staticmethod
-    def calculate_log_returns(prices: List[float]) -> np.ndarray:
+    def calculate_log_returns(prices: list[float]) -> np.ndarray:
         """Converts a price series into log returns."""
         if len(prices) < 2:
             return np.array([])
@@ -42,9 +40,9 @@ class CorrelationEngine:
         return float(correlation_matrix[0, 1])
 
     @staticmethod
-    def get_portfolio_proxy_returns(portfolio_returns: List[np.ndarray]) -> np.ndarray:
+    def get_portfolio_proxy_returns(portfolio_returns: list[np.ndarray]) -> np.ndarray:
         """
-        Creates a synthetic 'Portfolio Return' series by averaging returns 
+        Creates a synthetic 'Portfolio Return' series by averaging returns
         across all held positions.
         """
         if not portfolio_returns:

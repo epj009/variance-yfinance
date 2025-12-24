@@ -45,9 +45,8 @@ class ButterflyStrategy(BaseStrategy):
 
         if pl_pct >= target:
             from ..models.actions import ActionFactory
+
             return ActionFactory.create(
-                "HARVEST",
-                symbol,
-                f"Pin Target Hit: {pl_pct:.1%} (Target: {target:.0%})"
+                "HARVEST", symbol, f"Pin Target Hit: {pl_pct:.1%} (Target: {target:.0%})"
             )
         return super().check_harvest(symbol, pl_pct, days_held)

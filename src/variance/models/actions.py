@@ -12,6 +12,7 @@ from typing import Any, Optional
 @dataclass(frozen=True)
 class ActionCommand(ABC):
     """Abstract Base Command for Portfolio Actions."""
+
     symbol: str
     logic: str
 
@@ -23,14 +24,12 @@ class ActionCommand(ABC):
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the command for the JSON report."""
-        return {
-            "action_code": self.action_code,
-            "logic": self.logic
-        }
+        return {"action_code": self.action_code, "logic": self.logic}
 
 
 class HarvestCommand(ActionCommand):
     """Command to close a position and realize profit."""
+
     @property
     def action_code(self) -> str:
         return "HARVEST"
@@ -38,6 +37,7 @@ class HarvestCommand(ActionCommand):
 
 class DefenseCommand(ActionCommand):
     """Command to roll or hedge a tested position."""
+
     @property
     def action_code(self) -> str:
         return "DEFENSE"
@@ -45,6 +45,7 @@ class DefenseCommand(ActionCommand):
 
 class GammaCommand(ActionCommand):
     """Command to manage high gamma risk (< 21 DTE)."""
+
     @property
     def action_code(self) -> str:
         return "GAMMA"
@@ -52,6 +53,7 @@ class GammaCommand(ActionCommand):
 
 class ToxicCommand(ActionCommand):
     """Command to exit a position with negative expected yield."""
+
     @property
     def action_code(self) -> str:
         return "TOXIC"
@@ -59,6 +61,7 @@ class ToxicCommand(ActionCommand):
 
 class ScalableCommand(ActionCommand):
     """Command to increase size in a high-VRP environment."""
+
     @property
     def action_code(self) -> str:
         return "SCALABLE"
@@ -66,6 +69,7 @@ class ScalableCommand(ActionCommand):
 
 class HedgeCheckCommand(ActionCommand):
     """Command to audit the utility of a protective position."""
+
     @property
     def action_code(self) -> str:
         return "HEDGE_CHECK"
@@ -73,6 +77,7 @@ class HedgeCheckCommand(ActionCommand):
 
 class ExpiringCommand(ActionCommand):
     """Command to manage positions expiring today."""
+
     @property
     def action_code(self) -> str:
         return "EXPIRING"

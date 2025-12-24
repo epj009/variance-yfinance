@@ -35,21 +35,35 @@ class TUIRenderer:
         self.portfolio_summary = self.data.get("portfolio_summary", {})
 
     def render(self) -> None:
-        """Orchestrates full TUI generation using Rich"""
-        # 1. Header Panels
+        """Main entry point for TUI rendering."""
+        self.render_integrity_banner()
         self.render_header()
-
-        # 2. Delta Spectrograph
-        self.render_spectrograph()
-
-        # 3. Portfolio DNA (New)
-        self.render_composition()
-
-        # 4. Portfolio Triage
         self.render_triage()
-
-        # 5. Vol Screener Opportunities
         self.render_opportunities()
+
+    def render_integrity_banner(self) -> None:
+        """Renders a high-visibility warning if data is stale or after-hours."""
+        # Check staleness across all market data (RFC 020 fix)
+        market_data = self.data.get("market_data", {})
+        stale_symbols = [s for s in market_data if market_data[s].get("is_stale")]
+
+        if not stale_symbols:
+            return
+
+        from variance.get_market_data import is_market_open
+
+        market_closed = not is_market_open()
+
+        msg = "AFTER-HOURS MODE" if market_closed else "DATA INTEGRITY WARNING"
+        details = f"{len(stale_symbols)} symbols rescued from cache"
+
+        banner = Panel(
+            Text.assemble((f" ⚠️  {msg}: ", "bold yellow"), (details, "dim")),
+            border_style="yellow",
+            box=box.HORIZONTALS,
+            expand=False,
+        )
+        self.console.print(banner)
 
     def render_header(self) -> None:
         """Renders the dashboard header panels using Rich Panels and Layout Tables"""
@@ -224,7 +238,9 @@ class TUIRenderer:
 
         self.console.print(root)
 
-    def _add_position_node(self, parent_branch: Tree, item: dict[str, Any], is_action: bool) -> None:
+    def _add_position_node(
+        self, parent_branch: Tree, item: dict[str, Any], is_action: bool
+    ) -> None:
         """Helper to format and add a position node to the tree."""
         sym = item.get("symbol", "???")
         strat = item.get("strategy", "Unknown")
@@ -245,6 +261,7 @@ class TUIRenderer:
         # Multi-Tag Badges (New in Phase 4)
         if tags:
             from .tui.tag_renderer import TagRenderer
+
             renderer = TagRenderer(self.portfolio_summary.get("triage_display", {}))
             text.append(" ")
             text.append(renderer.render_tags(tags))
@@ -412,47 +429,39 @@ class TUIRenderer:
 
         table = Table(
             box=box.ROUNDED,
-            header_style="bold cyan",
+            header_style="header",
             border_style="dim",
-            expand=False,
             padding=(0, 1),
+            expand=False,
         )
-        table.add_column("Symbol", style="neutral")
-        table.add_column("Price")
-        table.add_column("VRP (S)", style="sigma")
-        table.add_column("VRP (T)", style="profit")
-        table.add_column("Signal")
-        table.add_column("Score", style="bold yellow")
-        table.add_column("Regime", style="dim cyan")
-        table.add_column("Asset Class", style="dim")
+        table.add_column("Symbol", style="cyan", width=8)
+        table.add_column("Price", justify="right", width=9)
+        table.add_column("VRP (S)", justify="right", width=9)
+        table.add_column("VRP (T)", justify="right", width=9)
+        table.add_column("Signal", width=12)
+        table.add_column("Score", justify="right", width=7)
+        table.add_column("Rho (ρ)", justify="right", width=9)
+        table.add_column("Asset Class", width=14)
 
-        for opp in candidates:
-            vrp_t = opp.get("VRP_Tactical_Markup", 0.0)
-            score = opp.get("Score", 0.0)
-            signal = opp.get("Signal", "FAIR")
-            regime = opp.get("Regime", "NORMAL")
+        for c in candidates:
+            # Signal Styling
+            sig = str(c.get("Signal", "N/A"))
+            sig_style = "profit" if "RICH" in sig else "loss" if "DISCOUNT" in sig else "warning"
 
-            # Icon mapping for Regime
-            regime_icon = ""
-            if regime == "COILED":
-                regime_icon = "🌀"
-            elif regime == "EXPANDING":
-                regime_icon = "⚡"
-
-            regime_display = f"{regime} {regime_icon}".strip()
-
-            if opp.get("is_bats_efficient"):
-                signal = f"{signal} 🦇"
+            # Rho Styling (RFC 020)
+            rho = c.get("portfolio_rho")
+            rho_str = f"{rho:.2f}" if rho is not None else "N/A"
+            rho_style = "profit" if (rho or 0) < 0.4 else "warning" if (rho or 0) < 0.65 else "loss"
 
             table.add_row(
-                opp.get("Symbol", ""),
-                fmt_currency(opp.get("Price", 0.0)),
-                f"{opp.get('VRP Structural', 0.0):.2f}",
-                f"{vrp_t:+.0%}",
-                signal,
-                f"{score:.1f}",
-                regime_display,
-                opp.get("Asset Class", "Equity"),
+                c.get("symbol", "N/A"),
+                fmt_currency(c.get("price", 0)),
+                f"{c.get('vrp_structural', 0):.2f}",
+                f"{c.get('vrp_tactical_markup', 0):+.0%}",
+                f"[{sig_style}]{sig}[/]",
+                f"{c.get('Score', 0):.1f}",
+                f"[{rho_style}]{rho_str}[/]",
+                c.get("Asset Class", "Equity"),
             )
 
         self.console.print(table)

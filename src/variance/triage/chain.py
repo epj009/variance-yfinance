@@ -4,7 +4,7 @@ Triage Chain Orchestrator
 Explicitly builds and executes the sequence of triage handlers.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from variance.triage.handler import TriageHandler
 from variance.triage.handlers.defense import DefenseHandler
@@ -22,7 +22,7 @@ from variance.triage.request import TriageRequest
 class TriageChain:
     """Builds and executes the triage handler chain using explicit orchestration."""
 
-    def __init__(self, rules: Dict[str, Any]):
+    def __init__(self, rules: dict[str, Any]):
         self.rules = rules
         self._head: Optional[TriageHandler] = None
         self._build_chain()

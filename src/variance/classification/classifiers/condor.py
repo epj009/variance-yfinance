@@ -2,7 +2,7 @@
 Condor Strategy Classifier
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -10,15 +10,17 @@ from ..base import ClassificationContext, StrategyClassifier
 class CondorClassifier(StrategyClassifier):
     """Identifies Iron Condors and Iron Flies."""
 
-    def can_classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
         if len(ctx.option_legs) != 4:
             return False
         return (
-            len(ctx.short_calls) == 1 and len(ctx.long_calls) == 1 and
-            len(ctx.short_puts) == 1 and len(ctx.long_puts) == 1
+            len(ctx.short_calls) == 1
+            and len(ctx.long_calls) == 1
+            and len(ctx.short_puts) == 1
+            and len(ctx.long_puts) == 1
         )
 
-    def classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
         # Iron Fly check
         if ctx.short_call_strikes and ctx.short_put_strikes:
             if ctx.short_call_strikes[0] == ctx.short_put_strikes[0]:

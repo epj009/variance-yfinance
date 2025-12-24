@@ -4,10 +4,10 @@ Strategy Name to ID Mapping
 Declarative mapping table for normalizing strategy names into configuration IDs.
 """
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Optional
 
 # Direct mappings (no conditions required)
-DIRECT_MAP: Dict[str, str] = {
+DIRECT_MAP: dict[str, str] = {
     "short strangle": "short_strangle",
     "strangle": "short_strangle",
     "short straddle": "short_straddle",
@@ -39,7 +39,7 @@ DIRECT_MAP: Dict[str, str] = {
 
 # Conditional rules (mapping depends on net_cost/premium side)
 # List of (keyword, condition_fn, strategy_id)
-CONDITIONAL_RULES: List[Tuple[str, Callable[[str, float], bool], str]] = [
+CONDITIONAL_RULES: list[tuple[str, Callable[[str, float], bool], str]] = [
     ("vertical spread", lambda n, c: "call" in n and c < 0, "short_call_vertical_spread"),
     ("vertical spread", lambda n, c: "call" in n and c >= 0, "long_call_vertical_spread"),
     ("vertical spread", lambda n, c: "put" in n and c < 0, "short_put_vertical_spread"),

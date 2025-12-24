@@ -2,7 +2,7 @@
 Specification Filtering Step
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -18,12 +18,12 @@ from variance.models.specs import Specification
 
 
 def apply_specifications(
-    raw_data: Dict[str, Any],
+    raw_data: dict[str, Any],
     config: Any,
-    rules: Dict[str, Any],
-    market_config: Dict[str, Any],
-    portfolio_returns: Optional[np.ndarray] = None
-) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    rules: dict[str, Any],
+    market_config: dict[str, Any],
+    portfolio_returns: Optional[np.ndarray] = None,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Applies composable filters to the candidate pool."""
 
     # 1. Setup Counters
@@ -40,7 +40,8 @@ def apply_specifications(
     # 2. Compose Specs
     structural_threshold = float(
         rules.get("vrp_structural_threshold", 0.85)
-        if config.min_vrp_structural is None else config.min_vrp_structural
+        if config.min_vrp_structural is None
+        else config.min_vrp_structural
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
 
@@ -57,7 +58,7 @@ def apply_specifications(
     if not config.allow_illiquid:
         main_spec &= LiquiditySpec(
             max_slippage=float(rules.get("max_slippage_pct", 0.05)),
-            min_vol=int(rules.get("min_atm_volume", 500))
+            min_vol=int(rules.get("min_atm_volume", 500)),
         )
 
     # 4. Correlation Guard (RFC 013)
@@ -67,6 +68,9 @@ def apply_specifications(
 
     # 3. Apply Gate
     candidates = []
+    held_roots = set(str(s).upper() for s in getattr(config, "held_symbols", []))
+    scalable_markup_threshold = float(rules.get("scalable_vrp_markup_threshold", 0.50))
+
     for sym, metrics in raw_data.items():
         if "error" in metrics:
             continue
@@ -75,8 +79,25 @@ def apply_specifications(
         metrics_dict = {str(k).lower(): v for k, v in metrics.items()}
         metrics_dict["symbol"] = sym
 
+        # --- HOLDING FILTER (RFC 013/020) ---
+        if sym.upper() in held_roots:
+            # Special Case: SCALABLE (➕)
+            # If tactical markup is surged, we ALLOW it back into the pool as a "Scalable" candidate
+            iv = metrics_dict.get("iv")
+            hv20 = metrics_dict.get("hv20")
+            if iv and hv20 and hv20 > 0:
+                markup = (iv / hv20) - 1.0
+                if markup > scalable_markup_threshold:
+                    metrics_dict["is_scalable_surge"] = True
+                else:
+                    continue
+            else:
+                continue
+
         if not main_spec.is_satisfied_by(metrics_dict):
-            _update_counters(sym, metrics_dict, config, rules, counters, structural_threshold, portfolio_returns)
+            _update_counters(
+                sym, metrics_dict, config, rules, counters, structural_threshold, portfolio_returns
+            )
             continue
 
         candidates.append(metrics_dict)
@@ -92,6 +113,7 @@ def _update_counters(sym, metrics, config, rules, counters, threshold, portfolio
 
     # Re-import locally to avoid cycle
     from variance.vol_screener import _is_illiquid
+
     is_illiquid, _ = _is_illiquid(sym, metrics, rules)
     if is_illiquid and not config.allow_illiquid:
         counters["illiquid_skipped_count"] += 1
@@ -104,6 +126,7 @@ def _update_counters(sym, metrics, config, rules, counters, threshold, portfolio
     # Check for correlation skip specifically
     if portfolio_returns is not None:
         from variance.models.market_specs import CorrelationSpec
+
         max_corr = float(rules.get("max_portfolio_correlation", 0.70))
         spec = CorrelationSpec(portfolio_returns, max_corr)
         if not spec.is_satisfied_by(metrics):

@@ -5,13 +5,13 @@ Defines the contract for individual triage rules in the Chain of Responsibility.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class TriageHandler(ABC):
     """Abstract handler in the Chain of Responsibility."""
 
-    def __init__(self, rules: Dict[str, Any]):
+    def __init__(self, rules: dict[str, Any]):
         self.rules = rules
         self._next: Optional[TriageHandler] = None
 

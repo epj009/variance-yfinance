@@ -15,5 +15,5 @@ __all__ = [
     "DefaultStrategy",
     "ShortThetaStrategy",
     "TimeSpreadStrategy",
-    "ButterflyStrategy"
+    "ButterflyStrategy",
 ]

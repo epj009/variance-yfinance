@@ -3,10 +3,10 @@ Watchlist Loading Step
 """
 
 import csv
-from typing import Any, Dict, List
+from typing import Any
 
 
-def load_watchlist(system_config: Dict[str, Any]) -> List[str]:
+def load_watchlist(system_config: dict[str, Any]) -> list[str]:
     """Reads symbols from the configured CSV path."""
     path = system_config.get("watchlist_path", "watchlists/default-watchlist.csv")
     fallback = system_config.get("fallback_symbols", ["SPY", "QQQ", "IWM"])

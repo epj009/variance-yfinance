@@ -2,13 +2,12 @@
 Strangle Pairing Step
 """
 
-from typing import Any, Dict, List, Set
+from typing import Any
 
 
 def pair_strangles(
-    leg_infos: List[Dict[str, Any]],
-    used_indices: Set[int]
-) -> List[List[Dict[str, Any]]]:
+    leg_infos: list[dict[str, Any]], used_indices: set[int]
+) -> list[list[dict[str, Any]]]:
     """Pairs remaining short legs into Strangles/Straddles."""
     clusters = []
 
