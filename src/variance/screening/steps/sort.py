@@ -7,22 +7,22 @@ from typing import Any, Dict, List
 
 def sort_and_dedupe(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Deduplicates by root symbol and sorts by signal quality."""
-    
+
     # 1. Deduplicate by Root
     deduplicated: Dict[str, Dict[str, Any]] = {}
     for c in candidates:
         from variance.portfolio_parser import get_root_symbol
-        
+
         symbol_val = c.get("symbol") or c.get("Symbol")
         if symbol_val is None:
             continue
-            
+
         root = str(get_root_symbol(str(symbol_val)))
-        
+
         # Priority: Keep shorter symbol name (usually the root)
         if root not in deduplicated or len(str(symbol_val)) < len(str(deduplicated[root].get("symbol") or deduplicated[root].get("Symbol"))):
             deduplicated[root] = c
-            
+
     final_list = list(deduplicated.values())
 
     # 2. Sort by Signal Quality

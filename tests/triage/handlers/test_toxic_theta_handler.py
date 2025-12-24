@@ -2,17 +2,17 @@
 Unit tests for ToxicThetaHandler.
 """
 
-import pytest
 from unittest.mock import Mock
+
+from variance.models.actions import ToxicCommand
 from variance.triage.handlers.toxic_theta import ToxicThetaHandler
 from variance.triage.request import TriageRequest
-from variance.models.actions import ToxicCommand
 
 
 def test_adds_toxic_tag_when_edge_lost():
     strat = Mock()
     strat.check_toxic_theta.return_value = ToxicCommand("AAPL", "Toxic Carry")
-    
+
     handler = ToxicThetaHandler({})
     request = TriageRequest(
         root="AAPL", strategy_name="Strangle", strategy_id="ss",
@@ -22,7 +22,7 @@ def test_adds_toxic_tag_when_edge_lost():
         sector="Tech", earnings_date=None, portfolio_beta_delta=0,
         net_liquidity=50000, strategy_obj=strat
     )
-    
+
     result = handler.handle(request)
     tags = [t for t in result.tags if t.tag_type == "TOXIC"]
     assert len(tags) == 1

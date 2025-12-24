@@ -3,6 +3,7 @@ Lizard Strategy Classifier
 """
 
 from typing import Any, Dict, List
+
 from ..base import ClassificationContext, StrategyClassifier
 
 
@@ -19,5 +20,5 @@ class LizardClassifier(StrategyClassifier):
         # Reverse Jade Lizard: Short Call + Put Credit Spread
         if len(ctx.short_calls) == 1 and len(ctx.short_puts) == 1 and len(ctx.long_puts) == 1:
             return "Reverse Jade Lizard"
-            
+
         return "Three-Leg Combo"

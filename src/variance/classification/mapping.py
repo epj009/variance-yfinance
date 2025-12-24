@@ -4,7 +4,7 @@ Strategy Name to ID Mapping
 Declarative mapping table for normalizing strategy names into configuration IDs.
 """
 
-from typing import Dict, List, Optional, Callable, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 # Direct mappings (no conditions required)
 DIRECT_MAP: Dict[str, str] = {
@@ -56,18 +56,18 @@ def map_strategy_to_id(name: str, net_cost: float) -> Optional[str]:
     Normalizes a human-readable strategy name into a stable configuration ID.
     """
     n_lower = name.lower()
-    
+
     # 1. Direct Lookup
     if n_lower in DIRECT_MAP:
         return DIRECT_MAP[n_lower]
-        
+
     # 2. Rule-based Lookup
     for keyword, condition, strat_id in CONDITIONAL_RULES:
         if keyword in n_lower and condition(n_lower, net_cost):
             return strat_id
-            
+
     # 3. Fallbacks
     if "stock" in n_lower:
         return "stock"
-        
+
     return None

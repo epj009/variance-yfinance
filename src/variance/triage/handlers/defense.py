@@ -4,9 +4,9 @@ Defense Handler
 Detects tested positions within the gamma trigger window that require rolling or adjustment.
 """
 
-from ...models.actions import ActionFactory
-from ..handler import TriageHandler
-from ..request import TriageRequest, TriageTag
+from variance.models.actions import ActionFactory
+from variance.triage.handler import TriageHandler
+from variance.triage.request import TriageRequest, TriageTag
 
 
 class DefenseHandler(TriageHandler):

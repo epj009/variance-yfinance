@@ -4,9 +4,9 @@ Gamma Handler
 Detects positions approaching expiration that are not yet tested but carry high gamma risk.
 """
 
-from ...models.actions import ActionFactory
-from ..handler import TriageHandler
-from ..request import TriageRequest, TriageTag
+from variance.models.actions import ActionFactory
+from variance.triage.handler import TriageHandler
+from variance.triage.request import TriageRequest, TriageTag
 
 
 class GammaHandler(TriageHandler):

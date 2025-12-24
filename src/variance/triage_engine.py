@@ -8,8 +8,11 @@ Extracted from analyze_portfolio.py to improve maintainability.
 from datetime import datetime
 from typing import Any, Optional, TypedDict
 
+import variance.triage.handlers  # noqa: F401
+from variance.triage.chain import TriageChain
+from variance.triage.request import TriageRequest
+
 # Import common utilities
-from .models import Portfolio, Position, StrategyCluster
 from .portfolio_parser import (
     get_root_symbol,
     is_stock_type,
@@ -21,9 +24,6 @@ from .strategy_detector import (
     identify_strategy,
     map_strategy_to_id,
 )
-from variance.triage.chain import TriageChain
-from variance.triage.request import TriageRequest
-import variance.triage.handlers  # noqa: F401
 
 
 class TriageResult(TypedDict, total=False):
@@ -262,12 +262,12 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     # Extract Primary Action
     primary = final_request.primary_action
     action_code = primary.tag_type if primary else None
-    
+
     # Logic accumulation
     logic = ""
     if metrics.get("uses_raw_delta"):
         logic = "Using unweighted Delta (Beta Delta missing)"
-    
+
     # Badge Injection (Strategic Visibility)
     icon_map = {"HARVEST": "💰", "DEFENSE": "🛡️", "GAMMA": "☢️", "EXPIRING": "⏳", "TOXIC": "💀", "SCALABLE": "➕"}
     badge = f"[{icon_map.get(action_code, '•')} {action_code}] " if action_code else ""
@@ -448,7 +448,9 @@ def get_position_aware_opportunities(
     Identifies concentrated vs. held positions and queries the vol screener.
     """
     from collections import defaultdict
+
     import numpy as np
+
     from .models.correlation import CorrelationEngine
     from .vol_screener import ScreenerConfig, screen_volatility
 
@@ -467,7 +469,7 @@ def get_position_aware_opportunities(
             ret = m_data.get("returns")
             if ret:
                 portfolio_returns_list.append(np.array(ret))
-    
+
     proxy_returns = CorrelationEngine.get_portfolio_proxy_returns(portfolio_returns_list)
 
     # 3. Calculate concentration per root
@@ -533,7 +535,7 @@ def get_position_aware_opportunities(
         allow_illiquid=False,
     )
     screener_results = screen_volatility(
-        screener_config, 
+        screener_config,
         portfolio_returns=proxy_returns if len(proxy_returns) > 0 else None
     )
 

@@ -3,6 +3,7 @@ Multi-Expiry Strategy Classifier
 """
 
 from typing import Any, Dict, List
+
 from ..base import ClassificationContext, StrategyClassifier
 
 
@@ -21,5 +22,5 @@ class MultiExpClassifier(StrategyClassifier):
             if ctx.long_put_strikes == ctx.short_put_strikes:
                 return "Calendar Spread (Put)"
             return "Diagonal Spread (Put)"
-            
+
         return "Multi-Exp Combo"

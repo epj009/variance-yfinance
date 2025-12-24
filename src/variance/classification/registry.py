@@ -4,19 +4,19 @@ Classifier Registry
 Manages the explicit chain of strategy classifiers.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .base import ClassificationContext, StrategyClassifier
-from .classifiers.stock import StockClassifier
-from .classifiers.single_option import SingleOptionClassifier
-from .classifiers.covered import CoveredClassifier
-from .classifiers.multi_exp import MultiExpClassifier
-from .classifiers.condor import CondorClassifier
 from .classifiers.butterfly import ButterflyClassifier
+from .classifiers.condor import CondorClassifier
+from .classifiers.covered import CoveredClassifier
 from .classifiers.lizard import LizardClassifier
+from .classifiers.multi_exp import MultiExpClassifier
 from .classifiers.ratio import RatioClassifier
-from .classifiers.vertical import VerticalClassifier
+from .classifiers.single_option import SingleOptionClassifier
+from .classifiers.stock import StockClassifier
 from .classifiers.strangle import StrangleClassifier
+from .classifiers.vertical import VerticalClassifier
 
 
 class ClassifierChain:

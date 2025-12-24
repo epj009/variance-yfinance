@@ -4,9 +4,9 @@ Expiration Handler
 Detects positions expiring today that require manual intervention.
 """
 
-from ...models.actions import ActionFactory
-from ..handler import TriageHandler
-from ..request import TriageRequest, TriageTag
+from variance.models.actions import ActionFactory
+from variance.triage.handler import TriageHandler
+from variance.triage.request import TriageRequest, TriageTag
 
 
 class ExpirationHandler(TriageHandler):

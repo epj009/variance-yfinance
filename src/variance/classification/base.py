@@ -6,7 +6,7 @@ Defines the shared state and contract for all strategy classifiers.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
 from variance.portfolio_parser import is_stock_type, parse_currency
 

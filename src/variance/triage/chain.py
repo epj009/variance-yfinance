@@ -7,16 +7,16 @@ Explicitly builds and executes the sequence of triage handlers.
 from typing import Any, Dict, Optional
 
 from variance.triage.handler import TriageHandler
-from variance.triage.request import TriageRequest
-from variance.triage.handlers.expiration import ExpirationHandler
-from variance.triage.handlers.harvest import HarvestHandler
-from variance.triage.handlers.size_threat import SizeThreatHandler
 from variance.triage.handlers.defense import DefenseHandler
-from variance.triage.handlers.gamma import GammaHandler
-from variance.triage.handlers.hedge import HedgeHandler
-from variance.triage.handlers.toxic_theta import ToxicThetaHandler
 from variance.triage.handlers.earnings import EarningsHandler
+from variance.triage.handlers.expiration import ExpirationHandler
+from variance.triage.handlers.gamma import GammaHandler
+from variance.triage.handlers.harvest import HarvestHandler
+from variance.triage.handlers.hedge import HedgeHandler
 from variance.triage.handlers.scalable import ScalableHandler
+from variance.triage.handlers.size_threat import SizeThreatHandler
+from variance.triage.handlers.toxic_theta import ToxicThetaHandler
+from variance.triage.request import TriageRequest
 
 
 class TriageChain:
@@ -29,7 +29,7 @@ class TriageChain:
 
     def _build_chain(self) -> None:
         """Builds the chain in explicit priority order. No decorators required."""
-        
+
         # 1. Define the sequence (Ordered by institutional priority)
         handlers = [
             ExpirationHandler(self.rules),

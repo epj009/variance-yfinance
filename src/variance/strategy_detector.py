@@ -96,7 +96,6 @@ def _is_pmcp_pair(
 
 
 from .classification.registry import ClassifierChain
-from .classification.mapping import map_strategy_to_id as _map_to_id
 
 # Module-level chain (singleton)
 _CLASSIFIER_CHAIN: Optional[ClassifierChain] = None
@@ -364,10 +363,10 @@ def _cluster_same_open_date(legs_with_idx: list[tuple[int, dict[str, Any]]]) -> 
     Groups options into logical clusters using the Clustering Pipeline.
     """
     from .clustering.pipeline import ClusteringPipeline
-    
+
     pipeline = ClusteringPipeline()
     clusters, used_indices = pipeline.cluster(legs_with_idx)
-    
+
     return clusters, used_indices
 
 

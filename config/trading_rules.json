@@ -60,5 +60,32 @@
         "enabled": true,
         "min_abs_delta_threshold": 1.0,
         "comment": "Warn if futures beta_delta < 1.0 (suggests raw delta, not multiplied)"
+    },
+    "triage_display": {
+        "max_secondary_tags": 3,
+        "use_icons": true,
+        "hide_tags": [],
+        "tag_colors": {
+            "EXPIRING": "bold yellow",
+            "HARVEST": "bold green",
+            "SIZE_THREAT": "bold red",
+            "DEFENSE": "bold red",
+            "GAMMA": "bold magenta",
+            "HEDGE_CHECK": "dim green",
+            "TOXIC": "bold red",
+            "EARNINGS_WARNING": "bold yellow",
+            "SCALABLE": "bold cyan"
+        },
+        "tag_icons": {
+            "EXPIRING": "⏳",
+            "HARVEST": "💰",
+            "SIZE_THREAT": "🐳",
+            "DEFENSE": "🛡️",
+            "GAMMA": "☢️",
+            "HEDGE_CHECK": "🌳",
+            "TOXIC": "💀",
+            "EARNINGS_WARNING": "📅",
+            "SCALABLE": "➕"
+        }
     }
 }

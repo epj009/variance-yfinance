@@ -4,8 +4,9 @@ TUI Tag Renderer
 Transforms triage tags into formatted Rich text badges.
 """
 
-from typing import Any, Dict, List, Optional
 import re
+from typing import Any, Dict, List, Optional
+
 from rich.text import Text
 
 
@@ -47,27 +48,27 @@ class TagRenderer:
 
         # Sort by priority
         sorted_tags = sorted(tags, key=lambda x: x.get("priority", 999))
-        
+
         result = Text()
-        
+
         # Primary Tag (First) - Always Bracketed
         primary = sorted_tags[0]
         result.append(" [", style="white")
         result.append(self._render_badge(primary, is_primary=True))
         result.append("]", style="white")
-        
+
         # Secondary Tags
         for tag in sorted_tags[1 : self.max_secondary + 1]:
             result.append(" ")
             result.append(self._render_badge(tag, is_primary=False))
-            
+
         return result
 
     def _render_badge(self, tag: Dict[str, Any], is_primary: bool) -> Text:
         tag_type = tag.get("type", "UNKNOWN")
         icon = self.TAG_ICONS.get(tag_type, "•")
         color = self.TAG_COLORS.get(tag_type, "white")
-        
+
         if is_primary:
             # Extract specific values (e.g. "60.0%") from logic for the badge
             val = self._extract_value(tag.get("logic", ""))

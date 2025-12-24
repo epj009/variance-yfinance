@@ -2,9 +2,8 @@
 Unit tests for MultiExpClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.multi_exp import MultiExpClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.multi_exp import MultiExpClassifier
 
 
 def test_identifies_calendar_spread():

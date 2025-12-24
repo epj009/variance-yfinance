@@ -2,9 +2,8 @@
 Unit tests for SingleOptionClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.single_option import SingleOptionClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.single_option import SingleOptionClassifier
 
 
 def test_identifies_long_call():

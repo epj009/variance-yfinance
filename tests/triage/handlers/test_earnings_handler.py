@@ -2,22 +2,22 @@
 Unit tests for EarningsHandler.
 """
 
-import pytest
 from datetime import date, timedelta
+from unittest.mock import Mock
+
 from variance.triage.handlers.earnings import EarningsHandler
 from variance.triage.request import TriageRequest
-from unittest.mock import Mock
 
 
 def test_adds_earnings_warning():
     rules = {"earnings_days_threshold": 10}
     handler = EarningsHandler(rules)
-    
+
     # Set earnings to tomorrow
     earnings_date = (date.today() + timedelta(days=1)).isoformat()
     strat = Mock()
     strat.earnings_stance = "avoid"
-    
+
     request = TriageRequest(
         root="AAPL", strategy_name="Strangle", strategy_id="ss",
         dte=30, net_pl=0, net_cost=-1000.0, strategy_delta=0, strategy_gamma=0,
@@ -26,7 +26,7 @@ def test_adds_earnings_warning():
         sector="Tech", earnings_date=earnings_date, portfolio_beta_delta=0,
         net_liquidity=50000, strategy_obj=strat
     )
-    
+
     result = handler.handle(request)
     tags = [t for t in result.tags if t.tag_type == "EARNINGS_WARNING"]
     assert len(tags) == 1

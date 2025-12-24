@@ -3,6 +3,7 @@ Variance Score Enrichment Strategy
 """
 
 from typing import Any, Dict
+
 from .base import EnrichmentStrategy
 
 
@@ -11,7 +12,7 @@ class ScoreEnrichmentStrategy(EnrichmentStrategy):
 
     def enrich(self, candidate: Dict[str, Any], ctx: Any) -> None:
         rules = ctx.config_bundle.get("trading_rules", {})
-        
+
         # 1. BATS Efficiency Check
         price = candidate.get("price")
         vrp_s = candidate.get("vrp_structural")
@@ -25,11 +26,11 @@ class ScoreEnrichmentStrategy(EnrichmentStrategy):
         # 2. Variance Score
         from variance.vol_screener import _calculate_variance_score
         candidate["Score"] = _calculate_variance_score(candidate, rules)
-        
+
         # 3. TUI Mapping
         candidate["Symbol"] = candidate.get("symbol")
         candidate["Price"] = candidate.get("price", 0.0)
-        
+
         from variance.common import map_sector_to_asset_class
         candidate["Asset Class"] = map_sector_to_asset_class(str(candidate.get("sector", "Unknown")))
 

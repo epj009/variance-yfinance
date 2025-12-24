@@ -4,11 +4,13 @@ Screening Pipeline (Template Method)
 Defines the skeleton of the volatility screening algorithm.
 """
 
-import numpy as np
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from variance.config_loader import ConfigBundle
+
 from .enrichment.base import EnrichmentStrategy
 
 
@@ -84,16 +86,16 @@ class ScreeningPipeline:
         """Step 6: Construct final JSON report (Hook)."""
         from .steps.report import build_report
         return build_report(
-            self.ctx.candidates, 
-            self.ctx.counters, 
+            self.ctx.candidates,
+            self.ctx.counters,
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {})
         )
 
     def _build_enrichment_chain(self) -> List[EnrichmentStrategy]:
         """Compose the list of enrichment strategies."""
-        from .enrichment.vrp import VrpEnrichmentStrategy
         from .enrichment.score import ScoreEnrichmentStrategy
+        from .enrichment.vrp import VrpEnrichmentStrategy
         return [
             VrpEnrichmentStrategy(),
             ScoreEnrichmentStrategy(),

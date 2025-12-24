@@ -6,7 +6,7 @@ Handles logic for Calendar and Diagonal spreads (Long Vega / Short Theta).
 
 from typing import Any, Optional
 
-from ..portfolio_parser import is_stock_type, parse_currency
+from ..portfolio_parser import parse_currency
 from .base import BaseStrategy
 
 
@@ -27,7 +27,7 @@ class TimeSpreadStrategy(BaseStrategy):
             if qty < 0:
                 otype = leg.get("Call/Put")
                 strike = float(parse_currency(leg.get("Strike Price", "0")))
-                
+
                 if otype == "Call" and underlying_price > strike:
                     return True
                 if otype == "Put" and underlying_price < strike:
@@ -39,12 +39,12 @@ class TimeSpreadStrategy(BaseStrategy):
         Calendars have a lower standard profit target (usually 25%).
         """
         target = self.config.get("management", {}).get("profit_target_pct", 0.25)
-        
+
         if pl_pct >= target:
             from ..models.actions import ActionFactory
             return ActionFactory.create(
-                "HARVEST", 
-                symbol, 
+                "HARVEST",
+                symbol,
                 f"Time Spread Target: {pl_pct:.1%} (Target: {target:.0%})"
             )
         return super().check_harvest(symbol, pl_pct, days_held)

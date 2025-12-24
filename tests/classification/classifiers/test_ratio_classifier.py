@@ -2,9 +2,8 @@
 Unit tests for RatioClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.ratio import RatioClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.ratio import RatioClassifier
 
 
 def test_identifies_ratio_spread():

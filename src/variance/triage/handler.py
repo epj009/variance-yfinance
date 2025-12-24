@@ -13,7 +13,7 @@ class TriageHandler(ABC):
 
     def __init__(self, rules: Dict[str, Any]):
         self.rules = rules
-        self._next: Optional["TriageHandler"] = None
+        self._next: Optional[TriageHandler] = None
 
     def set_next(self, handler: "TriageHandler") -> "TriageHandler":
         """Sets the next handler in the chain. Returns the next handler for chaining."""

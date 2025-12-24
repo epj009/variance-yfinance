@@ -16,7 +16,7 @@ class ClusteringContext:
     leg_infos: List[Dict[str, Any]] = field(default_factory=list)
     clusters: List[List[Dict[str, Any]]] = field(default_factory=list)
     used_indices: Set[int] = field(default_factory=set)
-    
+
     # Intermediate state for verticals
     call_verticals: List[List[Dict[str, Any]]] = field(default_factory=list)
     put_verticals: List[List[Dict[str, Any]]] = field(default_factory=list)

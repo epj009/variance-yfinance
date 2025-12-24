@@ -3,6 +3,7 @@ Stock Strategy Classifier
 """
 
 from typing import Any, Dict, List
+
 from ..base import ClassificationContext, StrategyClassifier
 
 

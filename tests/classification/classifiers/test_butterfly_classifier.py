@@ -2,9 +2,8 @@
 Unit tests for ButterflyClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.butterfly import ButterflyClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.butterfly import ButterflyClassifier
 
 
 def test_identifies_butterfly():

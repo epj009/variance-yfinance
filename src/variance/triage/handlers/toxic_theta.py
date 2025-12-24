@@ -4,8 +4,8 @@ Toxic Theta Handler
 Detects positions where the statistical cost of movement risk exceeds the time decay collected.
 """
 
-from ..handler import TriageHandler
-from ..request import TriageRequest, TriageTag
+from variance.triage.handler import TriageHandler
+from variance.triage.request import TriageRequest, TriageTag
 
 
 class ToxicThetaHandler(TriageHandler):

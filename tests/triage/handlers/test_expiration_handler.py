@@ -2,7 +2,6 @@
 Unit tests for ExpirationHandler.
 """
 
-import pytest
 from variance.triage.handlers.expiration import ExpirationHandler
 from variance.triage.request import TriageRequest
 

@@ -1,11 +1,8 @@
 """
-Triage Module
-
-Exports the Chain of Responsibility components for portfolio analysis.
+Triage Submodule
 """
 
 from .chain import TriageChain
-from .handler import TriageHandler
 from .request import TriageRequest, TriageTag
 
-__all__ = ["TriageChain", "TriageHandler", "TriageRequest", "TriageTag"]
+__all__ = ["TriageRequest", "TriageTag", "TriageChain"]

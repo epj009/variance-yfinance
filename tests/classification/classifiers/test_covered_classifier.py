@@ -2,9 +2,8 @@
 Unit tests for CoveredClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.covered import CoveredClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.covered import CoveredClassifier
 
 
 def test_identifies_covered_call():

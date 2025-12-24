@@ -2,8 +2,10 @@
 Unit tests for GammaHandler.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 from variance.triage.handlers.gamma import GammaHandler
 from variance.triage.request import TriageRequest
 
@@ -22,7 +24,7 @@ class TestGammaHandler:
         strat = Mock()
         strat.gamma_trigger_dte = 21
         strat.is_tested.return_value = False
-        
+
         request = TriageRequest(
             root="AAPL", strategy_name="Strangle", strategy_id="ss",
             dte=15,  # Within 21 DTE

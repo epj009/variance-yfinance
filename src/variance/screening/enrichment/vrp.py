@@ -3,6 +3,7 @@ VRP Enrichment Strategy
 """
 
 from typing import Any, Dict
+
 from .base import EnrichmentStrategy
 
 
@@ -11,7 +12,7 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
 
     def enrich(self, candidate: Dict[str, Any], ctx: Any) -> None:
         rules = ctx.config_bundle.get("trading_rules", {})
-        
+
         # 1. Basic Stats (Use legacy keys for TUI compat)
         hv20 = candidate.get("hv20")
         hv252 = candidate.get("hv252")
@@ -31,11 +32,17 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
             candidate["VRP_Tactical_Markup"] = max(-0.99, min(3.0, raw_markup))
 
         # 4. Signal Synthesis
-        from variance.vol_screener import _determine_signal_type, _determine_regime_type, _get_recommended_environment, _create_candidate_flags, get_days_to_date
-        
+        from variance.vol_screener import (
+            _create_candidate_flags,
+            _determine_regime_type,
+            _determine_signal_type,
+            _get_recommended_environment,
+            get_days_to_date,
+        )
+
         days_to_earn = get_days_to_date(candidate.get("earnings_date"))
         vrp_structural = candidate.get("vrp_structural")
-        
+
         flags = _create_candidate_flags(
             float(vrp_structural) if vrp_structural is not None else None,
             days_to_earn,
@@ -45,7 +52,7 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
             float(candidate.get("hv60", 0)) or None,
             rules
         )
-        
+
         # Restore TUI keys
         candidate["Signal"] = _determine_signal_type(flags, candidate["VRP_Tactical_Markup"], rules)
         candidate["Regime"] = _determine_regime_type(flags)

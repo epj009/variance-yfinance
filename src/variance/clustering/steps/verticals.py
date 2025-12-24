@@ -6,15 +6,15 @@ from typing import Any, Dict, List, Set, Tuple
 
 
 def pair_verticals(
-    leg_infos: List[Dict[str, Any]], 
+    leg_infos: List[Dict[str, Any]],
     used_indices: Set[int]
 ) -> Tuple[List[List[Dict[str, Any]]], List[List[Dict[str, Any]]]]:
     """Identifies and pairs remaining legs into vertical spreads."""
     call_verticals = []
     put_verticals = []
-    
+
     available = [li for li in leg_infos if li["idx"] not in used_indices]
-    
+
     # Separate available legs into sides and types
     short_calls = [li for li in available if li["side"] == "Call" and li["qty"] < 0]
     long_calls = [li for li in available if li["side"] == "Call" and li["qty"] > 0]
@@ -31,7 +31,7 @@ def pair_verticals(
             best_l = None
             best_dist = float('inf')
             best_l_idx = -1
-            
+
             for i, l_li in enumerate(longs):
                 if l_li["idx"] in used_indices: continue
                 dist = abs(s_li["strike"] - l_li["strike"])
@@ -39,7 +39,7 @@ def pair_verticals(
                     best_dist = dist
                     best_l = l_li
                     best_l_idx = i
-            
+
             if best_l:
                 paired.append([s_li["leg"], best_l["leg"]])
                 used_indices.add(s_li["idx"])
@@ -50,5 +50,5 @@ def pair_verticals(
 
     call_verticals = _pair(short_calls, long_calls)
     put_verticals = _pair(short_puts, long_puts)
-    
+
     return call_verticals, put_verticals

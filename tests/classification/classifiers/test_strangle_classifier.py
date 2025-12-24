@@ -3,8 +3,9 @@ Unit tests for StrangleClassifier.
 """
 
 import pytest
-from variance.classification.classifiers.strangle import StrangleClassifier
+
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.strangle import StrangleClassifier
 
 
 class TestStrangleClassifier:

@@ -3,6 +3,7 @@ Butterfly Strategy Classifier
 """
 
 from typing import Any, Dict, List
+
 from ..base import ClassificationContext, StrategyClassifier
 
 
@@ -14,12 +15,12 @@ class ButterflyClassifier(StrategyClassifier):
 
     def classify(self, legs: List[Dict[str, Any]], ctx: ClassificationContext) -> str:
         side = "Call" if ctx.call_legs else "Put"
-        
+
         # Simple butterfly has 1-2-1 ratio
         short_qty = ctx.short_call_qty if side == "Call" else ctx.short_put_qty
         long_qty = ctx.long_call_qty if side == "Call" else ctx.long_put_qty
-        
+
         if abs(short_qty) == 2 and long_qty == 2:
             return f"Butterfly ({side})"
-            
+
         return f"Custom {side} Butterfly"

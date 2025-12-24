@@ -6,7 +6,7 @@ Handles logic for Butterflies and Iron Butterflies (Pin strategies).
 
 from typing import Any, Optional
 
-from ..portfolio_parser import is_stock_type, parse_currency
+from ..portfolio_parser import parse_currency
 from .base import BaseStrategy
 
 
@@ -27,13 +27,13 @@ class ButterflyStrategy(BaseStrategy):
             qty = float(parse_currency(leg.get("Quantity", "0")))
             if qty < 0:
                 short_strikes.append(float(parse_currency(leg.get("Strike Price", "0"))))
-        
+
         if not short_strikes:
             return False
-            
+
         upper_short = max(short_strikes)
         lower_short = min(short_strikes)
-        
+
         # Buffer: Butterflies are tested if they move beyond the short strikes
         return underlying_price > upper_short or underlying_price < lower_short
 
@@ -42,12 +42,12 @@ class ButterflyStrategy(BaseStrategy):
         Butterflies have low probability but high payoff; 25% is the standard target.
         """
         target = self.config.get("management", {}).get("profit_target_pct", 0.25)
-        
+
         if pl_pct >= target:
             from ..models.actions import ActionFactory
             return ActionFactory.create(
-                "HARVEST", 
-                symbol, 
+                "HARVEST",
+                symbol,
                 f"Pin Target Hit: {pl_pct:.1%} (Target: {target:.0%})"
             )
         return super().check_harvest(symbol, pl_pct, days_held)

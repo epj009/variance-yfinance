@@ -2,11 +2,13 @@
 Unit tests for HarvestHandler.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
+from variance.models.actions import HarvestCommand
 from variance.triage.handlers.harvest import HarvestHandler
 from variance.triage.request import TriageRequest
-from variance.models.actions import HarvestCommand
 
 
 class TestHarvestHandler:
@@ -24,7 +26,7 @@ class TestHarvestHandler:
         strategy_obj.check_harvest.return_value = HarvestCommand(
             symbol="AAPL", logic="Profit 55%"
         )
-        
+
         request = TriageRequest(
             root="AAPL", strategy_name="Strangle", strategy_id="ss",
             dte=30, net_pl=550.0, net_cost=-1000.0,  # 55% profit

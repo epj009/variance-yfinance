@@ -3,6 +3,7 @@ Market Data Fetching Step
 """
 
 from typing import Any, Dict, List
+
 from variance.get_market_data import MarketDataFactory
 
 

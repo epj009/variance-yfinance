@@ -2,7 +2,6 @@
 Unit tests for Strategy ID Mapping.
 """
 
-import pytest
 from variance.classification.mapping import map_strategy_to_id
 
 
@@ -16,7 +15,7 @@ def test_conditional_mapping_verticals():
     assert map_strategy_to_id("Vertical Spread (Call)", -50) == "short_call_vertical_spread"
     # Call Debit Spread (Long Vertical)
     assert map_strategy_to_id("Vertical Spread (Call)", 50) == "long_call_vertical_spread"
-    
+
     # Put Credit Spread
     assert map_strategy_to_id("Vertical Spread (Put)", -50) == "short_put_vertical_spread"
     # Put Debit Spread

@@ -2,9 +2,8 @@
 Unit tests for LizardClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.lizard import LizardClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.lizard import LizardClassifier
 
 
 def test_identifies_jade_lizard():

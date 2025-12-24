@@ -3,8 +3,9 @@ Concrete Market Specifications
 
 Implementations of the Specification pattern for volatility filtering.
 """
-import numpy as np
 from typing import Any, Optional
+
+import numpy as np
 
 from .specs import Specification
 

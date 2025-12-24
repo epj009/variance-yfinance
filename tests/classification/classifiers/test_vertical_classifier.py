@@ -2,9 +2,8 @@
 Unit tests for VerticalClassifier.
 """
 
-import pytest
-from variance.classification.classifiers.vertical import VerticalClassifier
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.vertical import VerticalClassifier
 
 
 def test_identifies_vertical_spread():

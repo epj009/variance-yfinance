@@ -3,8 +3,9 @@ Unit tests for CondorClassifier.
 """
 
 import pytest
-from variance.classification.classifiers.condor import CondorClassifier
+
 from variance.classification.base import ClassificationContext
+from variance.classification.classifiers.condor import CondorClassifier
 
 
 class TestCondorClassifier:

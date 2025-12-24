@@ -4,8 +4,8 @@ Harvest Handler
 Detects profit-taking opportunities based on strategy targets.
 """
 
-from ..handler import TriageHandler
-from ..request import TriageRequest, TriageTag
+from variance.triage.handler import TriageHandler
+from variance.triage.request import TriageRequest, TriageTag
 
 
 class HarvestHandler(TriageHandler):

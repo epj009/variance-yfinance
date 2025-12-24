@@ -1,22 +1,13 @@
 import argparse
-import csv
 import json
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 # Import common utilities
-from .common import map_sector_to_asset_class, warn_if_not_venv
+from .common import warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
-from .get_market_data import MarketDataFactory
-from .models.market_specs import (
-    DataIntegritySpec,
-    LiquiditySpec,
-    LowVolTrapSpec,
-    SectorExclusionSpec,
-    VrpStructuralSpec,
-)
 
 
 @dataclass
@@ -304,6 +295,7 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
 
 
 import numpy as np
+
 
 def screen_volatility(
     config: ScreenerConfig,

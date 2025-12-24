@@ -2,8 +2,10 @@
 Specification Filtering Step
 """
 
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from typing import Any, Dict, List, Optional, Tuple, cast
+
 from variance.models.market_specs import (
     CorrelationSpec,
     DataIntegritySpec,
@@ -23,7 +25,7 @@ def apply_specifications(
     portfolio_returns: Optional[np.ndarray] = None
 ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
     """Applies composable filters to the candidate pool."""
-    
+
     # 1. Setup Counters
     counters = {
         "low_bias_skipped_count": 0,
@@ -37,21 +39,21 @@ def apply_specifications(
 
     # 2. Compose Specs
     structural_threshold = float(
-        rules.get("vrp_structural_threshold", 0.85) 
+        rules.get("vrp_structural_threshold", 0.85)
         if config.min_vrp_structural is None else config.min_vrp_structural
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
-    
+
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
-    
+
     show_all = config.min_vrp_structural is not None and config.min_vrp_structural <= 0
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
-    
+
     if config.exclude_sectors:
         main_spec &= SectorExclusionSpec(config.exclude_sectors)
-    
+
     if not config.allow_illiquid:
         main_spec &= LiquiditySpec(
             max_slippage=float(rules.get("max_slippage_pct", 0.05)),
@@ -68,17 +70,17 @@ def apply_specifications(
     for sym, metrics in raw_data.items():
         if "error" in metrics:
             continue
-            
+
         # Normalize keys to lowercase for internal consistency
         metrics_dict = {str(k).lower(): v for k, v in metrics.items()}
         metrics_dict["symbol"] = sym
-        
+
         if not main_spec.is_satisfied_by(metrics_dict):
             _update_counters(sym, metrics_dict, config, rules, counters, structural_threshold, portfolio_returns)
             continue
-            
+
         candidates.append(metrics_dict)
-        
+
     return candidates, counters
 
 
@@ -87,7 +89,7 @@ def _update_counters(sym, metrics, config, rules, counters, threshold, portfolio
     sector = str(metrics.get("sector", "Unknown"))
     if config.exclude_sectors and sector in config.exclude_sectors:
         counters["sector_skipped_count"] += 1
-    
+
     # Re-import locally to avoid cycle
     from variance.vol_screener import _is_illiquid
     is_illiquid, _ = _is_illiquid(sym, metrics, rules)
