@@ -88,7 +88,9 @@
     ],
     "SKIP_SYMBOLS": [
       "XSP",
-      "LTHM"
+      "LTHM",
+      "ETH-USD",
+      "BMNR"
     ],
     "SYMBOL_MAP": {
       "/ES": "ES=F",
@@ -348,7 +350,7 @@
       },
       "/6C": {
         "type": "etf",
-        "iv_symbol": "FXE",
+        "iv_symbol": "FXC",
         "hv_symbol": "6C=F"
       },
       "/6J": {
@@ -358,7 +360,7 @@
       },
       "/6A": {
         "type": "etf",
-        "iv_symbol": "FXE",
+        "iv_symbol": "FXA",
         "hv_symbol": "6A=F"
       },
       "/ZN": {

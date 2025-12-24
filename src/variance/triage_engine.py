@@ -442,8 +442,9 @@ def triage_portfolio(
             clamped_ratio = 1.0 + clamped_markup
             cluster_theta_vrp_adj = m["cluster_theta_raw"] * clamped_ratio
         else:
-            vrp_s = m_data.get("vrp_structural", 1.0)
-            cluster_theta_vrp_adj = m["cluster_theta_raw"] * vrp_s
+            vrp_s = m_data.get("vrp_structural")
+            vrp_ratio = vrp_s if isinstance(vrp_s, (int, float)) else 1.0
+            cluster_theta_vrp_adj = m["cluster_theta_raw"] * vrp_ratio
 
         total_portfolio_theta_vrp_adj += cluster_theta_vrp_adj
 

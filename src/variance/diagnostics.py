@@ -11,6 +11,7 @@ MARKET_DATA_ERROR_COUNTERS: dict[str, int] = {
     "price_unavailable_count": 0,
     "history_unavailable_count": 0,
     "iv_unavailable_count": 0,
+    "skipped_symbol_count": 0,
     "unknown_error_count": 0,
 }
 
@@ -43,6 +44,8 @@ class Diagnostics:
             self.incr("history_unavailable_count")
         elif error == "iv_unavailable":
             self.incr("iv_unavailable_count")
+        elif error == "skipped_symbol":
+            self.incr("skipped_symbol_count")
         else:
             self.incr("unknown_error_count")
 

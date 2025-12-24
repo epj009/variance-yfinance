@@ -29,3 +29,12 @@ class ScoreEnrichmentStrategy(EnrichmentStrategy):
         from variance.vol_screener import _calculate_variance_score
 
         candidate["Score"] = _calculate_variance_score(candidate, rules)
+
+        proxy_haircut = float(rules.get("proxy_iv_score_haircut", 1.0))
+        proxy_note = candidate.get("proxy") or candidate.get("Proxy")
+        symbol = str(candidate.get("symbol", ""))
+        if proxy_haircut < 1.0 and proxy_note and symbol.startswith("/"):
+            try:
+                candidate["Score"] = round(float(candidate.get("Score", 0.0)) * proxy_haircut, 1)
+            except (TypeError, ValueError):
+                pass

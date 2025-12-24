@@ -122,6 +122,18 @@ class MarketCache:
                 return None
         return None
 
+    def get_any(self, key: str) -> Optional[Any]:
+        """Return cached value even if expired (used for after-hours reads)."""
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT value FROM cache WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row:
+            try:
+                return cast(Any, json.loads(str(row[0])))
+            except json.JSONDecodeError:
+                return None
+        return None
+
     def set(self, key: str, value: Any, ttl_seconds: int) -> None:
         if value is None:
             return
@@ -372,6 +384,7 @@ def process_single_symbol(
     Implements 'Bifurcated Proxy' logic for futures.
     """
     local_cache = cache_instance if cache_instance else globals()["cache"]
+    market_is_open = is_market_open()
 
     # Defensive: Handle case where raw_symbol might be a dict (shouldn't happen)
     if isinstance(raw_symbol, dict):
@@ -380,18 +393,25 @@ def process_single_symbol(
             "error": f"Invalid symbol type: dict with keys {list(raw_symbol.keys())}"
         }
 
+    if raw_symbol in SKIP_SYMBOLS:
+        return raw_symbol, {"error": "skipped_symbol"}
+
     cache_key = f"market_data_{raw_symbol}"
     cached_all = local_cache.get(cache_key)
     if cached_all is None:
         cached_all = local_cache.get(f"md_{raw_symbol}")
+    if cached_all is None and not market_is_open:
+        cached_all = local_cache.get_any(cache_key)
+        if cached_all is None:
+            cached_all = local_cache.get_any(f"md_{raw_symbol}")
     if cached_all:
         return raw_symbol, cast(dict[str, Any], cached_all)
 
     try:
         # 1. Resolve Symbols
         # yf_symbol is the 'Cleanest' version of the root (e.g. CL=F)
-        # proxy_symbol is the 'Liquid' version for greeks/history (e.g. USO).
-        yf_symbol = SYMBOL_MAP.get(raw_symbol, raw_symbol)
+        # proxy_symbol is the IV proxy (e.g. USO) for futures screening.
+        yf_symbol = map_symbol(raw_symbol) or raw_symbol
 
         # For futures, prefer ETF proxy from FAMILY_MAP for clock-aligned math
         proxy_symbol = None
@@ -418,35 +438,89 @@ def process_single_symbol(
                 proxy_symbol = proxy_config
 
         proxy_note = f"via {proxy_symbol}" if proxy_symbol else None
+        is_futures = raw_symbol.startswith("/")
 
-        # We prioritize the proxy for ALL math (IV, HV, Correlation)
-        # to ensure NYSE clock alignment and data liquidity.
-        math_symbol = proxy_symbol if proxy_symbol else yf_symbol
-        math_ticker = yf.Ticker(math_symbol)
+        if is_futures:
+            futures_ticker = yf.Ticker(yf_symbol)
+            price_data = get_price(futures_ticker, yf_symbol, cache=local_cache)
+            if not price_data:
+                return raw_symbol, {"error": "price_unavailable"}
 
-        # 2. Fetch Base Price
-        price_data = get_price(math_ticker, math_symbol, cache=local_cache)
-        if not price_data:
-            return raw_symbol, {"error": "price_unavailable"}
+            hv_data = calculate_hv(futures_ticker, yf_symbol, cache=local_cache)
+            if not hv_data:
+                return raw_symbol, {"error": "history_unavailable"}
 
-        # 3. Calculate History (HV and Correlation Returns)
-        hv_data = calculate_hv(math_ticker, math_symbol, cache=local_cache)
-        if not hv_data:
-            return raw_symbol, {"error": "history_unavailable"}
+            iv_data = {}
+            if proxy_symbol:
+                proxy_ticker = yf.Ticker(proxy_symbol)
+                proxy_price = get_price(proxy_ticker, proxy_symbol, cache=local_cache)
+                if proxy_price:
+                    iv_data = get_current_iv(
+                        proxy_ticker,
+                        proxy_price[0],
+                        proxy_symbol,
+                        hv_data.get("hv20"),
+                        cache=local_cache,
+                    )
 
-        # 4. Fetch Implied Volatility
-        iv_data = get_current_iv(
-            math_ticker, price_data[0], math_symbol, hv_data.get("hv20"), cache=local_cache
-        )
-        if not iv_data:
-            return raw_symbol, {"error": "iv_unavailable"}
+            if not iv_data:
+                iv_data = get_current_iv(
+                    futures_ticker,
+                    price_data[0],
+                    yf_symbol,
+                    hv_data.get("hv20"),
+                    cache=local_cache,
+                )
+
+            if not iv_data:
+                iv_data = {"iv": None, "warning": "iv_unavailable"}
+
+            sector = safe_get_sector(
+                futures_ticker,
+                raw_symbol,
+                yf_symbol,
+                skip_api=True,
+                cache=local_cache,
+            )
+            earnings_date = get_earnings_date(
+                futures_ticker, raw_symbol, yf_symbol, cache=local_cache
+            )
+        else:
+            math_symbol = proxy_symbol if proxy_symbol else yf_symbol
+            math_ticker = yf.Ticker(math_symbol)
+
+            price_data = get_price(math_ticker, math_symbol, cache=local_cache)
+            if not price_data:
+                return raw_symbol, {"error": "price_unavailable"}
+
+            hv_data = calculate_hv(math_ticker, math_symbol, cache=local_cache)
+            if not hv_data:
+                return raw_symbol, {"error": "history_unavailable"}
+
+            iv_data = get_current_iv(
+                math_ticker,
+                price_data[0],
+                math_symbol,
+                hv_data.get("hv20"),
+                cache=local_cache,
+            )
+            if not iv_data:
+                iv_data = {"iv": None, "warning": "iv_unavailable"}
+
+            sector = safe_get_sector(
+                math_ticker,
+                raw_symbol,
+                math_symbol,
+                skip_api=is_etf(math_symbol),
+                cache=local_cache,
+            )
+            earnings_date = get_earnings_date(
+                math_ticker, raw_symbol, math_symbol, cache=local_cache
+            )
 
         # Combine and Cache
         iv = iv_data.get("iv")
         hv252 = hv_data.get("hv252")
-
-        # After-Hours Integrity Force
-        market_is_open = is_market_open()
 
         res = {
             "price": price_data[0],
@@ -455,20 +529,14 @@ def process_single_symbol(
             "hv252": hv252,
             "hv20": hv_data.get("hv20"),
             "returns": list(hv_data.get("raw_returns", [])[-60:]),  # Last 60 days for correlation
-            "vrp_structural": iv / hv252 if hv252 else None,
-            "vrp_tactical": iv / max(hv_data.get("hv20", 5.0), HV_FLOOR_PERCENT)
-            if hv_data.get("hv20")
-            else None,
-            "sector": safe_get_sector(
-                math_ticker,
-                raw_symbol,
-                math_symbol,
-                skip_api=is_etf(math_symbol),
-                cache=local_cache,
+            "vrp_structural": iv / hv252 if (hv252 and iv is not None) else None,
+            "vrp_tactical": (
+                iv / max(hv_data.get("hv20", 5.0), HV_FLOOR_PERCENT)
+                if (hv_data.get("hv20") and iv is not None)
+                else None
             ),
-            "earnings_date": get_earnings_date(
-                math_ticker, raw_symbol, math_symbol, cache=local_cache
-            ),
+            "sector": sector,
+            "earnings_date": earnings_date,
             "proxy": proxy_note,
         }
         res.update(iv_data)
