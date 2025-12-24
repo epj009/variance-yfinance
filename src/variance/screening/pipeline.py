@@ -4,6 +4,7 @@ Screening Pipeline (Template Method)
 Defines the skeleton of the volatility screening algorithm.
 """
 
+import numpy as np
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,7 @@ class ScreeningContext:
     raw_data: Dict[str, Any] = field(default_factory=dict)
     candidates: List[Dict[str, Any]] = field(default_factory=list)
     counters: Dict[str, int] = field(default_factory=dict)
+    portfolio_returns: Optional[np.ndarray] = None
 
 
 class ScreeningPipeline:
@@ -28,8 +30,8 @@ class ScreeningPipeline:
     Template Method implementation for volatility screening.
     """
 
-    def __init__(self, config: Any, config_bundle: ConfigBundle):
-        self.ctx = ScreeningContext(config=config, config_bundle=config_bundle)
+    def __init__(self, config: Any, config_bundle: ConfigBundle, portfolio_returns: Optional[np.ndarray] = None):
+        self.ctx = ScreeningContext(config=config, config_bundle=config_bundle, portfolio_returns=portfolio_returns)
         self._enrichment_strategies: List[EnrichmentStrategy] = self._build_enrichment_chain()
 
     def execute(self) -> Dict[str, Any]:
@@ -64,6 +66,7 @@ class ScreeningPipeline:
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {}),
             self.ctx.config_bundle.get("market_config", {}),
+            portfolio_returns=self.ctx.portfolio_returns
         )
 
     def _enrich_candidates(self) -> None:

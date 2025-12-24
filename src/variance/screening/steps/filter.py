@@ -2,8 +2,10 @@
 Specification Filtering Step
 """
 
-from typing import Any, Dict, List, Tuple, cast
+import numpy as np
+from typing import Any, Dict, List, Optional, Tuple, cast
 from variance.models.market_specs import (
+    CorrelationSpec,
     DataIntegritySpec,
     LiquiditySpec,
     LowVolTrapSpec,
@@ -17,7 +19,8 @@ def apply_specifications(
     raw_data: Dict[str, Any],
     config: Any,
     rules: Dict[str, Any],
-    market_config: Dict[str, Any]
+    market_config: Dict[str, Any],
+    portfolio_returns: Optional[np.ndarray] = None
 ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
     """Applies composable filters to the candidate pool."""
     
@@ -28,6 +31,7 @@ def apply_specifications(
         "sector_skipped_count": 0,
         "illiquid_skipped_count": 0,
         "data_integrity_skipped_count": 0,
+        "correlation_skipped_count": 0,
         "bats_efficiency_zone_count": 0,
     }
 
@@ -54,6 +58,11 @@ def apply_specifications(
             min_vol=int(rules.get("min_atm_volume", 500))
         )
 
+    # 4. Correlation Guard (RFC 013)
+    if portfolio_returns is not None and not show_all:
+        max_corr = float(rules.get("max_portfolio_correlation", 0.70))
+        main_spec &= CorrelationSpec(portfolio_returns, max_corr)
+
     # 3. Apply Gate
     candidates = []
     for sym, metrics in raw_data.items():
@@ -65,7 +74,7 @@ def apply_specifications(
         metrics_dict["symbol"] = sym
         
         if not main_spec.is_satisfied_by(metrics_dict):
-            _update_counters(sym, metrics_dict, config, rules, counters, structural_threshold)
+            _update_counters(sym, metrics_dict, config, rules, counters, structural_threshold, portfolio_returns)
             continue
             
         candidates.append(metrics_dict)
@@ -73,7 +82,7 @@ def apply_specifications(
     return candidates, counters
 
 
-def _update_counters(sym, metrics, config, rules, counters, threshold):
+def _update_counters(sym, metrics, config, rules, counters, threshold, portfolio_returns):
     """Internal helper for reporting accuracy."""
     sector = str(metrics.get("sector", "Unknown"))
     if config.exclude_sectors and sector in config.exclude_sectors:
@@ -89,3 +98,11 @@ def _update_counters(sym, metrics, config, rules, counters, threshold):
         counters["missing_bias_count"] += 1
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
         counters["low_bias_skipped_count"] += 1
+
+    # Check for correlation skip specifically
+    if portfolio_returns is not None:
+        from variance.models.market_specs import CorrelationSpec
+        max_corr = float(rules.get("max_portfolio_correlation", 0.70))
+        spec = CorrelationSpec(portfolio_returns, max_corr)
+        if not spec.is_satisfied_by(metrics):
+            counters["correlation_skipped_count"] += 1

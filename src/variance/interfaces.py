@@ -15,6 +15,7 @@ class MarketData(TypedDict, total=False):
     sector: Optional[str]
     is_stale: bool
     proxy: Optional[str]
+    returns: Optional[list[float]]
 
 
 class IMarketDataProvider(Protocol):

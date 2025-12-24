@@ -379,8 +379,9 @@ class TUIRenderer:
         integrity_skips = summary.get("data_integrity_skipped_count", 0)
         lean_skips = summary.get("lean_data_skipped_count", 0)
         anomalous_skips = summary.get("anomalous_data_skipped_count", 0)
+        correlation_skips = summary.get("correlation_skipped_count", 0)
 
-        total_hidden = integrity_skips + lean_skips + anomalous_skips
+        total_hidden = integrity_skips + lean_skips + anomalous_skips + correlation_skips
         if total_hidden > 0:
             reasons = []
             if integrity_skips:
@@ -389,6 +390,8 @@ class TUIRenderer:
                 reasons.append(f"{lean_skips} lean data")
             if anomalous_skips:
                 reasons.append(f"{anomalous_skips} anomalies")
+            if correlation_skips:
+                reasons.append(f"{correlation_skips} high correlation")
 
             self.console.print(
                 f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(reasons)}[/dim]"

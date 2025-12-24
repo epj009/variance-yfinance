@@ -3,7 +3,8 @@ Concrete Market Specifications
 
 Implementations of the Specification pattern for volatility filtering.
 """
-from typing import Any
+import numpy as np
+from typing import Any, Optional
 
 from .specs import Specification
 
@@ -86,3 +87,26 @@ class DataIntegritySpec(Specification[dict[str, Any]]):
         warning = metrics.get("warning")
         soft_warnings = ["iv_scale_corrected", "iv_scale_assumed_decimal", None]
         return warning in soft_warnings
+
+
+class CorrelationSpec(Specification[dict[str, Any]]):
+    """Filters based on correlation with the current portfolio."""
+    def __init__(self, portfolio_returns: Optional[np.ndarray], max_correlation: float):
+        self.portfolio_returns = portfolio_returns
+        self.max_correlation = max_correlation
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        if self.portfolio_returns is None or len(self.portfolio_returns) == 0:
+            return True
+
+        candidate_returns = metrics.get("returns")
+        if not candidate_returns:
+            return True
+
+        from .correlation import CorrelationEngine
+        corr = CorrelationEngine.calculate_correlation(
+            self.portfolio_returns,
+            np.array(candidate_returns)
+        )
+
+        return corr <= self.max_correlation

@@ -214,12 +214,12 @@ def get_price(
 
 def calculate_hv(
     ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
-) -> Optional[dict[str, float]]:
+) -> Optional[dict[str, Any]]:
     local_cache = cache if cache else globals()["cache"]
     cache_key = f"hv_{yf_symbol}"
     cached = local_cache.get(cache_key)
     if cached:
-        return cached
+        return cast(dict[str, Any], cached)
     try:
         hist = ticker_obj.history(period="2y")
         if len(hist) < HV_MIN_HISTORY_DAYS:
@@ -234,6 +234,7 @@ def calculate_hv(
             "hv60": _vol(60),
             "hv20": _vol(20),
             "hv20_stderr": float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100),
+            "raw_returns": returns.tolist(), # Store list for JSON serialization
         }
         local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
         return res  # type: ignore[no-any-return]
@@ -434,6 +435,7 @@ def process_single_symbol(
             "iv": iv,
             "hv252": hv252,
             "hv20": hv_data.get("hv20"),
+            "returns": list(hv_data.get("raw_returns", [])[-60:]), # Last 60 days for correlation
             "vrp_structural": iv / hv252 if hv252 else None,
             "vrp_tactical": iv / max(hv_data.get("hv20", 5.0), HV_FLOOR_PERCENT)
             if hv_data.get("hv20")

@@ -33,6 +33,7 @@ def build_report(
         "scanned_symbols_count": len(candidates) + sum(v for k, v in counters.items() if "skipped" in k),
         "candidates_count": len(candidates),
         "filter_note": f"{bias_note}; {liquidity_note}",
+        "correlation_skipped_count": counters.get("correlation_skipped_count", 0),
         **counters
     }
 

@@ -303,12 +303,15 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     return round(float(score), 1)
 
 
+import numpy as np
+
 def screen_volatility(
     config: ScreenerConfig,
     *,
     config_bundle: Optional[ConfigBundle] = None,
     config_dir: Optional[str] = None,
     strict: Optional[bool] = None,
+    portfolio_returns: Optional[np.ndarray] = None,
 ) -> dict[str, Any]:
     """
     Scan the watchlist for high-volatility trading opportunities using the Screening Pipeline.
@@ -317,7 +320,8 @@ def screen_volatility(
         config_bundle = load_config_bundle(config_dir=config_dir, strict=strict)
 
     from .screening.pipeline import ScreeningPipeline
-    pipeline = ScreeningPipeline(config, config_bundle)
+
+    pipeline = ScreeningPipeline(config, config_bundle, portfolio_returns=portfolio_returns)
     return pipeline.execute()
 
 

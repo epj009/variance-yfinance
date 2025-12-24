@@ -442,12 +442,14 @@ def get_position_aware_opportunities(
     clusters: list[list[dict[str, Any]]],
     net_liquidity: float,
     rules: dict[str, Any],
+    market_data: dict[str, Any] = None,
 ) -> dict[str, Any]:
     """
     Identifies concentrated vs. held positions and queries the vol screener.
     """
     from collections import defaultdict
-
+    import numpy as np
+    from .models.correlation import CorrelationEngine
     from .vol_screener import ScreenerConfig, screen_volatility
 
     # 1. Extract all unique roots
@@ -457,7 +459,18 @@ def get_position_aware_opportunities(
         if root:
             held_roots.add(root)
 
-    # 2. Calculate concentration per root
+    # 2. Calculate portfolio proxy returns (RFC 013)
+    portfolio_returns_list = []
+    if market_data:
+        for root in held_roots:
+            m_data = market_data.get(root, {})
+            ret = m_data.get("returns")
+            if ret:
+                portfolio_returns_list.append(np.array(ret))
+    
+    proxy_returns = CorrelationEngine.get_portfolio_proxy_returns(portfolio_returns_list)
+
+    # 3. Calculate concentration per root
     root_clusters = defaultdict(list)
     for cluster in clusters:
         if cluster:
@@ -473,7 +486,7 @@ def get_position_aware_opportunities(
             cost = abs(parse_currency(cost_str))
             root_exposure[root] += cost
 
-    # 3. Apply Stacking Rule
+    # 4. Apply Stacking Rule
     concentrated_roots_set = set()
     concentration_limit = net_liquidity * rules.get("concentration_limit_pct", 0.05)
     max_strategies = rules.get("max_strategies_per_symbol", 3)
@@ -510,7 +523,7 @@ def get_position_aware_opportunities(
 
     concentrated_roots = list(concentrated_roots_set)
 
-    # 4. Call vol screener with position context
+    # 5. Call vol screener with position context and portfolio returns
     screener_config = ScreenerConfig(
         exclude_symbols=concentrated_roots,
         held_symbols=list(held_roots),
@@ -519,9 +532,12 @@ def get_position_aware_opportunities(
         limit=None,
         allow_illiquid=False,
     )
-    screener_results = screen_volatility(screener_config)
+    screener_results = screen_volatility(
+        screener_config, 
+        portfolio_returns=proxy_returns if len(proxy_returns) > 0 else None
+    )
 
-    # 5. Package results
+    # 6. Package results
     return {
         "meta": {
             "excluded_count": len(concentrated_roots),
