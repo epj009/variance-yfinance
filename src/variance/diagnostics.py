@@ -51,8 +51,8 @@ class Diagnostics:
 
 
 SCREENER_COUNTER_DEFAULTS: dict[str, int] = {
-    "low_bias_skipped_count": 0,
-    "missing_bias_count": 0,
+    "low_vrp_structural_count": 0,
+    "missing_vrp_structural_count": 0,
     "sector_skipped_count": 0,
     "asset_class_skipped_count": 0,
     "illiquid_skipped_count": 0,

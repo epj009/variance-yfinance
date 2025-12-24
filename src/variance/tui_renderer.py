@@ -308,7 +308,7 @@ class TUIRenderer:
             drop_reasons = [
                 ("missing IV", summary.get("iv_unavailable_count", 0)),
                 ("illiquid", summary.get("illiquid_skipped_count", 0)),
-                ("low bias", summary.get("low_bias_skipped_count", 0)),
+                ("low vrp", summary.get("low_vrp_structural_count", 0)),
                 ("missing tactical VRP", summary.get("tactical_skipped_count", 0)),
                 ("market data errors", summary.get("market_data_error_count", 0)),
                 ("low vol trap", summary.get("low_vol_trap_skipped_count", 0)),
@@ -476,8 +476,8 @@ class TUIRenderer:
             items = [
                 ("Scanned", summary.get("scanned_symbols_count", 0)),
                 ("Candidates", summary.get("candidates_count", 0)),
-                ("Low Bias", summary.get("low_bias_skipped_count", 0)),
-                ("Missing Bias", summary.get("missing_bias_count", 0)),
+                ("Low VRP", summary.get("low_vrp_structural_count", 0)),
+                ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
                 ("Illiquid", summary.get("illiquid_skipped_count", 0)),
                 ("High Corr", summary.get("correlation_skipped_count", 0)),

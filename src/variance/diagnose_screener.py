@@ -94,11 +94,11 @@ def diagnose_watchlist(limit: Optional[int] = None) -> None:
 
         if vrp_s is None:
             stats["MISSING_METRICS"].append(sym)
-            diagnostics.incr("missing_bias_count")
+            diagnostics.incr("missing_vrp_structural_count")
             dropped = True
         elif isinstance(vrp_s, (int, float)) and vrp_s <= threshold:
             stats["LOW_VRP_STRUCTURAL"].append(f"{sym} ({vrp_s:.2f})")
-            diagnostics.incr("low_bias_skipped_count")
+            diagnostics.incr("low_vrp_structural_count")
             dropped = True
 
         # 3. Low Vol Trap (Absolute)

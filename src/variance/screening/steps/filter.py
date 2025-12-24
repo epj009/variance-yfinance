@@ -159,9 +159,9 @@ def _update_counters(
         diagnostics.incr("illiquid_skipped_count")
 
     if metrics.get("vrp_structural") is None:
-        diagnostics.incr("missing_bias_count")
+        diagnostics.incr("missing_vrp_structural_count")
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
-        diagnostics.incr("low_bias_skipped_count")
+        diagnostics.incr("low_vrp_structural_count")
 
     hv252 = metrics.get("hv252")
     if hv252 is not None and float(hv252) < hv_floor:
