@@ -309,11 +309,27 @@ def get_current_iv(
         atm_put = puts.sort_values("dist").iloc[0]
         raw_iv = (atm_call["impliedVolatility"] + atm_put["impliedVolatility"]) / 2
         iv, warning = normalize_iv(raw_iv, hv_context)
+
+        def _safe_float(value: Any, default: float = 0.0) -> float:
+            try:
+                if value is None:
+                    return default
+                val = float(value)
+                if math.isnan(val):
+                    return default
+                return val
+            except (TypeError, ValueError):
+                return default
+
+        atm_vol = int(_safe_float(atm_call.get("volume")) + _safe_float(atm_put.get("volume")))
+        atm_oi = int(
+            _safe_float(atm_call.get("openInterest")) + _safe_float(atm_put.get("openInterest"))
+        )
         res = {
             "iv": iv,
             "warning": warning,
-            "atm_vol": int(atm_call.get("volume", 0) + atm_put.get("volume", 0)),
-            "atm_oi": int(atm_call.get("openInterest", 0) + atm_put.get("openInterest", 0)),
+            "atm_vol": atm_vol,
+            "atm_oi": atm_oi,
             "atm_bid": float((atm_call["bid"] + atm_put["bid"]) / 2),
             "atm_ask": float((atm_call["ask"] + atm_put["ask"]) / 2),
             "call_bid": float(atm_call["bid"]),
