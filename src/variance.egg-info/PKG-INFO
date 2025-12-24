@@ -9,6 +9,11 @@ Requires-Dist: pandas>=1.5.0
 Requires-Dist: numpy>=1.20.0
 Requires-Dist: rich>=12.0.0
 Requires-Dist: scipy>=1.7.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.14.0; extra == "dev"
+Requires-Dist: pre-commit>=4.0.0; extra == "dev"
 
 # Variance: Systematic Volatility Engine
 
@@ -19,6 +24,26 @@ Requires-Dist: scipy>=1.7.0
 **Variance** is a quantitative analysis engine designed for systematic options traders. It transforms raw market data and broker positions into an institutional-grade triage dashboard, focusing exclusively on **Price**, **Volatility**, and **Mechanics**.
 
 Built on the Tastylive philosophy, Variance rejects market narratives in favor of statistical edge, specifically exploiting the **Volatility Risk Premium (VRP)** through net-premium selling strategies.
+
+Variance uses institution-grade **Logarithmic Distance** for all volatility calculations, ensuring mathematical objectivity across different asset scales and price regimes.
+
+---
+
+## 🛠 Architecture & Standards
+
+### 🧩 Modular Design (RFC 016–019)
+Variance has been refactored into a modular, pattern-driven quantitative engine:
+- **`src/variance/triage/`**: **Chain of Responsibility** for multi-tag action detection.
+- **`src/variance/screening/`**: **Template Method** pipeline for composable market research.
+- **`src/variance/classification/`**: **Registry Pattern** for deterministic strategy identification.
+- **`src/variance/strategies/`**: **Strategy Pattern** for idiosyncratic trade mechanics (Strangles, Calendars, Butterflies).
+- **`src/variance/get_market_data.py`**: Resilient data layer with a thread-safe SQLite (WAL) cache.
+
+### 📐 The Quantitative Standard
+Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance operates in **Logarithmic Space**.
+- **Scale Symmetry**: A 1-point move in a low-vol asset has the same mathematical weight as a relative move in a high-vol asset.
+- **Z-Score Foundational**: All signals are derived from how many units of historical movement the current price covers.
+- **Stoic Logic**: "Subtraction is noise; Division is signal."
 
 ---
 
@@ -31,13 +56,14 @@ Variance provides a high-fidelity terminal interface (TUI) for real-time portfol
 │ • Net Liq:  $50,000.00        • Open P/L: $1,110.00  │
 │ • BP Usage: 38.1% (Deploy)    • Status:   Harvesting │
 ╰──────────────────────────────────────────────────────╯
-╭────────────────────────────────────────────────────────────────────────────────────╮
-│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)                 │
-│ • Tilt:      Neutral (+12 Δ)                 • Downside:  $-3,541.08 (Crash (-5%)) │
-│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally (+5%))  │
-│ • Stability: 0.06 (Stable)                   • Mix:       🌍 Diversified           │
-│                                              • Data Qual: 100% (Excellent)         │
-╰────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────╮
+│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)               │
+│ • Tilt:      Neutral (+12 Δ)                 • Downside:  $-3,541.08 (Crash -5%) │
+│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally +5%)  │
+│ • Stability: 0.06 (Stable)                   • Mix:       🌍 Diversified         │
+│                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
                                                                                     
 📊 DELTA SPECTROGRAPH (Portfolio Drag)                                              
                                                                                     
@@ -83,7 +109,9 @@ Automatically flags positions using unified risk rules:
 To solve the "Data Blackout" problem in futures (CAD, Bonds, Oil), Variance employs a **Hybrid Idiosyncratic Model**:
 *   **IV Numerator:** Pulled from liquid category benchmarks (`FXE`, `IEF`, `^VIX`).
 *   **HV Denominator:** Pulled from the actual asset's idiosyncratic price history.
-*   **Result:** Reliable, real-time "Rich/Cheap" signals even when specific ETF options are illiquid.
+
+### 💧 Smart-Gate Liquidity Recovery
+Never miss an equity trade due to stale volume data. Variance automatically switches to **Spread Analysis** when reported volume is zero, accepting any symbol with a tight, tradable Bid/Ask market.
 
 ---
 
