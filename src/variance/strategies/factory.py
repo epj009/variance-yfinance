@@ -33,6 +33,7 @@ class StrategyFactory:
         strat_type = meta.get("type", "undefined")
 
         # 1. Look up class in registry by type
+        # print(f"DEBUG: Registry content: {BaseStrategy._registry}")
         strat_class = BaseStrategy.get_registered_class(strat_type)
 
         # 2. Fallback to ID-based lookup if type registry fails (legacy support)

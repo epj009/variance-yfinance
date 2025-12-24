@@ -346,7 +346,52 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     }
 
 
+from .triage import TriageChain, TriageRequest
+
+
+from .triage.handlers import (
+
+
+    DefenseHandler,
+
+
+    EarningsHandler,
+
+
+    ExpirationHandler,
+
+
+    GammaHandler,
+
+
+    HarvestHandler,
+
+
+    HedgeHandler,
+
+
+    ScalableHandler,
+
+
+    SizeThreatHandler,
+
+
+    ToxicThetaHandler,
+
+
+)
+
+
+
+
+
+
+
+
 def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) -> TriageResult:
+
+
+
     """
     Step 2 of Triage: Determine Action Code using metrics and portfolio context.
     """
@@ -381,154 +426,54 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     m_data = market_data.get(root, {})
     is_stale = m_data.get("is_stale", False)
     vrp_structural = m_data.get("vrp_structural")
+    vrp_tactical = m_data.get("vrp_tactical")
     proxy_note = m_data.get("proxy")
     sector = m_data.get("sector", "Unknown")
+    earnings_date = m_data.get("earnings_date")
 
-    if uses_raw_delta:
-        logic = "Using unweighted Delta (Beta Delta missing)"
+    # Strategy Object (for delegation)
+    strategy_obj = StrategyFactory.get_strategy(strategy_id, strategies_config, rules)
 
-    # --- 0. Probabilistic Size Threat Check ---
-    is_size_threat = False
-    size_logic = ""
+    # --- Phase 3: Triage Chain Execution ---
+    from variance.triage.chain import TriageChain
+    from variance.triage.request import TriageRequest
 
-    beta_sym = rules.get("beta_weighted_symbol", "SPY")
-    beta_data = market_data.get(beta_sym, {})
-    beta_iv = beta_data.get("iv", 15.0)
-    beta_price_raw = beta_data.get("price", 0.0)
-
-    # Robust Type Handling: Ensure price is a float
-    try:
-        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
-            beta_price = float(beta_price_raw[0])
-        else:
-            beta_price = float(beta_price_raw)
-    except (TypeError, ValueError, IndexError):
-        beta_price = 0.0
-
-    if beta_price > 0:
-        em_1sd = beta_price * (beta_iv / 100.0 / 15.87)
-        move_2sd = em_1sd * -2.0
-        loss_at_2sd = (strategy_delta * move_2sd) + (0.5 * strategy_gamma * (move_2sd**2))
-
-        size_threshold = net_liquidity * rules.get("size_threat_pct", 0.05)
-        if abs(loss_at_2sd) > size_threshold and loss_at_2sd < 0:
-            is_size_threat = True
-            usage_pct = abs(loss_at_2sd) / net_liquidity
-            size_logic = f"Tail Risk: {usage_pct:.1%} of Net Liq in -2SD move"
-
-    # --- 0. Expiration Day Check ---
-    if dte == 0:
-        cmd = ActionFactory.create("EXPIRING", root, "Expiration Day - Manual Management Required")
-
-    # --- 1. Harvest Logic (Delegated) ---
-    if not cmd and net_cost < 0 and pl_pct is not None:
-        cmd = strategy_obj.check_harvest(root, pl_pct, days_held)
-        if cmd:
-            is_winner = True
-
-    if not is_winner and not cmd and is_size_threat:
-        cmd = ActionFactory.create("SIZE_THREAT", root, size_logic if size_logic else "Excessive Position Size")
-
-    # --- 2. Defense (Delegated) ---
-    is_tested = strategy_obj.is_tested(legs, price)
-
-    if not is_winner and not cmd and is_tested and dte < strategy_obj.gamma_trigger_dte:
-        cmd = ActionFactory.create("DEFENSE", root, f"Tested & < {strategy_obj.gamma_trigger_dte} DTE")
-
-    # --- 3. Gamma Zone ---
-    if (
-        not is_winner
-        and not cmd
-        and not is_tested
-        and dte < strategy_obj.gamma_trigger_dte
-        and dte > 0
-    ):
-        cmd = ActionFactory.create("GAMMA", root, f"< {strategy_obj.gamma_trigger_dte} DTE Risk")
-
-    # --- 4. Hedge Detection ---
-    is_hedge = detect_hedge_tag(
+    # Build Immutable Request
+    request = TriageRequest(
         root=root,
-        strategy_name=strategy_name,
+        strategy_name=metrics["strategy_name"],
+        strategy_id=strategy_id,
+        dte=dte,
+        net_pl=net_pl,
+        net_cost=net_cost,
         strategy_delta=strategy_delta,
+        strategy_gamma=strategy_gamma,
+        pl_pct=pl_pct,
+        days_held=days_held,
+        price=price,
+        legs=tuple(legs),
+        vrp_structural=vrp_structural,
+        vrp_tactical=vrp_tactical,
+        is_stale=is_stale,
+        sector=sector,
+        earnings_date=earnings_date,
         portfolio_beta_delta=context.get("portfolio_beta_delta", 0.0),
-        rules=rules,
+        net_liquidity=net_liquidity,
+        strategy_obj=strategy_obj,
     )
 
-    # 4.5. Hedge Check
-    if (
-        is_hedge
-        and not is_winner
-        and not cmd
-        and not is_tested
-        and dte > strategy_obj.gamma_trigger_dte
-    ):
-        if (
-            pl_pct is not None
-            and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
-        ) and (
-            vrp_structural is not None
-            and vrp_structural < rules["dead_money_vrp_structural_threshold"]
-        ):
-            cmd = ActionFactory.create("HEDGE_CHECK", root, f"Protective hedge on {root}. Review utility.")
+    # Execute deterministic chain
+    chain = TriageChain(rules)
+    final_request = chain.triage(request)
 
-    # --- 5. Toxic Theta (Delegated) ---
-    if (
-        (
-            not is_winner
-            and not cmd
-            and not is_tested
-            and dte > strategy_obj.gamma_trigger_dte
-            and not is_hedge
-        )
-        and (
-            pl_pct is not None
-            and rules["dead_money_pl_pct_low"] <= pl_pct <= rules["dead_money_pl_pct_high"]
-        )
-        and net_cost < 0
-    ):
-        cmd = strategy_obj.check_toxic_theta(root, metrics, market_data)
-
-    # --- 6. Earnings Check ---
-    earnings_date = m_data.get("earnings_date")
-    earnings_note = ""
-    if earnings_date and earnings_date != "Unavailable":
-        try:
-            edate = datetime.fromisoformat(earnings_date).date()
-            days_to_earn = (edate - datetime.now().date()).days
-            if 0 <= days_to_earn <= rules["earnings_days_threshold"]:
-                earnings_note = f"Earnings {days_to_earn}d"
-                if strategy_obj.earnings_stance == "avoid":
-                    if not cmd:
-                        cmd = ActionFactory.create("EARNINGS_WARNING", root, "Binary Event Risk (Avoid)")
-                    elif cmd.action_code == "HARVEST":
-                        cmd = ActionFactory.create("HARVEST", root, f"{cmd.logic} | Close before Earnings!")
-                elif strategy_obj.earnings_stance == "long_vol":
-                    earnings_note = f"{earnings_note} (Play)"
-
-                if cmd and "Earnings" not in cmd.logic:
-                    cmd = ActionFactory.create(cmd.action_code, root, f"{cmd.logic} | {earnings_note}")
-        except (ValueError, TypeError):
-            pass
-
-    # --- 7. VRP Momentum (SCALABLE) ---
-    if not cmd and not is_tested and dte > strategy_obj.gamma_trigger_dte and not is_hedge:
-        if pl_pct is not None and pl_pct < strategy_obj.profit_target_pct:
-            vrp_s = m_data.get("vrp_structural", 0)
-            vrp_t = m_data.get("vrp_tactical", 1.0)
-            if vrp_s and vrp_t:
-                markup = (vrp_t / vrp_s) - 1 if vrp_s != 0 else 0
-                if markup > rules.get("vrp_momentum_threshold", 0.50):
-                    cmd = ActionFactory.create("SCALABLE", root, f"VRP Surge: Tactical markup ({vrp_t:.2f}) is significantly above trend. High Alpha Opportunity.")
-
-    # Finalize action_code and logic for the report
-    action_code = cmd.action_code if cmd else None
-
-    # If we have a command, use its logic. Otherwise, use accumulated metadata warnings.
-    final_logic = cmd.logic if cmd else logic
+    # Extract Primary Action
+    primary = final_request.primary_action
+    action_code = primary.tag_type if primary else None
+    final_logic = primary.logic if primary else logic
 
     return {
         "root": root,
-        "strategy_name": strategy_name,
+        "strategy_name": metrics["strategy_name"],
         "price": price,
         "is_stale": is_stale,
         "vrp_structural": vrp_structural,
@@ -541,9 +486,17 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         "sector": sector,
         "delta": strategy_delta,
         "gamma": strategy_gamma,
-        "is_hedge": is_hedge,
+        "is_hedge": detect_hedge_tag(
+            root=root,
+            strategy_name=metrics["strategy_name"],
+            strategy_delta=strategy_delta,
+            portfolio_beta_delta=context.get("portfolio_beta_delta", 0.0),
+            rules=rules,
+        ),
         "futures_multiplier_warning": (
-            futures_delta_warnings[0] if futures_delta_warnings else None
+            metrics["futures_delta_warnings"][0]
+            if metrics.get("futures_delta_warnings")
+            else None
         ),
     }
 
