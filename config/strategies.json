@@ -99,9 +99,9 @@
     }
   },
   {
-    "id": "poor_mans_covered_call",
-    "name": "Poor Man's Covered Call (Call Diagonal)",
-    "type": "defined_risk",
+    "id": "call_diagonal_spread",
+    "name": "Call Diagonal Spread",
+    "type": "time_spread",
     "setup": {
       "legs_description": "LEAP ITM call + short near-term OTM/ATM call to mimic covered call with lower capital.",
       "directional_assumption": "Bullish",
@@ -134,7 +134,7 @@
   {
     "id": "call_calendar_spread",
     "name": "Call Calendar Spread",
-    "type": "defined_risk",
+    "type": "time_spread",
     "setup": {
       "legs_description": "Buy longer-dated call, sell near-term call same strike; neutral to mildly bullish vol play.",
       "directional_assumption": "Bullish",
@@ -165,9 +165,9 @@
     }
   },
   {
-    "id": "call_butterfly",
+    "id": "butterfly_call",
     "name": "Call Butterfly",
-    "type": "defined_risk",
+    "type": "butterfly",
     "setup": {
       "legs_description": "Defined-risk, low-probability bullish pin: long call spread plus short call spread sharing body.",
       "directional_assumption": "Bullish",
@@ -364,7 +364,7 @@
   {
     "id": "put_calendar_spread",
     "name": "Put Calendar Spread",
-    "type": "defined_risk",
+    "type": "time_spread",
     "setup": {
       "legs_description": "Buy longer-dated put, sell near-term put same strike; neutral to mildly bearish vol play.",
       "directional_assumption": "Bearish",
@@ -395,9 +395,9 @@
     }
   },
   {
-    "id": "put_butterfly",
+    "id": "butterfly_put",
     "name": "Put Butterfly",
-    "type": "defined_risk",
+    "type": "butterfly",
     "setup": {
       "legs_description": "Defined-risk, low-probability bearish pin: long put spread plus short put spread sharing body.",
       "directional_assumption": "Bearish",
@@ -787,8 +787,8 @@
   },
   {
     "id": "iron_fly",
-    "name": "Iron Fly",
-    "type": "defined_risk",
+    "name": "Iron Butterfly",
+    "type": "butterfly",
     "setup": {
       "legs_description": "ATM straddle wrapped with wings (defined-risk short straddle).",
       "directional_assumption": "Neutral",

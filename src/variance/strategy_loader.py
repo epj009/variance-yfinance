@@ -15,7 +15,16 @@ def validate_strategy(strategy: dict[str, Any]) -> bool:
             return False
 
     # 2. Check Type constraint
-    if strategy["type"] not in ["defined_risk", "undefined_risk"]:
+    valid_types = [
+        "defined_risk", 
+        "undefined_risk", 
+        "time_spread", 
+        "butterfly", 
+        "short_vol", 
+        "neutral", 
+        "long_vol"
+    ]
+    if strategy["type"] not in valid_types:
         return False
 
     # 3. Check Management fields
