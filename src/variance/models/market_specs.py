@@ -179,6 +179,7 @@ class DataIntegritySpec(Specification[dict[str, Any]]):
             "iv_scale_corrected",
             "iv_scale_assumed_decimal",
             "after_hours_stale",
+            "tastytrade_fallback",
             None,
         ]
         return warning in soft_warnings
@@ -318,5 +319,54 @@ class VolatilityTrapSpec(Specification[dict[str, Any]]):
             if hv30 and hv90 and float(hv90) > 0:
                 if (float(hv30) / float(hv90)) < self.compression_threshold:
                     return False
+
+        return True
+
+
+class RetailEfficiencySpec(Specification[dict[str, Any]]):
+    """
+    Ensures an underlying is 'Retail Efficient' for Tastylive mechanics.
+    Criteria:
+    1. Price Floor: Minimum underlying price ($25) to ensure manageable Gamma and strike density.
+    2. Slippage Guard: Maximum Bid/Ask spread (5%) to prevent friction tax.
+    """
+
+    def __init__(self, min_price: float, max_slippage: float):
+        self.min_price = min_price
+        self.max_slippage = max_slippage
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        # Price Check
+        price_raw = metrics.get("price")
+        try:
+            price = float(price_raw) if price_raw is not None else 0.0
+        except (ValueError, TypeError):
+            price = 0.0
+
+        if price < self.min_price:
+            return False
+
+        # Slippage Check
+        call_bid = metrics.get("call_bid")
+        call_ask = metrics.get("call_ask")
+        put_bid = metrics.get("put_bid")
+        put_ask = metrics.get("put_ask")
+
+        max_found = 0.0
+        has_quote = False
+
+        for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
+            if bid is not None and ask is not None:
+                try:
+                    f_bid, f_ask = float(bid), float(ask)
+                    mid = (f_bid + f_ask) / 2
+                    if mid > 0:
+                        has_quote = True
+                        max_found = max(max_found, (f_ask - f_bid) / mid)
+                except (ValueError, TypeError):
+                    pass
+
+        if has_quote and max_found > self.max_slippage:
+            return False
 
         return True

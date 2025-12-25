@@ -13,6 +13,7 @@ from variance.models.market_specs import (
     IVPercentileSpec,
     LiquiditySpec,
     LowVolTrapSpec,
+    RetailEfficiencySpec,
     SectorExclusionSpec,
     VolatilityTrapSpec,
     VrpStructuralSpec,
@@ -44,6 +45,10 @@ def apply_specifications(
     hv_compression_threshold = float(rules.get("vol_trap_compression_threshold", 0.70))
     vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
 
+    # Retail Efficiency Params
+    retail_min_price = float(rules.get("retail_min_price", 25.0))
+    retail_max_slippage = float(rules.get("retail_max_slippage", 0.05))
+
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
     corr_spec = None
 
@@ -54,6 +59,7 @@ def apply_specifications(
         main_spec &= VolatilityTrapSpec(
             hv_rank_trap_threshold, hv_compression_threshold, vrp_rich_threshold
         )
+        main_spec &= RetailEfficiencySpec(retail_min_price, retail_max_slippage)
         # New: IV Percentile Spec
         if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
             main_spec &= IVPercentileSpec(config.min_iv_percentile)
@@ -189,6 +195,30 @@ def _update_counters(
 
     if vrp_s > rich_threshold and hv_rank is not None and hv_rank_f < trap_threshold:
         diagnostics.incr("hv_rank_trap_skipped_count")
+
+    # Retail Efficiency Skip
+    retail_min_price = float(rules.get("retail_min_price", 25.0))
+    retail_max_slippage = float(rules.get("retail_max_slippage", 0.05))
+    price = float(metrics.get("price") or 0.0)
+
+    if price < retail_min_price:
+        diagnostics.incr("retail_inefficient_skipped_count")
+    else:
+        # Check slippage for counter
+        call_bid = metrics.get("call_bid")
+        call_ask = metrics.get("call_ask")
+        put_bid = metrics.get("put_bid")
+        put_ask = metrics.get("put_ask")
+        max_s = 0.0
+        for b, a in [(call_bid, call_ask), (put_bid, put_ask)]:
+            if b is not None and a is not None:
+                m = (float(b) + float(a)) / 2
+                if m > 0:
+                    s = (float(a) - float(b)) / m
+                    if s > max_s:
+                        max_s = s
+        if max_s > retail_max_slippage:
+            diagnostics.incr("retail_inefficient_skipped_count")
 
     # New: IV Percentile Skip
     if config.min_iv_percentile is not None and config.min_iv_percentile > 0:

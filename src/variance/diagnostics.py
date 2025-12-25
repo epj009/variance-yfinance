@@ -58,7 +58,8 @@ SCREENER_COUNTER_DEFAULTS: dict[str, int] = {
     "illiquid_skipped_count": 0,
     "data_integrity_skipped_count": 0,
     "low_vol_trap_skipped_count": 0,
-    "low_iv_percentile_skipped_count": 0,  # New
+    "low_iv_percentile_skipped_count": 0,
+    "retail_inefficient_skipped_count": 0,  # New
     "hv_rank_trap_skipped_count": 0,
     "correlation_skipped_count": 0,
     "tactical_skipped_count": 0,
