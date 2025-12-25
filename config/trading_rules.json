@@ -45,7 +45,7 @@
     "variance_score_dislocation_multiplier": 200,
     "proxy_iv_score_haircut": 0.85,
     "asset_mix_equity_threshold": 0.80,
-    "max_portfolio_correlation": 0.85,
+    "max_portfolio_correlation": 0.70,
     "stress_scenarios": [
         {"label": "Crash -5%", "move_pct": -0.05, "vol_point_move": 15.0},
         {"label": "Dip -3%", "move_pct": -0.03, "vol_point_move": 5.0},

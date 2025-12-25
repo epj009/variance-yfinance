@@ -55,7 +55,10 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
         )
 
         # Restore TUI keys
-        candidate["Signal"] = _determine_signal_type(flags, candidate["vrp_tactical_markup"], rules)
+        iv_pct_val = candidate.get("iv_percentile")
+        candidate["Signal"] = _determine_signal_type(
+            flags, candidate["vrp_tactical_markup"], rules, iv_pct_val
+        )
         candidate["Regime"] = _determine_regime_type(flags)
         candidate["Environment"] = _get_recommended_environment(candidate["Signal"])
         candidate["Earnings In"] = days_to_earn

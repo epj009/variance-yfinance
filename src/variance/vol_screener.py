@@ -182,7 +182,10 @@ def _create_candidate_flags(
 
 
 def _determine_signal_type(
-    flags: dict[str, bool], vrp_t_markup: Optional[float], rules: dict[str, Any]
+    flags: dict[str, bool],
+    vrp_t_markup: Optional[float],
+    rules: dict[str, Any],
+    iv_percentile: Optional[float] = None,
 ) -> str:
     """
     Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
@@ -190,6 +193,11 @@ def _determine_signal_type(
     """
     if flags["is_earnings_soon"]:
         return "EVENT"
+
+    # Statistical Extreme Check (The /NG Paradox Fix)
+    # If IV is at statistical extremes (>80% of last year), it is RICH regardless of tactical discount
+    if iv_percentile is not None and iv_percentile > 0.80:
+        return "RICH"
 
     if flags.get("is_cheap"):  # VRP Tactical Markup < -10%
         return "DISCOUNT"
