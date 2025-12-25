@@ -259,6 +259,20 @@ def calculate_hv(
             "hv20_stderr": float(returns.tail(20).std() / np.sqrt(20) * np.sqrt(252) * 100),
             "raw_returns": returns.tolist(),  # Store list for JSON serialization
         }
+
+        # Calculate HV Rank (Heuristic: where current hv20 sits vs last 252 days)
+        try:
+            # Generate a rolling window of 20-day volatilities for the last year
+            rolling_vol = returns.rolling(window=20).std() * np.sqrt(252) * 100
+            rolling_vol = rolling_vol.dropna()
+            if len(rolling_vol) > 20:
+                current_vol = res["hv20"]
+                # Count how many days were lower than today
+                rank = (rolling_vol < current_vol).sum() / len(rolling_vol) * 100.0
+                res["hv_rank"] = float(rank)
+        except Exception:
+            pass
+
         local_cache.set(cache_key, res, get_dynamic_ttl("hv", 86400))
         return res
     except Exception:
@@ -779,6 +793,10 @@ class TastytradeProvider(IMarketDataProvider):
 
             if "hv90" in tt_data and tt_data["hv90"] is not None:
                 merged["hv90"] = tt_data["hv90"]
+
+            # Preserve HV Rank from yfinance if available
+            if "hv_rank" in yf_data and yf_data["hv_rank"] is not None:
+                merged["hv_rank"] = yf_data["hv_rank"]
 
             # Overlay earnings date (Tastytrade may be more accurate)
             if "earnings_date" in tt_data and tt_data["earnings_date"] is not None:

@@ -11,6 +11,7 @@ class MarketData(TypedDict, total=False):
     iv_rank: Optional[float]
     hv20: Optional[float]
     hv252: Optional[float]
+    hv_rank: Optional[float]
     vrp_structural: Optional[float]
     vrp_tactical: Optional[float]
     earnings_date: Optional[str]
