@@ -419,8 +419,6 @@ class TUIRenderer:
                 # Convert markup back to ratio: markup of 3.0 (300%) is ratio of 4.0
                 vtm_ratio = vtm + 1.0
                 vtm_str = f"{vtm_ratio:.2f}"
-                if vtm >= 3.0:
-                    vtm_str = f"!! {vtm_str}"
 
             vsm = c.get("vrp_structural")
             vsm_str = f"{vsm:.2f}" if isinstance(vsm, (int, float)) else "N/A"

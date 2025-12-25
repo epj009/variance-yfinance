@@ -435,12 +435,10 @@ def triage_portfolio(
         vrp_t = m_data.get("vrp_tactical")
 
         if vrp_t is not None:
-            vta_floor = rules.get("vrp_tactical_aggregation_floor", -0.50)
-            vta_ceil = rules.get("vrp_tactical_aggregation_ceiling", 1.00)
+            # Use raw tactical markup without clamping
             markup = vrp_t - 1.0
-            clamped_markup = max(vta_floor, min(vta_ceil, markup))
-            clamped_ratio = 1.0 + clamped_markup
-            cluster_theta_vrp_adj = m["cluster_theta_raw"] * clamped_ratio
+            ratio = 1.0 + markup
+            cluster_theta_vrp_adj = m["cluster_theta_raw"] * ratio
         else:
             vrp_s = m_data.get("vrp_structural")
             vrp_ratio = vrp_s if isinstance(vrp_s, (int, float)) else 1.0

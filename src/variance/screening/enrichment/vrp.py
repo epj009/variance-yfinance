@@ -30,7 +30,8 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
         if hv30 is not None and iv30 is not None and float(hv30) > 0:
             hv_f = max(float(hv30), hv_floor_abs)
             raw_markup = (float(iv30) - hv_f) / hv_f
-            candidate["vrp_tactical_markup"] = max(-0.99, min(3.0, raw_markup))
+            # Remove upper cap, maintain floor to prevent negative infinity
+            candidate["vrp_tactical_markup"] = max(-0.99, raw_markup)
 
         # 4. Signal Synthesis
         from variance.vol_screener import (
