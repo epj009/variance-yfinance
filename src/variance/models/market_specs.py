@@ -281,9 +281,10 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
             return False
 
         try:
-            # Scale Tastytrade decimal (0.20) to 0-100 range (20.0)
-            scaled_ivp = float(iv_pct) * 100.0
-            return scaled_ivp >= self.min_percentile
+            # Tastytrade client already normalizes to 0-100 range
+            # (e.g., 77.33 for 77th percentile)
+            iv_pct_val = float(iv_pct)
+            return iv_pct_val >= self.min_percentile
         except (ValueError, TypeError):
             return False
 
