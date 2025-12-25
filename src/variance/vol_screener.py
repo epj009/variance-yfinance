@@ -238,8 +238,9 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
 
     Weights:
-    - VRP Structural Dislocation (Structural Edge): 50%
-    - VRP Tactical Dislocation (Tactical Edge): 50%
+    - VRP Structural Dislocation (Structural Edge): 37.5%
+    - VRP Tactical Dislocation (Tactical Edge): 37.5%
+    - IV Percentile (Statistical Edge): 25%
 
     The score measures the ABSOLUTE distance from Fair Value (1.0).
     Significant dislocation in either direction (Rich or Cheap) results in a high score.
@@ -259,7 +260,7 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
             rules.get("variance_score_dislocation_multiplier", 200)
         )
         bias_score = max(0.0, min(100.0, bias_dislocation))
-        score += bias_score * 0.50
+        score += bias_score * 0.375
 
     # 2. VRP Tactical Component (Absolute Dislocation)
     bias20 = metrics.get("vrp_tactical")
@@ -268,11 +269,20 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
             rules.get("variance_score_dislocation_multiplier", 200)
         )
         bias20_score = max(0.0, min(100.0, bias20_dislocation))
-        score += bias20_score * 0.50
+        score += bias20_score * 0.375
     elif bias is not None:  # Fallback
-        score += bias_score * 0.50
+        score += bias_score * 0.375
 
-    # 3. Penalties
+    # 3. IV Percentile Component (0-100)
+    # Adds direct weight to statistical extremes
+    iv_pct = metrics.get("iv_percentile")
+    ivp_score = 0.0
+    if iv_pct is not None:
+        # iv_percentile is 0.0-1.0 from Tastytrade, 0-100 for score
+        ivp_score = float(iv_pct) * 100.0
+        score += ivp_score * 0.25
+
+    # 4. Penalties
     # HV Rank Trap: High VRP Structural but extremely low realized vol
     hv_rank = metrics.get("hv_rank")
     trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
