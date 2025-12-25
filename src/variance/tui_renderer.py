@@ -485,6 +485,7 @@ class TUIRenderer:
                 ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
                 ("Illiquid", summary.get("illiquid_skipped_count", 0)),
+                ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),
                 ("High Corr", summary.get("correlation_skipped_count", 0)),
                 ("Data Errors", summary.get("market_data_error_count", 0)),
             ]
