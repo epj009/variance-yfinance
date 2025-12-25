@@ -202,7 +202,10 @@ class TastytradeClient:
                     # Use HV as anchor if available
                     anchor_vol = hv30_val if hv30_val else hv90_val
 
-                    if anchor_vol and anchor_vol > 0:
+                    if val < 1.0:
+                        # Hard rule: No equity/commodity has < 1% IV. Assume decimal.
+                        metrics["iv"] = val * 100.0
+                    elif anchor_vol and anchor_vol > 0:
                         diff_unscaled = abs(val - anchor_vol)
                         diff_scaled = abs((val * 100.0) - anchor_vol)
 
