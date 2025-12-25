@@ -416,15 +416,14 @@ class TUIRenderer:
             vtm = c.get("vrp_tactical_markup")
             vtm_str = "N/A"
             if isinstance(vtm, (int, float)):
-                vtm_str = f"{vtm:+.0%}"
+                # Convert markup back to ratio: markup of 3.0 (300%) is ratio of 4.0
+                vtm_ratio = vtm + 1.0
+                vtm_str = f"{vtm_ratio:.2f}"
                 if vtm >= 3.0:
                     vtm_str = f"!! {vtm_str}"
 
             vsm = c.get("vrp_structural")
-            vsm_str = "N/A"
-            if isinstance(vsm, (int, float)):
-                vsm_val = vsm - 1.0
-                vsm_str = f"{vsm_val:+.0%}"
+            vsm_str = f"{vsm:.2f}" if isinstance(vsm, (int, float)) else "N/A"
 
             ivp = c.get("IV Percentile")
             ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
