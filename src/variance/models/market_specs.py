@@ -261,3 +261,25 @@ class CorrelationSpec(Specification[dict[str, Any]]):
         metrics["portfolio_rho"] = corr
 
         return corr <= self.max_correlation
+
+
+class IVPercentileSpec(Specification[dict[str, Any]]):
+    """Filters based on IV Percentile (IV Rank) from Tastytrade."""
+
+    def __init__(self, min_percentile: float):
+        self.min_percentile = min_percentile
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        # If IV Percentile is missing, we assume it fails the filter (conservative)
+        # unless min_percentile is 0, then we pass everything.
+        if self.min_percentile <= 0:
+            return True
+
+        iv_pct = metrics.get("iv_percentile")
+        if iv_pct is None:
+            return False
+
+        try:
+            return float(iv_pct) >= self.min_percentile
+        except (ValueError, TypeError):
+            return False

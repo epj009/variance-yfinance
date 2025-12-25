@@ -15,6 +15,7 @@ class ScreenerConfig:
     limit: Optional[int] = None
     min_vrp_structural: Optional[float] = None
     min_variance_score: Optional[float] = None
+    min_iv_percentile: Optional[float] = None  # New
     allow_illiquid: bool = False
     exclude_sectors: list[str] = field(default_factory=list)
     include_asset_classes: list[str] = field(default_factory=list)
@@ -46,6 +47,7 @@ def load_profile_config(
         min_variance_score=profile_data.get(
             "min_variance_score", rules.get("min_variance_score", 10.0)
         ),
+        min_iv_percentile=profile_data.get("min_iv_percentile", 0.0),  # Default to 0 if missing
         allow_illiquid=profile_data.get("allow_illiquid", False),
         exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
         include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),

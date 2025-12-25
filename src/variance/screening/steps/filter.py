@@ -10,6 +10,7 @@ from variance.diagnostics import ScreenerDiagnostics
 from variance.models.market_specs import (
     CorrelationSpec,
     DataIntegritySpec,
+    IVPercentileSpec,
     LiquiditySpec,
     LowVolTrapSpec,
     SectorExclusionSpec,
@@ -46,6 +47,9 @@ def apply_specifications(
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
+        # New: IV Percentile Spec
+        if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
+            main_spec &= IVPercentileSpec(config.min_iv_percentile)
 
     tactical_spec = VrpTacticalSpec(hv_floor_absolute)
 
@@ -56,6 +60,7 @@ def apply_specifications(
         main_spec &= LiquiditySpec(
             max_slippage=float(rules.get("max_slippage_pct", 0.05)),
             min_vol=int(rules.get("min_atm_volume", 500)),
+            min_tt_liquidity_rating=int(rules.get("min_tt_liquidity_rating", 4)),
         )
 
     # 4. Correlation Guard (RFC 013)
@@ -167,11 +172,18 @@ def _update_counters(
     if hv252 is not None and float(hv252) < hv_floor:
         diagnostics.incr("low_vol_trap_skipped_count")
 
+    # New: IV Percentile Skip
+    if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
+        iv_pct = metrics.get("iv_percentile")
+        if iv_pct is None or float(iv_pct) < config.min_iv_percentile:
+            diagnostics.incr("low_iv_percentile_skipped_count")
+
     warning = metrics.get("warning")
     soft_warnings = [
         "iv_scale_corrected",
         "iv_scale_assumed_decimal",
         "after_hours_stale",
+        "tastytrade_fallback",
         None,
     ]
     if warning not in soft_warnings:
