@@ -12,12 +12,30 @@ from .specs import Specification
 
 
 class LiquiditySpec(Specification[dict[str, Any]]):
-    """Filters based on bid/ask spread and volume."""
+    """
+    Filters based on liquidity metrics.
 
-    def __init__(self, max_slippage: float, min_vol: int, allow_illiquid: bool = False):
+    Prioritizes Tastytrade liquidity_rating (1-5 scale) when available.
+    Falls back to bid/ask spread and volume analysis when Tastytrade data unavailable.
+
+    Args:
+        max_slippage: Maximum allowed bid/ask spread as percentage (fallback metric)
+        min_vol: Minimum ATM volume required (fallback metric)
+        allow_illiquid: If True, bypass all liquidity checks
+        min_tt_liquidity_rating: Minimum Tastytrade liquidity rating (1-5, primary metric)
+    """
+
+    def __init__(
+        self,
+        max_slippage: float,
+        min_vol: int,
+        allow_illiquid: bool = False,
+        min_tt_liquidity_rating: int = 4,
+    ):
         self.max_slippage = max_slippage
         self.min_vol = min_vol
         self.allow_illiquid = allow_illiquid
+        self.min_tt_liquidity_rating = min_tt_liquidity_rating
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         if self.allow_illiquid:
@@ -27,23 +45,50 @@ class LiquiditySpec(Specification[dict[str, Any]]):
         if symbol.startswith("/"):
             return True  # Futures exemption
 
+        # --- Helper for spread calculation ---
+        def calculate_slippage(metrics_dict: dict[str, Any]) -> tuple[bool, float]:
+            """Returns (has_quote, max_slippage_found)."""
+            call_bid = metrics_dict.get("call_bid")
+            call_ask = metrics_dict.get("call_ask")
+            put_bid = metrics_dict.get("put_bid")
+            put_ask = metrics_dict.get("put_ask")
+
+            max_val = 0.0
+            quote_exists = False
+
+            for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
+                if bid is not None and ask is not None:
+                    try:
+                        f_bid, f_ask = float(bid), float(ask)
+                        mid = (f_bid + f_ask) / 2
+                        if mid > 0:
+                            quote_exists = True
+                            slippage = (f_ask - f_bid) / mid
+                            if slippage > max_val:
+                                max_val = slippage
+                    except (ValueError, TypeError):
+                        pass
+            return quote_exists, max_val
+
+        has_quote, max_slippage_found = calculate_slippage(metrics)
+
+        # PRIMARY: Check Tastytrade liquidity_rating if present (1-5 scale)
+        tt_rating = metrics.get("liquidity_rating")
+        if tt_rating is not None:
+            is_rated = int(tt_rating) >= self.min_tt_liquidity_rating
+            if not is_rated:
+                return False
+
+            # SAFETY GUARD: Reject if spread is egregiously wide (> 25%), regardless of rating.
+            # This protects against data anomalies or severe illiquidity that the static rating missed.
+            if has_quote and max_slippage_found > 0.25:
+                return False
+
+            return True
+
+        # FALLBACK: Use bid/ask spread logic when Tastytrade data unavailable
         # Implied Liquidity Check
-        call_bid = metrics.get("call_bid")
-        call_ask = metrics.get("call_ask")
-        put_bid = metrics.get("put_bid")
-        put_ask = metrics.get("put_ask")
-
-        max_found = 0.0
-        has_quote = False
-
-        for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
-            if bid is not None and ask is not None:
-                mid = (float(bid) + float(ask)) / 2
-                if mid > 0:
-                    has_quote = True
-                    max_found = max(max_found, (float(ask) - float(bid)) / mid)
-
-        if has_quote and max_found <= self.max_slippage:
+        if has_quote and max_slippage_found <= self.max_slippage:
             return True
 
         vol_raw = metrics.get("atm_volume")

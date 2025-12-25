@@ -43,7 +43,7 @@ DEFAULT_TTL = {
     "sector": 2592000,  # 30 days
 }
 
-from .config_loader import load_market_config, load_system_config
+from .config_loader import load_market_config, load_runtime_config, load_system_config
 
 SYS_CONFIG = load_system_config()
 DB_PATH = SYS_CONFIG.get("market_cache_db_path", ".market_cache.db")
@@ -328,7 +328,7 @@ def get_current_iv(
         res = {
             "iv": iv,
             "warning": warning,
-            "atm_vol": atm_vol,
+            "atm_volume": atm_vol,
             "atm_oi": atm_oi,
             "atm_bid": float((atm_call["bid"] + atm_put["bid"]) / 2),
             "atm_ask": float((atm_call["ask"] + atm_put["ask"]) / 2),
@@ -561,6 +561,9 @@ def process_single_symbol(
         if not market_is_open:
             res["is_stale"] = True
 
+        # Set data_source for yfinance-only processing
+        res["data_source"] = "yfinance"
+
         local_cache.set(cache_key, res, TTL.get("price", 600))
         return raw_symbol, res
     except Exception as e:
@@ -571,12 +574,14 @@ def process_single_symbol(
 
 
 from .interfaces import IMarketDataProvider, MarketData
+from .tastytrade_client import TastytradeAuthError, TastytradeClient, TastytradeMetrics
 
 __all__ = [
     "get_market_data",
     "MarketDataService",
     "MarketData",
     "YFinanceProvider",
+    "TastytradeProvider",
     "MarketDataFactory",
 ]
 
@@ -603,6 +608,7 @@ class YFinanceProvider(IMarketDataProvider):
                     # ENFORCEMENT: If market is closed, force is_stale to True
                     if not market_is_open and "error" not in data:
                         data["is_stale"] = True
+                        data["data_source"] = "yfinance"
 
                     results[sym] = cast(MarketData, data)
                 except Exception as e:
@@ -610,18 +616,276 @@ class YFinanceProvider(IMarketDataProvider):
         return results
 
 
+class TastytradeProvider(IMarketDataProvider):
+    """
+    Composite market data provider using Tastytrade for volatility metrics
+    and yfinance for price/returns data.
+
+    This provider:
+    1. Fetches vol metrics (IV, HV30, HV90) from TastytradeClient
+    2. Fetches price/returns from YFinanceProvider
+    3. Merges both sources into composite MarketData
+    4. Computes VRP using Tastytrade HV30/HV90
+    5. Falls back to yfinance-only on auth errors
+    """
+
+    def __init__(
+        self,
+        cache_instance: Optional[MarketCache] = None,
+        yf_fallback: Optional[YFinanceProvider] = None,
+    ):
+        """
+        Initialize TastytradeProvider.
+
+        Args:
+            cache_instance: Optional MarketCache instance for caching
+            yf_fallback: Optional YFinanceProvider for fallback (created if None)
+        """
+        self.cache = cache_instance if cache_instance else globals()["cache"]
+        self.yf_provider = yf_fallback if yf_fallback else YFinanceProvider(cache_instance)
+
+        # Try to initialize Tastytrade client (may raise TastytradeAuthError)
+        self.tt_client: Optional[TastytradeClient]
+        try:
+            self.tt_client = TastytradeClient()
+        except TastytradeAuthError:
+            # Defer error until get_market_data() is called
+            self.tt_client = None
+
+    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
+        """
+        Fetch composite market data for symbols.
+
+        Data Flow:
+            1. Try: Fetch vol metrics from Tastytrade
+            2. Fetch price/returns from yfinance (always)
+            3. Merge: TT vol fields + yf price/returns
+            4. Compute VRP using TT HV30/HV90
+            5. Set data_source="composite"
+            6. On TastytradeAuthError: fallback to yfinance-only with warning
+
+        Args:
+            symbols: List of ticker symbols
+
+        Returns:
+            Dictionary mapping symbols to MarketData objects
+        """
+        # If Tastytrade client is unavailable, fallback to yfinance-only
+        if self.tt_client is None:
+            results = self.yf_provider.get_market_data(symbols)
+            # Mark all results with tastytrade_fallback warning
+            for sym in results:
+                if "error" not in results[sym]:
+                    results[sym]["warning"] = "tastytrade_fallback"
+                    results[sym]["data_source"] = "yfinance"
+            return results
+
+        # Try to fetch Tastytrade metrics
+        try:
+            tt_metrics = self.tt_client.get_market_metrics(symbols)
+        except TastytradeAuthError:
+            # Fallback to yfinance-only
+            results = self.yf_provider.get_market_data(symbols)
+            for sym in results:
+                if "error" not in results[sym]:
+                    results[sym]["warning"] = "tastytrade_fallback"
+                    results[sym]["data_source"] = "yfinance"
+            return results
+        except Exception:
+            # Network error or other issue - fallback
+            results = self.yf_provider.get_market_data(symbols)
+            for sym in results:
+                if "error" not in results[sym]:
+                    results[sym]["warning"] = "tastytrade_fallback"
+                    results[sym]["data_source"] = "yfinance"
+            return results
+
+        # Always fetch yfinance data for price/returns
+        yf_results = self.yf_provider.get_market_data(symbols)
+
+        # Merge Tastytrade + yfinance data
+        final_results: dict[str, MarketData] = {}
+        for sym in symbols:
+            final_results[sym] = self._merge_tastytrade_yfinance(
+                sym, tt_metrics.get(sym), yf_results.get(sym)
+            )
+
+        return final_results
+
+    def _merge_tastytrade_yfinance(
+        self,
+        symbol: str,
+        tt_data: Optional[TastytradeMetrics],
+        yf_data: Optional[MarketData],
+    ) -> MarketData:
+        """
+        Merge Tastytrade vol metrics with yfinance price/returns data.
+
+        Priority:
+            - Price/returns: yfinance
+            - IV/HV: Tastytrade (if available), else yfinance
+            - VRP: Computed from Tastytrade HV30/HV90 (if available)
+
+        Args:
+            symbol: Ticker symbol
+            tt_data: Tastytrade metrics (optional)
+            yf_data: yfinance market data (optional)
+
+        Returns:
+            Composite MarketData object
+        """
+        # If no yfinance data, return error
+        if not yf_data:
+            return cast(MarketData, {"error": "yfinance_unavailable"})
+
+        # If yfinance has error, propagate it
+        if "error" in yf_data:
+            return yf_data
+
+        # Start with yfinance data as base
+        merged = dict(yf_data)
+
+        # If Tastytrade data available, overlay vol metrics
+        if tt_data:
+            # Overlay IV (Tastytrade already scaled to percent)
+            if "iv" in tt_data and tt_data["iv"] is not None:
+                merged["iv"] = tt_data["iv"]
+                # Clear yfinance warning if Tastytrade IV is good
+                if merged.get("warning") == "iv_unavailable":
+                    merged["warning"] = None
+
+            # Add Tastytrade-specific fields
+            if "iv_rank" in tt_data and tt_data["iv_rank"] is not None:
+                merged["iv_rank"] = tt_data["iv_rank"]
+
+            if "iv_percentile" in tt_data and tt_data["iv_percentile"] is not None:
+                merged["iv_percentile"] = tt_data["iv_percentile"]
+
+            if "liquidity_rating" in tt_data and tt_data["liquidity_rating"] is not None:
+                merged["liquidity_rating"] = tt_data["liquidity_rating"]
+
+            if "liquidity_value" in tt_data and tt_data["liquidity_value"] is not None:
+                merged["liquidity_value"] = tt_data["liquidity_value"]
+
+            if "corr_spy_3month" in tt_data and tt_data["corr_spy_3month"] is not None:
+                merged["corr_spy_3month"] = tt_data["corr_spy_3month"]
+
+            if "beta" in tt_data and tt_data["beta"] is not None:
+                merged["beta"] = tt_data["beta"]
+
+            # Add HV30/HV90 for compression ratio calculations
+            if "hv30" in tt_data and tt_data["hv30"] is not None:
+                merged["hv30"] = tt_data["hv30"]
+
+            if "hv90" in tt_data and tt_data["hv90"] is not None:
+                merged["hv90"] = tt_data["hv90"]
+
+            # Overlay earnings date (Tastytrade may be more accurate)
+            if "earnings_date" in tt_data and tt_data["earnings_date"] is not None:
+                merged["earnings_date"] = tt_data["earnings_date"]
+
+            # Compute VRP using Tastytrade IV and best available HV (HV252 from YF preferred)
+            merged = self._compute_vrp(merged, tt_data, yf_data)
+
+            # Mark as composite source
+            merged["data_source"] = "composite"
+        else:
+            # No Tastytrade data - mark as yfinance-only
+            merged["data_source"] = "yfinance"
+
+        return cast(MarketData, merged)
+
+    def _compute_vrp(
+        self,
+        merged_data: dict[str, Any],
+        tt_data: TastytradeMetrics,
+        yf_data: Optional[MarketData] = None,
+    ) -> dict[str, Any]:
+        """
+        Compute VRP (structural/tactical).
+
+        Formulas:
+            vrp_structural = IV / HV252 (YF) OR IV / HV90 (TT)
+            vrp_tactical = IV / max(HV30, hv_floor)
+
+        Args:
+            merged_data: Merged market data dict
+            tt_data: Tastytrade metrics with HV30/HV90
+            yf_data: YFinance market data with HV252
+
+        Returns:
+            Updated merged_data with VRP fields
+        """
+        iv = merged_data.get("iv")
+        if iv is None or iv <= 0:
+            return merged_data
+
+        # Structural VRP: Prefer HV252 (YF) -> Fallback HV90 (TT)
+        hv252 = yf_data.get("hv252") if yf_data else None
+        hv90 = tt_data.get("hv90")
+
+        if hv252 is not None and hv252 > 0:
+            merged_data["vrp_structural"] = iv / hv252
+        elif hv90 is not None and hv90 > 0:
+            merged_data["vrp_structural"] = iv / hv90
+
+        # Tactical VRP: IV / max(HV30, floor)
+        hv30 = tt_data.get("hv30")
+        if hv30 is not None:
+            hv_floor = HV_FLOOR_PERCENT  # From config (default 5.0)
+            merged_data["vrp_tactical"] = iv / max(hv30, hv_floor)
+
+        return merged_data
+
+
 class MarketDataFactory:
     @staticmethod
-    def get_provider(provider_type: str = "yfinance") -> IMarketDataProvider:
-        if provider_type.lower() == "yfinance":
+    def get_provider(provider_type: str = "tastytrade") -> IMarketDataProvider:
+        """
+        Get market data provider by type.
+
+        Args:
+            provider_type: "tastytrade" (default) or "yfinance"
+
+        Returns:
+            IMarketDataProvider instance
+
+        Raises:
+            ValueError: If provider_type is unknown
+        """
+        provider_lower = provider_type.lower()
+
+        if provider_lower == "tastytrade":
+            # Try to create TastytradeProvider, fallback to yfinance on auth error
+            try:
+                return TastytradeProvider()
+            except TastytradeAuthError:
+                # Fallback to yfinance if Tastytrade auth fails
+                return YFinanceProvider()
+
+        if provider_lower == "yfinance":
             return YFinanceProvider()
-        raise ValueError(f"Unknown: {provider_type}")
+
+        raise ValueError(f"Unknown provider type: {provider_type}")
 
 
 class MarketDataService:
     def __init__(self, cache: Optional[MarketCache] = None):
         self._cache = cache if cache else globals()["cache"]
-        self.provider = YFinanceProvider(cache_instance=self._cache)
+
+        # Load config to determine provider
+        try:
+            runtime_config = load_runtime_config()
+            tt_config = runtime_config.get("tastytrade", {})
+            use_tastytrade = tt_config.get("enabled", False)
+        except Exception:
+            # Fallback if config loading fails
+            use_tastytrade = False
+
+        if use_tastytrade:
+            self.provider = MarketDataFactory.get_provider("tastytrade")
+        else:
+            self.provider = MarketDataFactory.get_provider("yfinance")
 
     @property
     def cache(self) -> MarketCache:
