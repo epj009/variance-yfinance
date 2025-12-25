@@ -216,6 +216,8 @@ def _determine_signal_type(
 
     return "FAIR"
 
+    return "FAIR"
+
 
 def _determine_regime_type(flags: dict[str, bool]) -> str:
     """
@@ -241,64 +243,74 @@ def _get_recommended_environment(signal_type: str) -> str:
     return "Neutral / Fair Value"
 
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        if val is None:
+            return default
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
     """
     Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
 
     Weights:
-    - VRP Structural (Baseline): 30%
-    - VRP Tactical (Current): 30%
+    - VRP Structural (Baseline): 25%
+    - VRP Tactical (Current): 25%
     - VRP Divergence (Alpha Momentum): 20%
     - IV Percentile (Statistical Extreme): 20%
+    - Capital Efficiency (Price-Normalized BPR): 10%
 
     The score measures the ABSOLUTE distance from Fair Value (1.0).
     Significant dislocation in either direction (Rich or Cheap) results in a high score.
     """
     score = 0.0
 
-    # 1. VRP Structural Component (30%)
-    bias = metrics.get("vrp_structural")
+    # 1. VRP Structural Component (25%)
+    bias = _safe_float(metrics.get("vrp_structural"), -1.0)
     bias_score = 0.0
-    if bias is not None:
-        bias_dislocation = abs(float(bias) - 1.0) * float(
-            rules.get("variance_score_dislocation_multiplier", 200)
-        )
+    if bias != -1.0:
+        multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
+        bias_dislocation = abs(bias - 1.0) * multiplier
         bias_score = max(0.0, min(100.0, bias_dislocation))
-        score += bias_score * 0.30
+        score += bias_score * 0.25
 
-    # 2. VRP Tactical Component (30%)
-    bias20 = metrics.get("vrp_tactical")
-    bias20_score = 0.0
-    if bias20 is not None:
-        bias20_dislocation = abs(float(bias20) - 1.0) * float(
-            rules.get("variance_score_dislocation_multiplier", 200)
-        )
+    # 2. VRP Tactical Component (25%)
+    bias20 = _safe_float(metrics.get("vrp_tactical"), -1.0)
+    if bias20 != -1.0:
+        multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
+        bias20_dislocation = abs(bias20 - 1.0) * multiplier
         bias20_score = max(0.0, min(100.0, bias20_dislocation))
-        score += bias20_score * 0.30
-    elif bias is not None:  # Fallback
-        score += bias_score * 0.30
+        score += bias20_score * 0.25
+    elif bias != -1.0:  # Fallback
+        score += bias_score * 0.25
 
     # 3. VRP Divergence Component (20%)
-    # Rewards symbols where Tactical edge is significantly different from Structural
-    if bias and bias20 and float(bias) > 0:
-        divergence = float(bias20) / float(bias)
-        # We care about the magnitude of the divergence from 1.0
-        div_dislocation = abs(divergence - 1.0) * 100.0  # e.g. 1.2 -> 20 score
+    if bias > 0 and bias20 > 0:
+        divergence = bias20 / bias
+        div_dislocation = abs(divergence - 1.0) * 100.0
         div_score = max(0.0, min(100.0, div_dislocation))
         score += div_score * 0.20
 
     # 4. IV Percentile Component (20%)
-    iv_pct = metrics.get("iv_percentile")
-    if iv_pct is not None:
-        ivp_score = float(iv_pct) * 100.0
+    iv_pct = _safe_float(metrics.get("iv_percentile"), -1.0)
+    if iv_pct != -1.0:
+        ivp_score = iv_pct * 100.0
         score += ivp_score * 0.20
 
-    # 5. Regime Penalties (Dev Mode)
-    # Coiled Penalty: Recent movement is unsustainably low.
-    # High markup may be an artifact of a shrinking denominator.
-    # Apply a 20% haircut to Coiled signals to favor Normal/Expanding regimes.
-    if metrics.get("regime_type") == "COILED" or metrics.get("is_coiled"):
-        score *= 0.80
+    # 5. Capital Efficiency Component (10%)
+    price = _safe_float(metrics.get("price"), 0.0)
+    if price > 0:
+        efficiency_score = 100.0
+        if price > 500:
+            efficiency_score = 20.0
+        elif price > 200:
+            efficiency_score = 50.0
+        elif price > 100:
+            efficiency_score = 80.0
+        score += efficiency_score * 0.10
 
     return round(float(score), 1)
 

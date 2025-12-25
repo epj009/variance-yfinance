@@ -14,6 +14,7 @@ from variance.models.market_specs import (
     LiquiditySpec,
     LowVolTrapSpec,
     SectorExclusionSpec,
+    VolatilityTrapSpec,
     VrpStructuralSpec,
     VrpTacticalSpec,
 )
@@ -39,6 +40,9 @@ def apply_specifications(
         else config.min_vrp_structural
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
+    hv_rank_trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
+    hv_compression_threshold = float(rules.get("vol_trap_compression_threshold", 0.70))
+    vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
 
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
     corr_spec = None
@@ -47,6 +51,9 @@ def apply_specifications(
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
+        main_spec &= VolatilityTrapSpec(
+            hv_rank_trap_threshold, hv_compression_threshold, vrp_rich_threshold
+        )
         # New: IV Percentile Spec
         if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
             main_spec &= IVPercentileSpec(config.min_iv_percentile)
@@ -171,6 +178,17 @@ def _update_counters(
     hv252 = metrics.get("hv252")
     if hv252 is not None and float(hv252) < hv_floor:
         diagnostics.incr("low_vol_trap_skipped_count")
+
+    hv_rank = metrics.get("hv_rank")
+    rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
+    trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
+    vrp_s_raw = metrics.get("vrp_structural")
+
+    vrp_s = float(vrp_s_raw) if vrp_s_raw is not None else 0.0
+    hv_rank_f = float(hv_rank) if hv_rank is not None else 100.0
+
+    if vrp_s > rich_threshold and hv_rank is not None and hv_rank_f < trap_threshold:
+        diagnostics.incr("hv_rank_trap_skipped_count")
 
     # New: IV Percentile Skip
     if config.min_iv_percentile is not None and config.min_iv_percentile > 0:

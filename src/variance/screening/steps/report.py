@@ -43,22 +43,77 @@ def build_report(
 
     held_symbols = set(s.upper() for s in config.held_symbols)
     display_candidates = []
+
+    def _safe_f(val: Any, default: float = 0.0) -> float:
+        try:
+            return float(val) if val is not None else default
+        except (ValueError, TypeError):
+            return default
+
     for candidate in candidates:
         display = dict(candidate)
         display["Symbol"] = candidate.get("symbol")
-        display["Price"] = candidate.get("price", 0.0)
+
+        display["Price"] = _safe_f(candidate.get("price"))
+
         asset_class = candidate.get("asset_class") or map_sector_to_asset_class(
             str(candidate.get("sector", "Unknown"))
         )
         display["Asset Class"] = asset_class
-        display["is_held"] = str(candidate.get("symbol", "")).upper() in held_symbols
+        is_held = str(candidate.get("symbol", "")).upper() in held_symbols
+        display["is_held"] = is_held
+
+        # 1. Capacity (Liquidity Value in USD)
+        display["Capacity"] = _safe_f(candidate.get("liquidity_value"))
+
+        # 2. Yield (%) - Normalized to 30 days
+        # Formula: (Straddle Mid / (Price * 0.20)) * (30 / 45)
+        # We use 45 as the DTE denominator for normalization.
+        price = _safe_f(candidate.get("price"))
+        bid = _safe_f(candidate.get("atm_bid"))
+        ask = _safe_f(candidate.get("atm_ask"))
+        mid = (bid + ask) / 2 if (bid + ask) > 0 else 0.0
+
+        yield_pct = 0.0
+        if price > 0:
+            bpr_est = price * 0.20
+            if bpr_est > 0:
+                # 30-day normalized yield
+                yield_pct = (mid / bpr_est) * (30.0 / 45.0) * 100.0
+        display["Yield"] = yield_pct
+
+        # 3. Earnings In
+        from variance.vol_screener import get_days_to_date
+
+        display["Earnings"] = get_days_to_date(candidate.get("earnings_date"))
+
+        # 4. Allocation Vote Logic
+        score = _safe_f(candidate.get("score"))
+        rho = _safe_f(candidate.get("portfolio_rho"))
+        vtm = _safe_f(candidate.get("vrp_tactical_markup"))
+        vsm = _safe_f(candidate.get("vrp_structural"), 1.0)
+
+        divergence = (vtm + 1.0) / vsm if vsm > 0 else 1.0
+
+        vote = "WATCH"
+        if is_held:
+            # Scale if setup is surging (divergence > 1.10)
+            vote = "SCALE" if divergence >= 1.10 and score > 60 else "HOLD"
+        elif score >= 70 and rho <= 0.50:
+            vote = "BUY"
+        elif score >= 60 and rho <= 0.65:
+            vote = "LEAN"
+        elif rho > 0.70:
+            vote = "AVOID"
+
+        display["Vote"] = vote
 
         # Ensure IV Percentile is visible in the final report
-        ivp = candidate.get("iv_percentile")
-        if ivp is not None:
+        ivp_raw = candidate.get("iv_percentile")
+        if ivp_raw is not None:
             # Tastytrade returns 0-1 (e.g. 0.53), convert to 0-100 for display
             try:
-                display["IV Percentile"] = float(ivp) * 100.0
+                display["IV Percentile"] = _safe_f(ivp_raw) * 100.0
             except (ValueError, TypeError):
                 display["IV Percentile"] = None
         else:

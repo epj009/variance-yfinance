@@ -395,15 +395,17 @@ class TUIRenderer:
         )
         table.add_column("Symbol", style="cyan", width=8)
         table.add_column("Price", justify="right", width=9)
-        table.add_column("VRP (S)", justify="right", width=9)
-        table.add_column("VRP (T)", justify="right", width=9)
-        table.add_column("IVP", justify="right", width=7)
+        table.add_column("VRP(S)", justify="right", width=7)
+        table.add_column("VRP(T)", justify="right", width=7)
+        table.add_column("IVP", justify="right", width=5)
+        table.add_column("Rho", justify="right", width=5)
+        table.add_column("Yield", justify="right", width=7)
+        table.add_column("Earn", justify="right", width=5)
         table.add_column("Signal", width=12)
-        table.add_column("Score", justify="right", width=7)
-        table.add_column("Rho (ρ)", justify="right", width=9)
-        table.add_column("Asset Class", width=14)
+        table.add_column("Vote", justify="center", width=7)
 
         for c in candidates:
+            # ... signal and rho logic ...
             # Signal Styling & Divergence Indicator
             sig = str(c.get("Signal", "N/A"))
             sig_style = "profit" if "RICH" in sig else "loss" if "DISCOUNT" in sig else "warning"
@@ -416,15 +418,15 @@ class TUIRenderer:
                 vtm_val = vtm_raw + 1.0  # Convert markup to ratio
                 div_ratio = vtm_val / vsm_val
                 if div_ratio >= 1.25:
-                    div_icon = " [bold green]↑↑[/]"
+                    div_icon = " ↑↑"
                 elif div_ratio >= 1.05:
-                    div_icon = " [green]↑[/]"
+                    div_icon = " ↑"
                 elif div_ratio <= 0.75:
-                    div_icon = " [bold red]↓↓[/]"
+                    div_icon = " ↓↓"
                 elif div_ratio <= 0.95:
-                    div_icon = " [red]↓[/]"
+                    div_icon = " ↓"
 
-            full_sig = f"[{sig_style}]{sig}[/]{div_icon}"
+            full_sig = f"[{sig_style}]{sig}{div_icon}[/]"
 
             # Rho Styling (RFC 020)
             rho = c.get("portfolio_rho")
@@ -444,16 +446,49 @@ class TUIRenderer:
             ivp = c.get("IV Percentile")
             ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
 
+            # Yield Formatting
+            y_val = c.get("Yield", 0.0)
+            y_str = f"{y_val:.1f}%" if y_val > 0 else "N/A"
+            y_style = "profit" if y_val >= 5.0 else "neutral"
+
+            # Earnings Formatting
+            earn = c.get("Earnings", "N/A")
+            earn_str = str(earn)
+            earn_style = "warning" if isinstance(earn, int) and earn <= 7 else "dim"
+
+            # Vote Styling
+            vote = c.get("Vote", "WATCH")
+            vote_style = (
+                "bold green"
+                if vote in ["BUY", "SCALE"]
+                else "green"
+                if vote == "LEAN"
+                else "dim yellow"
+                if vote == "HOLD"
+                else "white"
+            )
+            if vote == "BUY":
+                vote_display = f"[{vote_style}]BUY[/]"
+            elif vote == "SCALE":
+                vote_display = f"[{vote_style}]SCALE[/]"
+            elif vote == "LEAN":
+                vote_display = f"[{vote_style}]LEAN[/]"
+            elif vote == "AVOID":
+                vote_display = "[bold red]AVOID[/]"
+            else:
+                vote_display = f"[{vote_style}]{vote}[/]"
+
             table.add_row(
                 c.get("symbol", "N/A"),
                 fmt_currency(c.get("price", 0)),
                 vsm_str,
                 vtm_str,
                 ivp_str,
-                full_sig,
-                f"{c.get('Score', 0):.1f}",
                 f"[{rho_style}]{rho_str}[/]",
-                c.get("Asset Class", "Equity"),
+                f"[{y_style}]{y_str}[/]",
+                f"[{earn_style}]{earn_str}[/]",
+                full_sig,
+                vote_display,
             )
 
         self.console.print(table)

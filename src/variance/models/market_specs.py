@@ -285,3 +285,38 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
             return scaled_ivp >= self.min_percentile
         except (ValueError, TypeError):
             return False
+
+
+class VolatilityTrapSpec(Specification[dict[str, Any]]):
+    """
+    Hard gate against Volatility Traps.
+    Rejects symbols where realized volatility is either:
+    1. Positional: Extreme low of its 1-year range (HV Rank < 15)
+    2. Relative: Extremely compressed vs its own medium-term trend (HV30 / HV90 < 0.70)
+    """
+
+    def __init__(
+        self, rank_threshold: float, compression_threshold: float, vrp_rich_threshold: float
+    ):
+        self.rank_threshold = rank_threshold
+        self.compression_threshold = compression_threshold
+        self.vrp_rich_threshold = vrp_rich_threshold
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        hv_rank = metrics.get("hv_rank")
+        hv30 = metrics.get("hv30")
+        hv90 = metrics.get("hv90")
+        vrp_s = metrics.get("vrp_structural")
+
+        # Only apply trap logic if the symbol looks "Rich"
+        if vrp_s is not None and float(vrp_s) > self.vrp_rich_threshold:
+            # Trigger 1: Positional Rank (1-year context)
+            if hv_rank is not None and float(hv_rank) < self.rank_threshold:
+                return False
+
+            # Trigger 2: Relative Compression (Quarterly context - Tastytrade Native)
+            if hv30 and hv90 and float(hv90) > 0:
+                if (float(hv30) / float(hv90)) < self.compression_threshold:
+                    return False
+
+        return True
