@@ -220,6 +220,19 @@ class TastytradeClient:
                 pass
 
         # IV Rank & Percentile (already in 0-100 range)
+        iv_rank = item.get("implied-volatility-index-rank")
+        if iv_rank is not None:
+            try:
+                metrics["iv_rank"] = float(iv_rank)
+            except (ValueError, TypeError):
+                pass
+
+        iv_percentile = item.get("implied-volatility-percentile")
+        if iv_percentile is not None:
+            try:
+                metrics["iv_percentile"] = float(iv_percentile)
+            except (ValueError, TypeError):
+                pass
 
         # Liquidity metrics
         liquidity_rating = item.get("liquidity-rating")
