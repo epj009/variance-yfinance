@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 from concurrent import futures
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as pytime
 from typing import Any, Optional, cast
 
@@ -16,12 +16,43 @@ import pytz
 
 
 def is_market_open() -> bool:
-    """Checks if the NYSE is currently open."""
+    """
+    Checks if the NYSE is currently open.
+
+    Accounts for:
+    - Weekends (Sat/Sun)
+    - Standard trading hours (9:30 AM - 4:00 PM ET)
+    - Major US market holidays
+    """
     tz = pytz.timezone("US/Eastern")
     now = datetime.now(tz)
+
     # Weekends
     if now.weekday() >= 5:
         return False
+
+    # Major US Market Holidays (observed dates)
+    # Note: Some holidays move to nearest Monday if they fall on weekend
+    year = now.year
+    holidays = [
+        datetime(year, 1, 1, tzinfo=tz),  # New Year's Day
+        datetime(year, 7, 4, tzinfo=tz),  # Independence Day
+        datetime(year, 12, 25, tzinfo=tz),  # Christmas
+        # Add more holidays as needed (MLK, Presidents, Memorial, Labor, Thanksgiving, etc.)
+    ]
+
+    # Check if today is a holiday
+    for holiday in holidays:
+        if now.date() == holiday.date():
+            return False
+        # If holiday falls on weekend, check Monday observance
+        if holiday.weekday() == 6:  # Sunday
+            if now.date() == (holiday + timedelta(days=1)).date():
+                return False
+        elif holiday.weekday() == 5:  # Saturday
+            if now.date() == (holiday - timedelta(days=1)).date():
+                return False
+
     # Standard Hours (9:30 AM - 4:00 PM ET)
     return pytime(9, 30) <= now.time() <= pytime(16, 0)
 
@@ -427,16 +458,33 @@ def process_single_symbol(
         return raw_symbol, {"error": "skipped_symbol"}
 
     cache_key = f"market_data_{raw_symbol}"
+
+    # Try fresh cache first (not expired)
     cached_all = local_cache.get(cache_key)
     if cached_all is None:
         cached_all = local_cache.get(f"md_{raw_symbol}")
-    if cached_all is None and not market_is_open:
-        cached_all = local_cache.get_any(cache_key)
-        if cached_all is None:
-            cached_all = local_cache.get_any(f"md_{raw_symbol}")
+
     if cached_all:
         return raw_symbol, cast(dict[str, Any], cached_all)
 
+    # Market closed: Use stale cache or fail gracefully (avoid rate limits)
+    if not market_is_open:
+        cached_stale = local_cache.get_any(cache_key)
+        if cached_stale is None:
+            cached_stale = local_cache.get_any(f"md_{raw_symbol}")
+
+        if cached_stale:
+            # Mark as stale but usable
+            cached_stale["warning"] = "after_hours_stale"
+            return raw_symbol, cast(dict[str, Any], cached_stale)
+        else:
+            # No cache available and market closed - don't hammer yfinance
+            return raw_symbol, {
+                "error": "market_closed_no_cache",
+                "warning": "Market closed and no cached data available. Try again during market hours.",
+            }
+
+    # Market is open - proceed with fresh fetch
     try:
         # 1. Resolve Symbols
         # yf_symbol is the 'Cleanest' version of the root (e.g. CL=F)
