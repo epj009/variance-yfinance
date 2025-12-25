@@ -492,9 +492,6 @@ class TUIRenderer:
             )
 
         self.console.print(table)
-        self.console.print(
-            "   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]"
-        )
 
     def render_diagnostics(self) -> None:
         """Renders diagnostics panels for pipeline visibility."""
@@ -549,6 +546,7 @@ class TUIRenderer:
                 ("Illiquid", summary.get("illiquid_skipped_count", 0)),
                 ("Low Vol Trap", summary.get("low_vol_trap_skipped_count", 0)),
                 ("HV Rank Trap", summary.get("hv_rank_trap_skipped_count", 0)),
+                ("Retail Inefficient", summary.get("retail_inefficient_skipped_count", 0)),
                 ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),
                 ("High Corr", summary.get("correlation_skipped_count", 0)),
                 ("Data Errors", summary.get("market_data_error_count", 0)),
