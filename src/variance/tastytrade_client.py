@@ -233,7 +233,12 @@ class TastytradeClient:
         iv_percentile = item.get("implied-volatility-percentile")
         if iv_percentile is not None:
             try:
-                metrics["iv_percentile"] = float(iv_percentile)
+                val = float(iv_percentile)
+                # Normalize to 0-100 range (Tastytrade returns 0-1 decimal)
+                if val <= 1.0:
+                    metrics["iv_percentile"] = val * 100.0
+                else:
+                    metrics["iv_percentile"] = val  # Already in percent
             except (ValueError, TypeError):
                 pass
 

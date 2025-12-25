@@ -838,20 +838,24 @@ class TastytradeProvider(IMarketDataProvider):
         if iv is None or iv <= 0:
             return merged_data
 
-        # Structural VRP: Prefer HV252 (YF) -> Fallback HV90 (TT)
-        hv252 = yf_data.get("hv252") if yf_data else None
+        # Structural VRP: PREFER Tastytrade HV90 -> Fallback yfinance HV252
         hv90 = tt_data.get("hv90")
+        hv252 = yf_data.get("hv252") if yf_data else None
+        hv_floor = HV_FLOOR_PERCENT  # From config (default 5.0)
 
-        if hv252 is not None and hv252 > 0:
-            merged_data["vrp_structural"] = iv / hv252
-        elif hv90 is not None and hv90 > 0:
-            merged_data["vrp_structural"] = iv / hv90
+        if hv90 is not None and hv90 > 0:
+            merged_data["vrp_structural"] = iv / max(hv90, hv_floor)
+        elif hv252 is not None and hv252 > 0:
+            merged_data["vrp_structural"] = iv / max(hv252, hv_floor)
 
-        # Tactical VRP: IV / max(HV30, floor)
+        # Tactical VRP: PREFER Tastytrade HV30 -> Fallback yfinance HV20
         hv30 = tt_data.get("hv30")
+        hv20 = yf_data.get("hv20") if yf_data else None
+
         if hv30 is not None:
-            hv_floor = HV_FLOOR_PERCENT  # From config (default 5.0)
             merged_data["vrp_tactical"] = iv / max(hv30, hv_floor)
+        elif hv20 is not None:
+            merged_data["vrp_tactical"] = iv / max(hv20, hv_floor)
 
         return merged_data
 

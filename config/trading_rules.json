@@ -1,7 +1,7 @@
 {
-    "vrp_structural_threshold": 0.85,
-    "vrp_structural_rich_threshold": 0.95,
-    "vrp_tactical_threshold": 0.90,
+    "vrp_structural_threshold": 1.10,
+    "vrp_structural_rich_threshold": 1.30,
+    "vrp_tactical_threshold": 1.15,
     "hv_floor_percent": 5.0,
     "min_tt_liquidity_rating": 4,
     "min_iv_percentile": 20.0,
