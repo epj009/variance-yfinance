@@ -264,7 +264,7 @@ class CorrelationSpec(Specification[dict[str, Any]]):
 
 
 class IVPercentileSpec(Specification[dict[str, Any]]):
-    """Filters based on IV Percentile (IV Rank) from Tastytrade."""
+    """Filters based on IV Percentile (IVP) from Tastytrade."""
 
     def __init__(self, min_percentile: float):
         self.min_percentile = min_percentile
