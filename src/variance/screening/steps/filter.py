@@ -14,6 +14,7 @@ from variance.models.market_specs import (
     LiquiditySpec,
     LowVolTrapSpec,
     RetailEfficiencySpec,
+    ScalableGateSpec,
     SectorExclusionSpec,
     VolatilityTrapSpec,
     VrpStructuralSpec,
@@ -48,6 +49,11 @@ def apply_specifications(
     # Retail Efficiency Params
     retail_min_price = float(rules.get("retail_min_price", 25.0))
     retail_max_slippage = float(rules.get("retail_max_slippage", 0.05))
+
+    scalable_spec = ScalableGateSpec(
+        markup_threshold=float(rules.get("vrp_scalable_threshold", 1.35)),
+        divergence_threshold=float(rules.get("scalable_divergence_threshold", 1.10)),
+    )
 
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
     corr_spec = None
@@ -84,7 +90,6 @@ def apply_specifications(
     # 3. Apply Gate
     candidates = []
     held_roots = set(str(s).upper() for s in getattr(config, "held_symbols", []))
-    scalable_markup_threshold = float(rules.get("scalable_vrp_markup_threshold", 0.50))
     include_assets = [s.lower() for s in getattr(config, "include_asset_classes", [])]
     exclude_assets = [s.lower() for s in getattr(config, "exclude_asset_classes", [])]
 
@@ -113,16 +118,9 @@ def apply_specifications(
 
         # --- HOLDING FILTER (RFC 013/020) ---
         if sym.upper() in held_roots:
-            # Special Case: SCALABLE (➕)
-            # If tactical markup is surged, we ALLOW it back into the pool as a "Scalable" candidate
-            iv = metrics_dict.get("iv")
-            hv20 = metrics_dict.get("hv20")
-            if iv and hv20 and hv20 > 0:
-                markup = (iv / hv20) - 1.0
-                if markup > scalable_markup_threshold:
-                    metrics_dict["is_scalable_surge"] = True
-                else:
-                    continue
+            # Standalone Scalable Gate: Only allow re-entry if edge has surged
+            if scalable_spec.is_satisfied_by(metrics_dict):
+                metrics_dict["is_scalable_surge"] = True
             else:
                 continue
 

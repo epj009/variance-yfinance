@@ -370,3 +370,26 @@ class RetailEfficiencySpec(Specification[dict[str, Any]]):
             return False
 
         return True
+
+
+class ScalableGateSpec(Specification[dict[str, Any]]):
+    """
+    Standalone gate to detect if an existing position is 'Scalable'.
+    Permits re-entry/sizing if the volatility edge has surged significantly.
+    """
+
+    def __init__(self, markup_threshold: float, divergence_threshold: float):
+        self.markup_threshold = markup_threshold
+        self.divergence_threshold = divergence_threshold
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        vtm_raw = metrics.get("vrp_tactical_markup")
+        vtm = float(vtm_raw) if vtm_raw is not None else 0.0
+
+        vsm_raw = metrics.get("vrp_structural")
+        vsm = float(vsm_raw) if vsm_raw is not None else 1.0
+
+        divergence = (vtm + 1.0) / vsm if vsm > 0 else 1.0
+
+        # Trigger on either absolute markup surge or relative divergence momentum
+        return vtm >= self.markup_threshold or divergence >= self.divergence_threshold

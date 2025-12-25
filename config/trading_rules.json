@@ -37,6 +37,7 @@
     "vrp_tactical_aggregation_ceiling": 1.00,
     "vrp_tactical_quality_warning_threshold": 1.00,
     "vrp_scalable_threshold": 1.35,
+    "scalable_divergence_threshold": 1.10,
     "bats_efficiency_min_price": 15,
     "bats_efficiency_max_price": 75,
     "bats_efficiency_vrp_structural": 1.0,

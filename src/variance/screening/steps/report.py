@@ -87,18 +87,14 @@ def build_report(
 
         display["Earnings"] = get_days_to_date(candidate.get("earnings_date"))
 
-        # 4. Allocation Vote Logic
+        # 2. Allocation Vote Logic
         score = _safe_f(candidate.get("score"))
         rho = _safe_f(candidate.get("portfolio_rho"))
-        vtm = _safe_f(candidate.get("vrp_tactical_markup"))
-        vsm = _safe_f(candidate.get("vrp_structural"), 1.0)
-
-        divergence = (vtm + 1.0) / vsm if vsm > 0 else 1.0
 
         vote = "WATCH"
         if is_held:
-            # Scale if setup is surging (divergence > 1.10)
-            vote = "SCALE" if divergence >= 1.10 and score > 60 else "HOLD"
+            # Scale if setup passed the Standalone Scalable Gate
+            vote = "SCALE" if candidate.get("is_scalable_surge") else "HOLD"
         elif score >= 70 and rho <= 0.50:
             vote = "BUY"
         elif score >= 60 and rho <= 0.65:
