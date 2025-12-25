@@ -7,6 +7,11 @@
 #   ./variance --chat   # Chat Only (No pre-analysis)
 #   ./variance --debug  # Show diagnostics panels in the TUI
 
+# Auto-load Tastytrade credentials if available
+if [ -f .env.tastytrade ]; then
+    source .env.tastytrade
+fi
+
 MODE="hybrid"
 SHOW_DIAGNOSTICS=0
 
@@ -124,6 +129,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
@@ -164,6 +171,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
@@ -203,6 +212,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2

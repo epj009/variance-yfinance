@@ -1,4 +1,15 @@
 {
+  "tastytrade": {
+    "enabled": true,
+    "api_base_url_env": "API_BASE_URL",
+    "fallback_on_error": true,
+    "cache_ttl_seconds": 900,
+    "batch_size": 50,
+    "rate_limit_requests_per_second": 5,
+    "iv_scale_factor": 100,
+    "min_liquidity_rating": 4,
+    "symbols_requiring_proxy": ["/ES", "/NQ", "/CL", "/GC"]
+  },
   "system": {
     "watchlist_path": "watchlists/default-watchlist.csv",
     "fallback_symbols": [
@@ -505,15 +516,16 @@
   },
   "screener_profiles": {
     "balanced": {
-      "min_vrp_structural": 0.85,
-      "allow_illiquid": false
+      "min_vrp_structural": 1.0,
+      "allow_illiquid": false,
+      "min_iv_percentile": 50
     },
     "broad": {
-      "min_vrp_structural": 0.0,
+      "min_vrp_structural": 0.85,
       "allow_illiquid": true
     },
     "high_quality": {
-      "min_vrp_structural": 1.0,
+      "min_vrp_structural": 1.2,
       "allow_illiquid": false
     }
   }

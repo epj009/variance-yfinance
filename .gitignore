@@ -35,3 +35,4 @@ positions/
 reports/
 logs/
 .coverage
+.env.tastytrade

@@ -280,6 +280,8 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
             return False
 
         try:
-            return float(iv_pct) >= self.min_percentile
+            # Scale Tastytrade decimal (0.20) to 0-100 range (20.0)
+            scaled_ivp = float(iv_pct) * 100.0
+            return scaled_ivp >= self.min_percentile
         except (ValueError, TypeError):
             return False
