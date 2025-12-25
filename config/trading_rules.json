@@ -4,7 +4,7 @@
     "vrp_tactical_threshold": 0.90,
     "hv_floor_percent": 5.0,
     "min_tt_liquidity_rating": 4,
-    "min_iv_percentile": 50.0,
+    "min_iv_percentile": 20.0,
     "tastytrade_iv_percentile_floor": 20.0,
     "retail_min_price": 25.0,
     "retail_max_slippage": 0.05,
