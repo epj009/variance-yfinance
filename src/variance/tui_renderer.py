@@ -397,6 +397,7 @@ class TUIRenderer:
         table.add_column("Price", justify="right", width=9)
         table.add_column("VRP (S)", justify="right", width=9)
         table.add_column("VRP (T)", justify="right", width=9)
+        table.add_column("IVP", justify="right", width=7)
         table.add_column("Signal", width=12)
         table.add_column("Score", justify="right", width=7)
         table.add_column("Rho (ρ)", justify="right", width=9)
@@ -415,11 +416,15 @@ class TUIRenderer:
             vtm = c.get("vrp_tactical_markup")
             vtm_str = f"{vtm:+.0%}" if isinstance(vtm, (int, float)) else "N/A"
 
+            ivp = c.get("IV Percentile")
+            ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
+
             table.add_row(
                 c.get("symbol", "N/A"),
                 fmt_currency(c.get("price", 0)),
                 f"{c.get('vrp_structural', 0):.2f}",
                 vtm_str,
+                ivp_str,
                 f"[{sig_style}]{sig}[/]",
                 f"{c.get('Score', 0):.1f}",
                 f"[{rho_style}]{rho_str}[/]",
