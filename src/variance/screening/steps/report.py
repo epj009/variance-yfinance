@@ -107,9 +107,9 @@ def build_report(
         # Ensure IV Percentile is visible in the final report
         ivp_raw = candidate.get("iv_percentile")
         if ivp_raw is not None:
-            # Tastytrade returns 0-1 (e.g. 0.53), convert to 0-100 for display
+            # Tastytrade client already normalizes to 0-100 range
             try:
-                display["IV Percentile"] = _safe_f(ivp_raw) * 100.0
+                display["IV Percentile"] = _safe_f(ivp_raw)
             except (ValueError, TypeError):
                 display["IV Percentile"] = None
         else:
