@@ -404,9 +404,27 @@ class TUIRenderer:
         table.add_column("Asset Class", width=14)
 
         for c in candidates:
-            # Signal Styling
+            # Signal Styling & Divergence Indicator
             sig = str(c.get("Signal", "N/A"))
             sig_style = "profit" if "RICH" in sig else "loss" if "DISCOUNT" in sig else "warning"
+
+            # Calculate Divergence for arrow indicator
+            div_icon = ""
+            vsm_val = c.get("vrp_structural")
+            vtm_raw = c.get("vrp_tactical_markup")
+            if vsm_val and vtm_raw is not None:
+                vtm_val = vtm_raw + 1.0  # Convert markup to ratio
+                div_ratio = vtm_val / vsm_val
+                if div_ratio >= 1.25:
+                    div_icon = " [bold green]↑↑[/]"
+                elif div_ratio >= 1.05:
+                    div_icon = " [green]↑[/]"
+                elif div_ratio <= 0.75:
+                    div_icon = " [bold red]↓↓[/]"
+                elif div_ratio <= 0.95:
+                    div_icon = " [red]↓[/]"
+
+            full_sig = f"[{sig_style}]{sig}[/]{div_icon}"
 
             # Rho Styling (RFC 020)
             rho = c.get("portfolio_rho")
@@ -432,7 +450,7 @@ class TUIRenderer:
                 vsm_str,
                 vtm_str,
                 ivp_str,
-                f"[{sig_style}]{sig}[/]",
+                full_sig,
                 f"{c.get('Score', 0):.1f}",
                 f"[{rho_style}]{rho_str}[/]",
                 c.get("Asset Class", "Equity"),
