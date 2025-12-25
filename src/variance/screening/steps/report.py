@@ -52,6 +52,18 @@ def build_report(
         )
         display["Asset Class"] = asset_class
         display["is_held"] = str(candidate.get("symbol", "")).upper() in held_symbols
+
+        # Ensure IV Percentile is visible in the final report
+        ivp = candidate.get("iv_percentile")
+        if ivp is not None:
+            # Tastytrade returns 0-1 (e.g. 0.53), convert to 0-100 for display
+            try:
+                display["IV Percentile"] = float(ivp) * 100.0
+            except (ValueError, TypeError):
+                display["IV Percentile"] = None
+        else:
+            display["IV Percentile"] = None
+
         display_candidates.append(display)
 
     return {
