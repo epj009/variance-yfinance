@@ -394,6 +394,10 @@ class RetailEfficiencySpec(Specification[dict[str, Any]]):
         self.max_slippage = max_slippage
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        symbol = str(metrics.get("symbol", ""))
+        if symbol.startswith("/"):
+            return True  # Futures exemption
+
         # Price Check
         price_raw = metrics.get("price")
         try:

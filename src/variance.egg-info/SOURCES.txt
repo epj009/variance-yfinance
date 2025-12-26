@@ -11,6 +11,7 @@ src/variance/interfaces.py
 src/variance/portfolio_parser.py
 src/variance/strategy_detector.py
 src/variance/strategy_loader.py
+src/variance/tastytrade_client.py
 src/variance/triage_engine.py
 src/variance/tui_renderer.py
 src/variance/variance_logger.py
@@ -82,7 +83,6 @@ src/variance/triage/handlers/expiration.py
 src/variance/triage/handlers/gamma.py
 src/variance/triage/handlers/harvest.py
 src/variance/triage/handlers/hedge.py
-src/variance/triage/handlers/scalable.py
 src/variance/triage/handlers/size_threat.py
 src/variance/triage/handlers/toxic_theta.py
 src/variance/tui/__init__.py
@@ -97,6 +97,7 @@ tests/test_etf_sector_handling.py
 tests/test_futures_proxy_correlation.py
 tests/test_get_market_data.py
 tests/test_integration.py
+tests/test_iv_percentile_fix.py
 tests/test_market_data_integration.py
 tests/test_market_data_service.py
 tests/test_portfolio.py
@@ -110,6 +111,10 @@ tests/test_specs.py
 tests/test_strategy_detector.py
 tests/test_strategy_factory.py
 tests/test_stress_box_accuracy.py
+tests/test_tastytrade_client.py
 tests/test_triage_engine.py
+tests/test_triage_engine_edge_cases.py
 tests/test_vol_screener.py
+tests/test_vol_screener_cli.py
+tests/test_vrp_priority.py
 tests/test_vrp_tactical_floor.py

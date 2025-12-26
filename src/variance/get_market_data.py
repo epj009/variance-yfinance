@@ -344,6 +344,50 @@ def get_current_iv(
     hv_context: Optional[float] = None,
     cache: Optional[MarketCache] = None,
 ) -> dict[str, Any]:
+    """
+    Get current implied volatility from ATM options.
+
+    Measurement Point: AT-THE-MONEY (closest strike to current price)
+
+    Why ATM (not OTM)?
+        - We trade: 20-30 delta strangles (OTM wings)
+        - We measure: ATM IV (50-delta)
+
+        This is NOT a mismatch because:
+        1. ATM anchors the entire vol surface (all strikes priced relative to ATM)
+        2. Skew cancels out for delta-neutral strategies
+           Wing IV = (25d_put + 25d_call) / 2 ≈ ATM IV
+        3. Tastylive/Spina methodology uses overall IV (not skew optimization)
+        4. For stock screening (not strike optimization), ATM is the best proxy
+
+        See ADR-0012 for mathematical proof of skew cancellation.
+
+    Calculation:
+        1. Find closest call strike to price (ATM call)
+        2. Find closest put strike to price (ATM put)
+        3. Average their implied volatilities: IV = (call_iv + put_iv) / 2
+
+    DTE Selection:
+        - Prefer options between 20-45 DTE (configurable via DTE_MIN/DTE_MAX)
+        - If none available, use nearest expiration
+        - This aligns with ~30-day IV convention
+
+    Args:
+        ticker_obj: yfinance Ticker object
+        price: Current stock price
+        yf_symbol: Yahoo Finance symbol (for caching)
+        hv_context: Historical vol for normalization (optional)
+        cache: Cache instance (optional, uses global if not provided)
+
+    Returns:
+        Dict with keys:
+            - iv: Implied volatility (annualized %)
+            - warning: Data quality warning (if any)
+            - atm_volume: Combined ATM call + put volume
+            - atm_oi: Combined ATM call + put open interest
+            - atm_bid, atm_ask: Average of call/put bids/asks
+            - call_bid, call_ask, put_bid, put_ask: Individual leg quotes
+    """
     local_cache = cache if cache else globals()["cache"]
     cache_key = f"iv_{yf_symbol}"
     cached = local_cache.get(cache_key)
@@ -948,19 +992,39 @@ class TastytradeProvider(IMarketDataProvider):
         yf_data: Optional[MarketData] = None,
     ) -> dict[str, Any]:
         """
-        Compute VRP (structural/tactical).
+        Compute VRP (Volatility Risk Premium) as ratio of IV to HV.
+
+        Methodology:
+            VRP = IV / max(HV, hv_floor)
+
+        Why Ratio (not spread)?
+            - Academic VRP: IV - HV (spread in vol points)
+            - Our approach: IV / HV (ratio, dimensionless)
+            - Ratio is superior for retail options selling because:
+              1. Credit scales with vol (premium doubles when vol doubles)
+              2. Cross-sectional comparison (can compare low-vol to high-vol stocks)
+              3. Risk-adjusted edge (both premium and risk scale proportionally)
+            - See ADR-0012 for full mathematical justification
 
         Formulas:
-            vrp_structural = IV / HV252 (YF) OR IV / HV90 (TT)
-            vrp_tactical = IV / max(HV30, hv_floor)
+            vrp_structural = IV / max(HV90, 5%)  [Tastytrade preferred]
+                          OR IV / max(HV252, 5%) [yfinance fallback]
+
+            vrp_tactical   = IV / max(HV30, 5%)  [Tastytrade preferred]
+                          OR IV / max(HV20, 5%)  [yfinance fallback]
+
+        HV Floor Protection:
+            - Floor at 5% prevents ratio explosion on "dead vol" stocks
+            - Example: IV=8%, HV=2% → VRP = 8/5 = 1.60 (floor applied)
+            - Without floor: VRP = 8/2 = 4.00 (unrealistic)
 
         Args:
-            merged_data: Merged market data dict
+            merged_data: Merged market data dict with IV already calculated
             tt_data: Tastytrade metrics with HV30/HV90
-            yf_data: YFinance market data with HV252
+            yf_data: YFinance market data with HV252/HV20 (optional fallback)
 
         Returns:
-            Updated merged_data with VRP fields
+            Updated merged_data with vrp_structural and vrp_tactical fields
         """
         iv = merged_data.get("iv")
         if iv is None or iv <= 0:

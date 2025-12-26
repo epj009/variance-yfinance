@@ -41,6 +41,61 @@ Variance uses **Institutional Grade Decimal Ratios** for all VRP measurements.
 *   **Significance:** This check (derived from institutional market-making) determines if the "Time Rent" (Theta) you collect is sufficient to pay for the "Movement Insurance" (Gamma) you are providing.
 *   **Trigger:** If `Efficiency < 0.10`, the trade is marked `TOXIC`. The cost of movement risk is mathematically higher than the decay you are collecting. Exit immediately.
 
+### 2.6. Why Ratio (Not Spread)?
+
+**Academic VRP:** `VRP = IV - HV` (spread in vol points)
+**Our Approach:** `VRP = IV / HV` (ratio, dimensionless)
+
+**Why Ratio is Superior for Retail:**
+
+1. **Credit Scales with Vol**
+   - Sell strangle on 20% IV stock → Collect $2.00
+   - Sell strangle on 40% IV stock → Collect $4.00
+   - Premium doubles when vol doubles → Edge is proportional
+
+2. **Cross-Sectional Comparison**
+   - Stock A: IV=12%, HV=10% → Spread=2pts, Ratio=1.20 (20% markup)
+   - Stock B: IV=52%, HV=50% → Spread=2pts, Ratio=1.04 (4% markup)
+   - Same absolute spread, but Stock A has 5x better relative edge
+
+3. **Risk-Adjusted Edge**
+   - Expected move = Price × IV × sqrt(DTE/365)
+   - Both risk AND premium scale with vol
+   - Edge is the percentage markup, not absolute points
+
+**Academic spread is for variance swaps (institutional). Ratio is for options selling (retail).**
+
+**See:** `docs/adr/0012-vrp-measurement-methodology.md` for full analysis
+
+### 2.7. Why ATM IV (Not OTM)?
+
+**We Measure:** ATM IV (50-delta)
+**We Trade:** OTM options (20-30 delta strangles)
+
+**Why ATM is Still Correct:**
+
+1. **ATM Anchors the Entire Surface**
+   - All strikes priced relative to ATM: `IV_strike = ATM_IV + Skew`
+   - If ATM is rich, wings are also rich
+   - Skew (~3-4 pts) is stable; ATM movement drives surface
+
+2. **Skew Cancels for Delta-Neutral**
+   ```
+   Wing IV = (25d_put_iv + 25d_call_iv) / 2
+           = (ATM + 3pts) + (ATM - 2pts) / 2
+           = ATM + 0.5pts ≈ ATM
+   ```
+   Skew effects cancel when averaging both sides
+
+3. **Tastylive/Spina Methodology**
+   - Mechanical strike selection (always 20-30 delta)
+   - No skew optimization
+   - Focus on overall IV vs HV
+
+**For delta-neutral strategies, ATM is the best proxy. Measuring wings gives nearly identical result.**
+
+**See:** `docs/adr/0012-vrp-measurement-methodology.md` for proof
+
 ---
 
 ## 3. Regime Detection

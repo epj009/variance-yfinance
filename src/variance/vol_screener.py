@@ -257,60 +257,38 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
 
     Weights:
-    - VRP Structural (Baseline): 25%
-    - VRP Tactical (Current): 25%
-    - VRP Divergence (Alpha Momentum): 20%
-    - IV Percentile (Statistical Extreme): 20%
-    - Capital Efficiency (Price-Normalized BPR): 10%
+    - VRP Structural (Baseline): 50%
+    - VRP Tactical (Current): 50%
 
     The score measures the ABSOLUTE distance from Fair Value (1.0).
     Significant dislocation in either direction (Rich or Cheap) results in a high score.
     """
     score = 0.0
 
-    # 1. VRP Structural Component (25%)
+    # 1. VRP Structural Component (50%)
     bias = _safe_float(metrics.get("vrp_structural"), -1.0)
     bias_score = 0.0
     if bias != -1.0:
         multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
         bias_dislocation = abs(bias - 1.0) * multiplier
         bias_score = max(0.0, min(100.0, bias_dislocation))
-        score += bias_score * 0.25
+        score += bias_score * 0.50
 
-    # 2. VRP Tactical Component (25%)
+    # 2. VRP Tactical Component (50%)
     bias20 = _safe_float(metrics.get("vrp_tactical"), -1.0)
     if bias20 != -1.0:
         multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
         bias20_dislocation = abs(bias20 - 1.0) * multiplier
         bias20_score = max(0.0, min(100.0, bias20_dislocation))
-        score += bias20_score * 0.25
+        score += bias20_score * 0.50
     elif bias != -1.0:  # Fallback
-        score += bias_score * 0.25
+        score += bias_score * 0.50
 
-    # 3. VRP Divergence Component (20%)
-    if bias > 0 and bias20 > 0:
-        divergence = bias20 / bias
-        div_dislocation = abs(divergence - 1.0) * 100.0
-        div_score = max(0.0, min(100.0, div_dislocation))
-        score += div_score * 0.20
-
-    # 4. IV Percentile Component (20%)
-    iv_pct = _safe_float(metrics.get("iv_percentile"), -1.0)
-    if iv_pct != -1.0:
-        ivp_score = iv_pct * 100.0
-        score += ivp_score * 0.20
-
-    # 5. Capital Efficiency Component (10%)
-    price = _safe_float(metrics.get("price"), 0.0)
-    if price > 0:
-        efficiency_score = 100.0
-        if price > 500:
-            efficiency_score = 20.0
-        elif price > 200:
-            efficiency_score = 50.0
-        elif price > 100:
-            efficiency_score = 80.0
-        score += efficiency_score * 0.10
+    # 3. Volatility Trap Penalty (50% haircut)
+    hv_rank = _safe_float(metrics.get("hv_rank"), -1.0)
+    hv_rank_trap = _safe_float(rules.get("hv_rank_trap_threshold", 15.0), 15.0)
+    if hv_rank != -1.0 and hv_rank < hv_rank_trap:
+        score *= 0.50
 
     return round(float(score), 1)
 
