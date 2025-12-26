@@ -31,15 +31,42 @@ def is_market_open() -> bool:
     if now.weekday() >= 5:
         return False
 
-    # Major US Market Holidays (observed dates)
+    # Major US Market Holidays (NYSE/NASDAQ observed dates)
     # Note: Some holidays move to nearest Monday if they fall on weekend
     year = now.year
+
+    # Fixed date holidays
     holidays = [
         datetime(year, 1, 1, tzinfo=tz),  # New Year's Day
+        datetime(year, 6, 19, tzinfo=tz),  # Juneteenth (observed since 2021)
         datetime(year, 7, 4, tzinfo=tz),  # Independence Day
         datetime(year, 12, 25, tzinfo=tz),  # Christmas
-        # Add more holidays as needed (MLK, Presidents, Memorial, Labor, Thanksgiving, etc.)
     ]
+
+    # Helper to find nth weekday of month
+    def nth_weekday(year: int, month: int, weekday: int, n: int) -> datetime:
+        """Find nth occurrence of weekday in month (0=Mon, 6=Sun)."""
+        first_day = datetime(year, month, 1, tzinfo=tz)
+        first_weekday = (weekday - first_day.weekday()) % 7
+        return first_day + timedelta(days=first_weekday + (n - 1) * 7)
+
+    # MLK Day: 3rd Monday in January
+    holidays.append(nth_weekday(year, 1, 0, 3))
+
+    # Presidents Day: 3rd Monday in February
+    holidays.append(nth_weekday(year, 2, 0, 3))
+
+    # Memorial Day: Last Monday in May (find 4th or 5th Monday)
+    last_monday_may = nth_weekday(year, 5, 0, 5)
+    if last_monday_may.month != 5:  # Wrapped to June
+        last_monday_may = nth_weekday(year, 5, 0, 4)
+    holidays.append(last_monday_may)
+
+    # Labor Day: 1st Monday in September
+    holidays.append(nth_weekday(year, 9, 0, 1))
+
+    # Thanksgiving: 4th Thursday in November
+    holidays.append(nth_weekday(year, 11, 3, 4))
 
     # Check if today is a holiday
     for holiday in holidays:
@@ -374,6 +401,7 @@ def get_current_iv(
             "iv": iv,
             "warning": warning,
             "atm_volume": atm_vol,
+            "atm_vol": atm_vol,
             "atm_oi": atm_oi,
             "atm_bid": float((atm_call["bid"] + atm_put["bid"]) / 2),
             "atm_ask": float((atm_call["ask"] + atm_put["ask"]) / 2),
@@ -438,7 +466,9 @@ def safe_get_sector(
 
 
 def process_single_symbol(
-    raw_symbol: str, cache_instance: Optional[MarketCache] = None
+    raw_symbol: str,
+    cache_instance: Optional[MarketCache] = None,
+    allow_after_hours_fetch: bool = False,
 ) -> tuple[str, dict[str, Any]]:
     """
     Fetches and processes all metrics for a single ticker.
@@ -468,7 +498,7 @@ def process_single_symbol(
         return raw_symbol, cast(dict[str, Any], cached_all)
 
     # Market closed: Use stale cache or fail gracefully (avoid rate limits)
-    if not market_is_open:
+    if not market_is_open and not allow_after_hours_fetch:
         cached_stale = local_cache.get_any(cache_key)
         if cached_stale is None:
             cached_stale = local_cache.get_any(f"md_{raw_symbol}")
@@ -522,11 +552,29 @@ def process_single_symbol(
             futures_ticker = yf.Ticker(yf_symbol)
             price_data = get_price(futures_ticker, yf_symbol, cache=local_cache)
             if not price_data:
-                return raw_symbol, {"error": "price_unavailable"}
+                # yfinance failed - try cache fallback even during "market hours"
+                cached_fallback = local_cache.get(raw_symbol)
+                if cached_fallback:
+                    cached_fallback["is_stale"] = True
+                    cached_fallback["warning"] = "yfinance_failed_using_cache"
+                    return raw_symbol, cast(dict[str, Any], cached_fallback)
+                return raw_symbol, {
+                    "error": "price_unavailable",
+                    "warning": "yfinance failed and no cache available",
+                }
 
             hv_data = calculate_hv(futures_ticker, yf_symbol, cache=local_cache)
             if not hv_data:
-                return raw_symbol, {"error": "history_unavailable"}
+                # yfinance failed - try cache fallback
+                cached_fallback = local_cache.get(raw_symbol)
+                if cached_fallback:
+                    cached_fallback["is_stale"] = True
+                    cached_fallback["warning"] = "yfinance_failed_using_cache"
+                    return raw_symbol, cast(dict[str, Any], cached_fallback)
+                return raw_symbol, {
+                    "error": "history_unavailable",
+                    "warning": "yfinance failed and no cache available",
+                }
 
             iv_data = {}
             if proxy_symbol:
@@ -569,11 +617,29 @@ def process_single_symbol(
 
             price_data = get_price(math_ticker, math_symbol, cache=local_cache)
             if not price_data:
-                return raw_symbol, {"error": "price_unavailable"}
+                # yfinance failed - try cache fallback even during "market hours"
+                cached_fallback = local_cache.get(raw_symbol)
+                if cached_fallback:
+                    cached_fallback["is_stale"] = True
+                    cached_fallback["warning"] = "yfinance_failed_using_cache"
+                    return raw_symbol, cast(dict[str, Any], cached_fallback)
+                return raw_symbol, {
+                    "error": "price_unavailable",
+                    "warning": "yfinance failed and no cache available",
+                }
 
             hv_data = calculate_hv(math_ticker, math_symbol, cache=local_cache)
             if not hv_data:
-                return raw_symbol, {"error": "history_unavailable"}
+                # yfinance failed - try cache fallback
+                cached_fallback = local_cache.get(raw_symbol)
+                if cached_fallback:
+                    cached_fallback["is_stale"] = True
+                    cached_fallback["warning"] = "yfinance_failed_using_cache"
+                    return raw_symbol, cast(dict[str, Any], cached_fallback)
+                return raw_symbol, {
+                    "error": "history_unavailable",
+                    "warning": "yfinance failed and no cache available",
+                }
 
             iv_data = get_current_iv(
                 math_ticker,
@@ -649,8 +715,11 @@ __all__ = [
 
 
 class YFinanceProvider(IMarketDataProvider):
-    def __init__(self, cache_instance: Optional[MarketCache] = None):
+    def __init__(
+        self, cache_instance: Optional[MarketCache] = None, allow_after_hours_fetch: bool = False
+    ):
         self.cache = cache_instance if cache_instance else globals()["cache"]
+        self.allow_after_hours_fetch = allow_after_hours_fetch
 
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
         unique_symbols = list(set(symbols))
@@ -661,7 +730,13 @@ class YFinanceProvider(IMarketDataProvider):
 
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_symbol = {
-                executor.submit(process_single_symbol, s, self.cache): s for s in unique_symbols
+                executor.submit(
+                    process_single_symbol,
+                    s,
+                    self.cache,
+                    self.allow_after_hours_fetch,
+                ): s
+                for s in unique_symbols
             }
             for future in futures.as_completed(future_to_symbol):
                 try:
@@ -695,6 +770,7 @@ class TastytradeProvider(IMarketDataProvider):
         self,
         cache_instance: Optional[MarketCache] = None,
         yf_fallback: Optional[YFinanceProvider] = None,
+        allow_after_hours_fetch: bool = False,
     ):
         """
         Initialize TastytradeProvider.
@@ -704,7 +780,11 @@ class TastytradeProvider(IMarketDataProvider):
             yf_fallback: Optional YFinanceProvider for fallback (created if None)
         """
         self.cache = cache_instance if cache_instance else globals()["cache"]
-        self.yf_provider = yf_fallback if yf_fallback else YFinanceProvider(cache_instance)
+        self.yf_provider = (
+            yf_fallback
+            if yf_fallback
+            else YFinanceProvider(cache_instance, allow_after_hours_fetch=allow_after_hours_fetch)
+        )
 
         # Try to initialize Tastytrade client (may raise TastytradeAuthError)
         self.tt_client: Optional[TastytradeClient]
@@ -942,6 +1022,7 @@ class MarketDataFactory:
 class MarketDataService:
     def __init__(self, cache: Optional[MarketCache] = None):
         self._cache = cache if cache else globals()["cache"]
+        allow_after_hours_fetch = cache is not None
 
         # Load config to determine provider
         try:
@@ -952,10 +1033,18 @@ class MarketDataService:
             # Fallback if config loading fails
             use_tastytrade = False
 
+        # Type hint for provider (can be either TastytradeProvider or YFinanceProvider)
+        self.provider: TastytradeProvider | YFinanceProvider
         if use_tastytrade:
-            self.provider = MarketDataFactory.get_provider("tastytrade")
+            self.provider = TastytradeProvider(
+                cache_instance=self.cache,
+                allow_after_hours_fetch=allow_after_hours_fetch,
+            )
         else:
-            self.provider = MarketDataFactory.get_provider("yfinance")
+            self.provider = YFinanceProvider(
+                cache_instance=self.cache,
+                allow_after_hours_fetch=allow_after_hours_fetch,
+            )
 
     @property
     def cache(self) -> MarketCache:
