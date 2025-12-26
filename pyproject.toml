@@ -75,7 +75,7 @@ warn_unused_ignores = true
 warn_no_return = true
 show_error_codes = true
 # Exclude venv and other artifacts
-exclude = ["venv", ".git", "__pycache__", "build", "dist", "scripts"]
+exclude = ["venv", ".git", "__pycache__", "build", "dist"]
 
 [[tool.mypy.overrides]]
 module = ["pandas.*", "yfinance.*", "rich.*", "scipy.*"]
