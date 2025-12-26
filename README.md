@@ -3,12 +3,39 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Philosophy: Tastylive](https://img.shields.io/badge/Philosophy-Tastylive-red.svg)](https://www.tastylive.com/)
+[![Test Coverage: 64%](https://img.shields.io/badge/coverage-64%25-yellow.svg)]()
 
 **Variance** is a quantitative analysis engine designed for systematic options traders. It transforms raw market data and broker positions into an institutional-grade triage dashboard, focusing exclusively on **Price**, **Volatility**, and **Mechanics**.
 
 Built on the Tastylive philosophy, Variance rejects market narratives in favor of statistical edge, specifically exploiting the **Volatility Risk Premium (VRP)** through net-premium selling strategies.
 
 Variance uses institution-grade **Logarithmic Distance** for all volatility calculations, ensuring mathematical objectivity across different asset scales and price regimes.
+
+---
+
+## 📚 **New Developer Onboarding**
+
+**For contractors or AI agents taking over this project:**
+
+| Document | Purpose | Time to Read |
+|----------|---------|--------------|
+| **[HANDOFF.md](docs/HANDOFF.md)** | Complete project overview, architecture, patterns, workflow | 30 min |
+| **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** | One-page cheat sheet for daily commands | 5 min |
+| **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Solutions to common issues | As needed |
+| **[DEVELOPMENT_PRIORITIES.md](docs/DEVELOPMENT_PRIORITIES.md)** | What to work on next, priority backlog | 15 min |
+
+**Quick Start Path:**
+1. Read [HANDOFF.md](docs/HANDOFF.md) for complete context
+2. Keep [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) open while coding
+3. Check [DEVELOPMENT_PRIORITIES.md](docs/DEVELOPMENT_PRIORITIES.md) for next tasks
+4. Refer to [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) when stuck
+
+**Current Status (Dec 25, 2024):**
+- **Version:** 0.1.0 (Active Development)
+- **Test Coverage:** 64% (Target: 75%)
+- **Passing Tests:** 411/418 (7 integration tests failing - market data dependencies)
+- **Quality Gates:** All passing (ruff, mypy, radon-cc)
+- **Next Priority:** Fix failing tests, improve Tastytrade client coverage (14% → 70%)
 
 ---
 
