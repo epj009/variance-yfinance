@@ -9,6 +9,7 @@
     "retail_min_price": 25.0,
     "retail_max_slippage": 0.05,
     "vol_trap_compression_threshold": 0.70,
+    "volatility_momentum_min_ratio": 0.85,
     "compression_coiled_threshold": 0.75,
     "compression_expanding_threshold": 1.25,
     "vrp_tactical_cheap_threshold": -0.10,

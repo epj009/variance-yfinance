@@ -24,7 +24,7 @@ repos:
           "types-setuptools",
           "types-PyYAML"
         ]
-        exclude: ^tests/
+        exclude: ^(tests|scripts)/
 
   - repo: local
     hooks:

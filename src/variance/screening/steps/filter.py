@@ -16,6 +16,7 @@ from variance.models.market_specs import (
     RetailEfficiencySpec,
     ScalableGateSpec,
     SectorExclusionSpec,
+    VolatilityMomentumSpec,
     VolatilityTrapSpec,
     VrpStructuralSpec,
     VrpTacticalSpec,
@@ -43,8 +44,8 @@ def apply_specifications(
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
     hv_rank_trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
-    hv_compression_threshold = float(rules.get("vol_trap_compression_threshold", 0.70))
     vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
+    volatility_momentum_min_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
 
     # Retail Efficiency Params
     retail_min_price = float(rules.get("retail_min_price", 25.0))
@@ -62,9 +63,8 @@ def apply_specifications(
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
-        main_spec &= VolatilityTrapSpec(
-            hv_rank_trap_threshold, hv_compression_threshold, vrp_rich_threshold
-        )
+        main_spec &= VolatilityTrapSpec(hv_rank_trap_threshold, vrp_rich_threshold)
+        main_spec &= VolatilityMomentumSpec(volatility_momentum_min_ratio)
         main_spec &= RetailEfficiencySpec(retail_min_price, retail_max_slippage)
         # New: IV Percentile Spec
         if config.min_iv_percentile is not None and config.min_iv_percentile > 0:

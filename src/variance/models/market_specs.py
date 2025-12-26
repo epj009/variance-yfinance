@@ -265,7 +265,12 @@ class CorrelationSpec(Specification[dict[str, Any]]):
 
 
 class IVPercentileSpec(Specification[dict[str, Any]]):
-    """Filters based on IV Percentile (IVP) from Tastytrade."""
+    """
+    Filters based on IV Percentile (IVP) from Tastytrade.
+
+    Note: Tastytrade does not provide IV Percentile for futures.
+    Futures are automatically exempted from this filter.
+    """
 
     def __init__(self, min_percentile: float):
         self.min_percentile = min_percentile
@@ -274,6 +279,11 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
         # If IV Percentile is missing, we assume it fails the filter (conservative)
         # unless min_percentile is 0, then we pass everything.
         if self.min_percentile <= 0:
+            return True
+
+        # Futures exemption: Tastytrade doesn't provide IV Percentile for futures
+        symbol = str(metrics.get("symbol", ""))
+        if symbol.startswith("/"):
             return True
 
         iv_pct = metrics.get("iv_percentile")
@@ -291,37 +301,84 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
 
 class VolatilityTrapSpec(Specification[dict[str, Any]]):
     """
-    Hard gate against Volatility Traps.
-    Rejects symbols where realized volatility is either:
-    1. Positional: Extreme low of its 1-year range (HV Rank < 15)
-    2. Relative: Extremely compressed vs its own medium-term trend (HV30 / HV90 < 0.70)
+    Hard gate against Volatility Traps (Positional).
+
+    Rejects symbols where HV Rank < 15 (extreme low of 1-year range).
+    Only applies when VRP > rich_threshold (1.30) to focus on "rich IV" setups.
+
+    Rationale: If IV is rich (>1.30) but HV is at yearly lows (<15 percentile),
+    you're likely catching a falling knife (vol compression mid-trade risk).
+
+    Args:
+        rank_threshold: Minimum HV Rank (default 15)
+        vrp_rich_threshold: VRP level to trigger check (default 1.30)
+
+    Note: This spec was refactored in ADR-0011 to remove compression logic.
+    See VolatilityMomentumSpec for universal compression detection.
     """
 
-    def __init__(
-        self, rank_threshold: float, compression_threshold: float, vrp_rich_threshold: float
-    ):
+    def __init__(self, rank_threshold: float, vrp_rich_threshold: float):
         self.rank_threshold = rank_threshold
-        self.compression_threshold = compression_threshold
         self.vrp_rich_threshold = vrp_rich_threshold
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         hv_rank = metrics.get("hv_rank")
-        hv30 = metrics.get("hv30")
-        hv90 = metrics.get("hv90")
         vrp_s = metrics.get("vrp_structural")
 
-        # Only apply trap logic if the symbol looks "Rich"
+        # Only apply if the symbol looks "Rich"
         if vrp_s is not None and float(vrp_s) > self.vrp_rich_threshold:
-            # Trigger 1: Positional Rank (1-year context)
             if hv_rank is not None and float(hv_rank) < self.rank_threshold:
                 return False
 
-            # Trigger 2: Relative Compression (Quarterly context - Tastytrade Native)
-            if hv30 and hv90 and float(hv90) > 0:
-                if (float(hv30) / float(hv90)) < self.compression_threshold:
-                    return False
-
         return True
+
+
+class VolatilityMomentumSpec(Specification[dict[str, Any]]):
+    """
+    Universal compression detection (not VRP-gated).
+
+    Rejects symbols where HV30/HV90 < min_ratio (volatility contracting).
+    Complements VolatilityTrapSpec by checking momentum across ALL VRP ranges.
+
+    Use Cases:
+    - Post-earnings calm (HV30 < HV90 as recent vol drops)
+    - Market regime shift (vol trending down)
+    - Prevents whipsaw from trading "rich" IV when HV is collapsing
+
+    Args:
+        min_momentum_ratio: Minimum HV30/HV90 ratio (default 0.85)
+            - 1.0 = HV30 equals HV90 (neutral)
+            - 0.85 = HV30 is 15% below HV90 (moderate contraction, OK)
+            - 0.70 = HV30 is 30% below HV90 (severe contraction, reject)
+
+    Example:
+        Symbol: XYZ
+        HV30: 15%
+        HV90: 25%
+        Momentum: 15/25 = 0.60 (40% contraction)
+
+        With min_momentum_ratio = 0.85:
+        Result: REJECT (0.60 < 0.85) - vol collapsing too fast
+
+    Note: Added in ADR-0011 to fill VRP 1.10-1.30 blind spot.
+    """
+
+    def __init__(self, min_momentum_ratio: float = 0.85):
+        self.min_momentum_ratio = min_momentum_ratio
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        hv30 = metrics.get("hv30")
+        hv90 = metrics.get("hv90")
+
+        # Can't determine momentum - pass through
+        if not hv30 or not hv90 or float(hv90) <= 0:
+            return True
+
+        try:
+            momentum = float(hv30) / float(hv90)
+            return momentum >= self.min_momentum_ratio
+        except (ValueError, TypeError, ZeroDivisionError):
+            return True  # Data error - don't reject
 
 
 class RetailEfficiencySpec(Specification[dict[str, Any]]):
