@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional, cast
 import numpy as np
 
 from .market_data import settings as md_settings
-from .market_data.cache import MarketCache
+from .market_data.cache import MarketCache, cache
 from .market_data.clock import is_market_open
 from .market_data.helpers import (
     _fallback_to_cached_market_data,
@@ -118,7 +118,13 @@ def normalize_iv(iv_raw: float, hv_context: Optional[float] = None) -> tuple[flo
 def get_price(
     ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
 ) -> Optional[tuple[float, bool]]:
-    local_cache = cache if cache else globals()["cache"]
+    if cache is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache
     cache_key = make_cache_key("price", yf_symbol)
     cached = local_cache.get(cache_key)
     if cached is not None:
@@ -152,7 +158,13 @@ def get_price(
 def calculate_hv(
     ticker_obj: Any, yf_symbol: str, cache: Optional[MarketCache] = None
 ) -> Optional[dict[str, Any]]:
-    local_cache = cache if cache else globals()["cache"]
+    if cache is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache
     cache_key = make_cache_key("hv", yf_symbol)
     cached = local_cache.get(cache_key)
     if cached:
@@ -244,7 +256,13 @@ def get_current_iv(
             - atm_bid, atm_ask: Average of call/put bids/asks
             - call_bid, call_ask, put_bid, put_ask: Individual leg quotes
     """
-    local_cache = cache if cache else globals()["cache"]
+    if cache is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache
     cache_key = make_cache_key("iv", yf_symbol)
     cached = local_cache.get(cache_key)
     if cached:
@@ -321,7 +339,13 @@ def get_current_iv(
 def get_earnings_date(
     ticker_obj: Any, raw_symbol: str, yf_symbol: str, cache: Optional[MarketCache] = None
 ) -> Optional[str]:
-    local_cache = cache if cache else globals()["cache"]
+    if cache is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache
     cache_key = make_cache_key("earn", yf_symbol)
     cached = local_cache.get(cache_key)
     if cached is not None:
@@ -351,7 +375,13 @@ def safe_get_sector(
 ) -> str:
     if raw_symbol in SECTOR_OVERRIDES:
         return str(SECTOR_OVERRIDES[raw_symbol])
-    local_cache = cache if cache else globals()["cache"]
+    if cache is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache
     cache_key = make_cache_key("sec", yf_symbol)
     cached = local_cache.get(cache_key)
     if cached:
@@ -378,7 +408,13 @@ def process_single_symbol(
     Fetches and processes all metrics for a single ticker.
     Implements 'Bifurcated Proxy' logic for futures.
     """
-    local_cache = cache_instance if cache_instance else globals()["cache"]
+    if cache_instance is None:
+        # Use getattr to allow monkeypatching in tests
+        import sys
+
+        local_cache = sys.modules[__name__].cache
+    else:
+        local_cache = cache_instance
     market_open_fn = market_open_fn or is_market_open
     ticker_factory = ticker_factory or yf.Ticker
     market_is_open = market_open_fn()
@@ -705,6 +741,8 @@ __all__ = [
     "_reset_default_service",
     "TastytradeAuthError",
     "is_market_open",
+    "cache",
+    "MarketCache",
 ]
 
 
@@ -722,6 +760,10 @@ def __getattr__(name: str) -> Any:
         from .market_data import service
 
         return getattr(service, name)
+    if name in {"cache", "MarketCache"}:
+        from .market_data.cache import MarketCache, cache
+
+        return cache if name == "cache" else MarketCache
     if name == "TastytradeAuthError":
         from .tastytrade_client import TastytradeAuthError
 

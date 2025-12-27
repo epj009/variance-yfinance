@@ -38,6 +38,7 @@ class TastytradeMetrics(TypedDict, total=False):
     # Liquidity metrics
     liquidity_rating: Optional[int]  # Liquidity rating (0-5)
     liquidity_value: Optional[float]  # Liquidity value score
+    option_volume: Optional[float]  # 30-day average option volume
 
     # Correlation
     corr_spy_3month: Optional[float]  # 3-month correlation with SPY
@@ -200,6 +201,10 @@ class TastytradeClient:
         liquidity_value = self._safe_float(item.get("liquidity-value"))
         if liquidity_value is not None:
             metrics["liquidity_value"] = liquidity_value
+
+        option_volume = self._safe_float(item.get("option-volume"))
+        if option_volume is not None:
+            metrics["option_volume"] = option_volume
 
         corr_spy = self._safe_float(item.get("corr-spy-3month"))
         if corr_spy is not None:

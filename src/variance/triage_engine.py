@@ -140,13 +140,17 @@ def calculate_cluster_metrics(legs: list[Position], context: TriageContext) -> d
     futures_delta_warnings = []
     uses_raw_delta = False
 
+    root_beta = market_data.get(root, {}).get("beta")
+    beta_scale = float(root_beta) if isinstance(root_beta, (int, float)) else None
+
     for leg in legs:
         raw_data = leg.raw_data or {}
         beta_delta_present = str(raw_data.get("beta_delta", "")).strip() != ""
         if not beta_delta_present:
             raw_delta_present = str(raw_data.get("Delta", "")).strip() != ""
             if raw_delta_present:
-                b_delta = float(leg.delta or 0.0)
+                raw_delta = float(leg.delta or 0.0)
+                b_delta = raw_delta * beta_scale if beta_scale is not None else raw_delta
                 uses_raw_delta = True
             else:
                 b_delta = 0.0
@@ -208,6 +212,7 @@ def calculate_cluster_metrics(legs: list[Position], context: TriageContext) -> d
         "futures_delta_warnings": futures_delta_warnings,
         "legs": legs,
         "price": price,
+        "beta": beta_scale,
     }
 
 

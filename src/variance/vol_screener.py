@@ -84,7 +84,7 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
     Checks if a symbol fails the liquidity rules.
     Returns: (is_illiquid, is_implied_pass)
     """
-    if _is_futures_symbol(symbol):
+    if _is_futures_symbol(symbol) and not _has_tastytrade_liquidity(metrics):
         return False, False
 
     if _fails_tt_liquidity_rating(metrics, rules):
@@ -151,12 +151,16 @@ def _fails_activity_gate(metrics: dict[str, Any], rules: dict[str, Any]) -> bool
     if mode == "open_interest":
         atm_oi_val = _safe_float(metrics.get("atm_open_interest"), default=-1.0)
         if atm_oi_val < 0:
-            atm_volume_val = _safe_float(metrics.get("atm_volume"), default=-1.0)
+            atm_volume_val = _safe_float(_get_activity_volume(metrics), default=-1.0)
             return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
         return atm_oi_val < min_atm_open_interest
 
-    atm_volume_val = _safe_float(metrics.get("atm_volume"), default=-1.0)
+    atm_volume_val = _safe_float(_get_activity_volume(metrics), default=-1.0)
     return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
+
+
+def _get_activity_volume(metrics: dict[str, Any]) -> Any:
+    return metrics.get("option_volume", metrics.get("atm_volume"))
 
 
 def _create_candidate_flags(
@@ -446,3 +450,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def _has_tastytrade_liquidity(metrics: dict[str, Any]) -> bool:
+    return metrics.get("option_volume") is not None or metrics.get("liquidity_rating") is not None

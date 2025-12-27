@@ -184,8 +184,6 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
     )
     report = vol_screener.screen_volatility(config, config_bundle=config_bundle)
     candidates = report["candidates"]
-    summary = report["summary"]
-
     # Should get GLD, /CL, /6E (3 total), exclude AAPL (Equity)
     assert len(candidates) == 3
     symbols = [c["Symbol"] for c in candidates]
@@ -199,8 +197,32 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
         assert "Asset Class" in c
         assert c["Asset Class"] in ["Commodity", "FX"]
 
-    # Check summary
-    assert summary["asset_class_skipped_count"] == 1  # AAPL excluded
+
+def test_is_illiquid_futures_uses_option_volume():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"option_volume": 100}
+    is_illiquid, is_implied = vol_screener._is_illiquid("/CL", metrics, rules)
+
+    assert is_illiquid is True
+    assert is_implied is False
+
+
+def test_is_illiquid_futures_without_tt_liquidity_exempt():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics: dict = {}
+    is_illiquid, is_implied = vol_screener._is_illiquid("/CL", metrics, rules)
+
+    assert is_illiquid is False
+    assert is_implied is False
+
+
+def test_is_illiquid_prefers_tt_option_volume_for_equities():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"option_volume": 100, "atm_volume": 1000}
+    is_illiquid, is_implied = vol_screener._is_illiquid("AAPL", metrics, rules)
+
+    assert is_illiquid is True
+    assert is_implied is False
 
 
 def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_market_provider):

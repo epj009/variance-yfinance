@@ -182,6 +182,10 @@ class TastytradeProvider(IMarketDataProvider):
             if "liquidity_value" in tt_data and tt_data["liquidity_value"] is not None:
                 merged["liquidity_value"] = tt_data["liquidity_value"]
 
+            if "option_volume" in tt_data and tt_data["option_volume"] is not None:
+                merged["option_volume"] = tt_data["option_volume"]
+                merged["atm_volume"] = tt_data["option_volume"]
+
             if "corr_spy_3month" in tt_data and tt_data["corr_spy_3month"] is not None:
                 merged["corr_spy_3month"] = tt_data["corr_spy_3month"]
 

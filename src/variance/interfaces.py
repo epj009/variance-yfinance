@@ -19,6 +19,8 @@ class MarketData(TypedDict, total=False):
     is_stale: bool
     proxy: Optional[str]
     returns: Optional[list[float]]
+    beta: Optional[float]
+    option_volume: Optional[float]
 
     # Tastytrade-native fields
     hv30: Optional[float]  # 30-day historical volatility (Tastytrade)

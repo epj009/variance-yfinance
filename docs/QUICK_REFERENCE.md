@@ -50,6 +50,10 @@ ruff check . --fix && ruff format . && mypy src/variance
 }
 ```
 
+## Data Sources
+
+- **Liquidity volume**: If Tastytrade `option-volume` is available, it overrides Yahoo `atm_volume` for all symbols; Yahoo is used only when TT is missing.
+
 ## Diagnostic Tools
 
 ```bash
