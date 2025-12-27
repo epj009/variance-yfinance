@@ -97,7 +97,7 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
     if _fails_activity_gate(metrics, rules):
         return True, False
 
-    return True, False
+    return False, False
 
 
 def _is_futures_symbol(symbol: str) -> bool:
@@ -225,7 +225,7 @@ def _determine_signal_type(
 
     # Statistical Extreme Check (The /NG Paradox Fix)
     # If IV is at statistical extremes (>80% of last year), it is RICH regardless of tactical discount
-    if iv_percentile is not None and iv_percentile > 0.80:
+    if iv_percentile is not None and iv_percentile > 80.0:
         return "RICH"
 
     if flags.get("is_cheap"):  # VRP Tactical Markup < -10%

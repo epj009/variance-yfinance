@@ -225,6 +225,27 @@ def test_is_illiquid_prefers_tt_option_volume_for_equities():
     assert is_implied is False
 
 
+def test_signal_type_uses_iv_percentile_percent_scale():
+    flags = {
+        "is_earnings_soon": False,
+        "is_cheap": False,
+        "is_rich": False,
+        "is_coiled": False,
+    }
+    signal = vol_screener._determine_signal_type(flags, None, {}, iv_percentile=85.0)
+
+    assert signal == "RICH"
+
+
+def test_is_illiquid_passes_when_activity_is_sufficient():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"atm_volume": 600}
+    is_illiquid, is_implied = vol_screener._is_illiquid("AAPL", metrics, rules)
+
+    assert is_illiquid is False
+    assert is_implied is False
+
+
 def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_market_provider):
     """Test that --exclude-asset-classes filters correctly."""
     watchlist = tmp_path / "watchlist.csv"

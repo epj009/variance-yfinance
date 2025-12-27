@@ -41,10 +41,6 @@ class LiquiditySpec(Specification[dict[str, Any]]):
         if self.allow_illiquid:
             return True
 
-        symbol = str(metrics.get("symbol", ""))
-        if symbol.startswith("/"):
-            return True  # Futures exemption
-
         # --- Helper for spread calculation ---
         def calculate_slippage(metrics_dict: dict[str, Any]) -> tuple[bool, float]:
             """Returns (has_quote, max_slippage_found)."""
@@ -91,7 +87,7 @@ class LiquiditySpec(Specification[dict[str, Any]]):
         if has_quote and max_slippage_found <= self.max_slippage:
             return True
 
-        vol_raw = metrics.get("atm_volume")
+        vol_raw = metrics.get("option_volume", metrics.get("atm_volume"))
         oi_raw = metrics.get("atm_open_interest")
         if not has_quote and vol_raw is None and oi_raw is None:
             return True
