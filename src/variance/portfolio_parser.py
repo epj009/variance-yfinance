@@ -8,7 +8,10 @@ Extracted from analyze_portfolio.py to improve maintainability.
 import csv
 import re
 import sys
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from .models.position import Position
 
 
 class PortfolioParser:
@@ -105,6 +108,19 @@ class PortfolioParser:
             print(f"Error reading CSV: {e}", file=sys.stderr)
             raise
         return positions
+
+    @staticmethod
+    def parse_positions(file_path: str) -> list["Position"]:
+        """
+        Parse a CSV file into Position domain objects.
+
+        Raises:
+            TypeError: If a row cannot be converted into a Position.
+        """
+        rows = PortfolioParser.parse(file_path)
+        from .models.position import Position
+
+        return [Position.from_row(row) for row in rows]
 
 
 def parse_currency(value: Optional[str]) -> float:

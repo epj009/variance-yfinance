@@ -2,14 +2,14 @@
 Condor Combination Step
 """
 
-from typing import Any
+from variance.models.position import Position
 
 
 def combine_into_condors(
-    call_verticals: list[list[dict[str, Any]]],
-    put_verticals: list[list[dict[str, Any]]],
+    call_verticals: list[list[Position]],
+    put_verticals: list[list[Position]],
     used_indices: set[int],
-) -> list[list[dict[str, Any]]]:
+) -> list[list[Position]]:
     """Combines matching verticals into Iron Condors."""
     clusters = []
 

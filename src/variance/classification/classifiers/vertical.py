@@ -2,7 +2,7 @@
 Vertical Strategy Classifier
 """
 
-from typing import Any
+from variance.models.position import Position
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -10,7 +10,7 @@ from ..base import ClassificationContext, StrategyClassifier
 class VerticalClassifier(StrategyClassifier):
     """Identifies simple vertical spreads."""
 
-    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[Position], ctx: ClassificationContext) -> bool:
         if len(ctx.option_legs) != 2:
             return False
         if ctx.is_multi_exp:
@@ -21,6 +21,6 @@ class VerticalClassifier(StrategyClassifier):
             return abs(ctx.short_put_qty) == ctx.long_put_qty
         return False
 
-    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[Position], ctx: ClassificationContext) -> str:
         side = "Call" if ctx.call_legs else "Put"
         return f"Vertical Spread ({side})"

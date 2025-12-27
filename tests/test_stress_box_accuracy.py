@@ -12,6 +12,7 @@ import pytest
 
 # It's common to put imports at the top, but for this ad-hoc test file,
 # we need to add the script path first.
+from variance.models import Position
 from variance.triage_engine import triage_cluster
 
 # --- Test Data Fixtures ---
@@ -180,20 +181,22 @@ def mock_triage_cluster_context(mock_rules, mock_market_data):
 def msft_cluster_legs():
     """Mock legs for a single AAPL position (previously MSFT)."""
     return [
-        {
-            "Symbol": "AAPL",
-            "Type": "Option",
-            "beta_delta": "26",
-            "Delta": "20",
-            "Gamma": "-1.5",
-            "P/L Open": "10",
-            "Cost": "-500",
-            "DTE": "30",
-            "Underlying Last Price": "170",
-            "Call/Put": "Put",
-            "Strike Price": "150",
-            "Quantity": "-1",
-        }
+        Position.from_row(
+            {
+                "Symbol": "AAPL",
+                "Type": "Option",
+                "beta_delta": "26",
+                "Delta": "20",
+                "Gamma": "-1.5",
+                "P/L Open": "10",
+                "Cost": "-500",
+                "DTE": "30",
+                "Underlying Last Price": "170",
+                "Call/Put": "Put",
+                "Strike Price": "150",
+                "Quantity": "-1",
+            }
+        )
     ]
 
 

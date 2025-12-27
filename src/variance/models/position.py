@@ -29,12 +29,14 @@ class Position:
     cost: float = 0.0
     delta: float = 0.0
     beta_delta: float = 0.0
+    beta_gamma: Optional[float] = None
     theta: float = 0.0
     gamma: float = 0.0
     vega: float = 0.0
     bid: float = 0.0
     ask: float = 0.1
     mark: float = 0.05
+    open_date: Optional[str] = None
     raw_data: Optional[dict[str, Any]] = None
 
     @property
@@ -73,11 +75,17 @@ class Position:
             cost=parse_currency(row.get("Cost", "0")),
             delta=parse_currency(row.get("Delta", "0")),
             beta_delta=parse_currency(row.get("beta_delta") or row.get("Delta", "0")),
+            beta_gamma=(
+                parse_currency(row.get("beta_gamma"))
+                if row.get("beta_gamma") is not None and str(row.get("beta_gamma")).strip() != ""
+                else None
+            ),
             theta=parse_currency(row.get("Theta", "0")),
             gamma=parse_currency(row.get("Gamma", "0")),
             vega=parse_currency(row.get("Vega", "0")),
             bid=parse_currency(row.get("Bid", "0")),
             ask=parse_currency(row.get("Ask", "0")),
             mark=parse_currency(row.get("Mark") or row.get("Mid", "0")),
+            open_date=row.get("Open Date"),
             raw_data=row,
         )

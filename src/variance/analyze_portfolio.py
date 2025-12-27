@@ -10,6 +10,7 @@ from typing import Any, Optional
 from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
 from .diagnostics import MarketDataDiagnostics, TriageDiagnostics
+from .errors import build_error
 from .get_market_data import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
@@ -20,7 +21,7 @@ from .triage_engine import TriageContext, get_position_aware_opportunities, tria
 # Constants
 TRAFFIC_JAM_FRICTION = 99.9  # Sentinel value for infinite friction (trapped position)
 
-from .models import Portfolio, Position, StrategyCluster
+from .models import Portfolio, StrategyCluster
 
 
 def analyze_portfolio(
@@ -41,14 +42,18 @@ def analyze_portfolio(
     strategies = config.get("strategies", {})
 
     # Step 1: Parse CSV
-    raw_positions = PortfolioParser.parse(file_path)
-    if not raw_positions:
+    try:
+        positions = PortfolioParser.parse_positions(file_path)
+    except TypeError as exc:
+        return build_error(
+            "Invalid portfolio data format.",
+            details=str(exc),
+            hint="Ensure the CSV is a broker export and positions are parsed into Position objects.",
+        )
+    if not positions:
         return {"error": "No positions found in CSV or error parsing file."}
 
-    # Step 2: Create Domain Objects
-    positions = [Position.from_row(row) for row in raw_positions]
-
-    # Step 3: Fetch Market Data
+    # Step 2: Fetch Market Data
     unique_roots = list(set(pos.root_symbol for pos in positions))
     unique_roots = [r for r in unique_roots if r]
 
@@ -67,8 +72,8 @@ def analyze_portfolio(
     # Convert to float safely
     beta_price: float = 0.0
     try:
-        if hasattr(beta_price_raw, "__len__") and not isinstance(beta_price_raw, (str, bytes)):
-            beta_price = float(beta_price_raw[0])  # type: ignore
+        if isinstance(beta_price_raw, (list, tuple)):
+            beta_price = float(beta_price_raw[0]) if beta_price_raw else 0.0
         else:
             beta_price = float(beta_price_raw)
     except (TypeError, ValueError, IndexError):
@@ -80,14 +85,18 @@ def analyze_portfolio(
             "details": "Check internet connection or data provider status.",
         }
 
-    # Step 4: Cluster Strategies (Using raw positions for now, to keep existing logic)
-    raw_clusters = cluster_strategies(raw_positions)
+    # Step 4: Cluster Strategies using Position domain model
+    try:
+        raw_clusters = cluster_strategies(positions)
+    except TypeError as exc:
+        return build_error(
+            "Invalid position data for strategy clustering.",
+            details=str(exc),
+            hint="Ensure all positions are Position objects before clustering.",
+        )
 
     # Convert to Domain Clusters
-    domain_clusters = []
-    for raw_cluster in raw_clusters:
-        cluster_positions = [Position.from_row(row) for row in raw_cluster]
-        domain_clusters.append(StrategyCluster(legs=cluster_positions))
+    domain_clusters = [StrategyCluster(legs=cluster) for cluster in raw_clusters]
 
     # Initialize Portfolio Object
     portfolio = Portfolio(
@@ -104,7 +113,14 @@ def analyze_portfolio(
         "traffic_jam_friction": TRAFFIC_JAM_FRICTION,
         "net_liquidity": float(portfolio.net_liquidity),
     }
-    all_position_reports, metrics = triage_portfolio(raw_clusters, triage_context)
+    try:
+        all_position_reports, metrics = triage_portfolio(raw_clusters, triage_context)
+    except TypeError as exc:
+        return build_error(
+            "Invalid position data for triage.",
+            details=str(exc),
+            hint="Ensure all clusters contain Position objects before triage.",
+        )
     # Unpack metrics
     total_net_pl = metrics["total_net_pl"]
     total_beta_delta = metrics["total_beta_delta"]
@@ -444,7 +460,7 @@ def analyze_portfolio(
     # Step 8: Get Position-Aware Opportunities (vol screener with context)
     try:
         opportunities_data = get_position_aware_opportunities(
-            positions=raw_positions,
+            positions=positions,
             clusters=raw_clusters,
             net_liquidity=net_liq,
             rules=rules,
@@ -481,6 +497,10 @@ def main() -> None:
     report_data = analyze_portfolio(args.file_path)
 
     if "error" in report_data:
+        from .errors import error_lines
+
+        for line in error_lines(report_data):
+            print(line, file=sys.stderr)
         print(json.dumps(report_data, indent=2), file=sys.stderr)
         sys.exit(1)
 

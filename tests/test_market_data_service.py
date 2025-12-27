@@ -8,7 +8,9 @@ from variance.get_market_data import MarketCache, MarketDataService
 @pytest.fixture
 def test_cache(tmp_path):
     db_path = tmp_path / "test_service_cache.db"
-    return MarketCache(str(db_path))
+    cache = MarketCache(str(db_path))
+    yield cache
+    cache.close_all()
 
 
 class TestMarketDataService:

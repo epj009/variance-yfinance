@@ -11,7 +11,7 @@ from ..strategy_detector import identify_strategy, map_strategy_to_id
 from .position import Position
 
 
-@dataclass
+@dataclass(frozen=True)
 class StrategyCluster:
     """
     Represents a group of positions forming a single strategy (e.g., a Strangle).
@@ -20,12 +20,17 @@ class StrategyCluster:
 
     legs: list[Position]
 
+    def __post_init__(self) -> None:
+        for idx, leg in enumerate(self.legs):
+            if not isinstance(leg, Position):
+                raise TypeError(
+                    f"StrategyCluster expects Position objects; got {type(leg).__name__} "
+                    f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+                )
+
     @property
     def name(self) -> str:
-        # Compatibility with detector which expects dicts for now
-        # Phase 3b will update detector to accept Position objects
-        leg_dicts = [leg.raw_data for leg in self.legs if leg.raw_data]
-        return identify_strategy(leg_dicts)
+        return identify_strategy(self.legs)
 
     @property
     def strategy_id(self) -> Optional[str]:

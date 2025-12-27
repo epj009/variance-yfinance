@@ -2,12 +2,11 @@
 Strangle Pairing Step
 """
 
-from typing import Any
+from variance.clustering.steps.extract import LegInfo
+from variance.models.position import Position
 
 
-def pair_strangles(
-    leg_infos: list[dict[str, Any]], used_indices: set[int]
-) -> list[list[dict[str, Any]]]:
+def pair_strangles(leg_infos: list[LegInfo], used_indices: set[int]) -> list[list[Position]]:
     """Pairs remaining short legs into Strangles/Straddles."""
     clusters = []
 

@@ -14,13 +14,11 @@ class DefenseHandler(TriageHandler[TriageRequest]):
 
     def handle(self, request: TriageRequest) -> TriageRequest:
         # Check if strategy is tested (delegate to strategy object)
-        # Ensure legs is a list for backward compatibility with some strategy methods
-        legs_list = list(request.legs)
-        is_tested = request.strategy_obj.is_tested(legs_list, request.price)
+        is_tested = request.strategy_obj.is_tested(list(request.legs), request.price)
 
         # Defense trigger: Tested AND within Gamma Window
-        if is_tested and request.dte < request.strategy_obj.gamma_trigger_dte and request.dte > 0:
-            logic = f"Tested & < {request.strategy_obj.gamma_trigger_dte} DTE"
+        if is_tested and request.dte <= request.strategy_obj.gamma_trigger_dte and request.dte > 0:
+            logic = f"Tested & <= {request.strategy_obj.gamma_trigger_dte} DTE"
             cmd = ActionFactory.create("DEFENSE", request.root, logic)
             if cmd:
                 tag = TriageTag(

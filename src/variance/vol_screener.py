@@ -8,6 +8,7 @@ from typing import Any, Optional, Union
 # Import common utilities
 from .common import warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
+from .errors import build_error, error_lines
 
 
 @dataclass
@@ -83,55 +84,79 @@ def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) ->
     Checks if a symbol fails the liquidity rules.
     Returns: (is_illiquid, is_implied_pass)
     """
-    # Futures exemption: Yahoo data for futures options volume is unreliable
-    if symbol.startswith("/"):
+    if _is_futures_symbol(symbol):
         return False, False
 
-    # 1. Check Implied Liquidity (Bid/Ask Spread) FIRST
+    if _fails_tt_liquidity_rating(metrics, rules):
+        return True, False
+
+    implied_pass, is_implied = _check_implied_liquidity(metrics, rules)
+    if implied_pass:
+        return False, is_implied
+
+    if _fails_activity_gate(metrics, rules):
+        return True, False
+
+    return True, False
+
+
+def _is_futures_symbol(symbol: str) -> bool:
+    return symbol.startswith("/")
+
+
+def _fails_tt_liquidity_rating(metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
+    tt_rating = metrics.get("liquidity_rating")
+    if tt_rating is None:
+        return False
+    try:
+        min_rating = int(rules.get("min_tt_liquidity_rating", 4))
+        return int(tt_rating) < min_rating
+    except (TypeError, ValueError):
+        return False
+
+
+def _check_implied_liquidity(metrics: dict[str, Any], rules: dict[str, Any]) -> tuple[bool, bool]:
     legs = [
-        ("call", metrics.get("call_bid"), metrics.get("call_ask"), metrics.get("call_vol")),
-        ("put", metrics.get("put_bid"), metrics.get("put_ask"), metrics.get("put_vol")),
+        ("call", metrics.get("call_bid"), metrics.get("call_ask")),
+        ("put", metrics.get("put_bid"), metrics.get("put_ask")),
     ]
 
     has_valid_quote = False
     max_slippage_found = 0.0
 
-    for _side, bid, ask, _vol in legs:
-        if bid is not None and ask is not None:
-            f_bid, f_ask = float(bid), float(ask)
-            mid = (f_bid + f_ask) / 2
-            if mid > 0:
-                has_valid_quote = True
-                slippage = (f_ask - f_bid) / mid
-                if slippage > max_slippage_found:
-                    max_slippage_found = slippage
+    for _side, bid, ask in legs:
+        if bid is None or ask is None:
+            continue
+        f_bid, f_ask = float(bid), float(ask)
+        mid = (f_bid + f_ask) / 2
+        if mid > 0:
+            has_valid_quote = True
+            slippage = (f_ask - f_bid) / mid
+            if slippage > max_slippage_found:
+                max_slippage_found = slippage
 
-    # GATE: If we have valid quotes and spreads are tight, PASS as "Implied Liquidity"
     max_slippage_pct = float(rules.get("max_slippage_pct", 0.05))
     if has_valid_quote and max_slippage_found <= max_slippage_pct:
-        # If volume is 0 but spread is tight, this is an implied pass
         vol = metrics.get("atm_volume", 0) or 0
         is_implied = int(vol) == 0
-        return False, is_implied
+        return True, is_implied
 
-    # 2. Fallback: Check Reported Activity (Volume or OI)
+    return False, False
+
+
+def _fails_activity_gate(metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
     mode = rules.get("liquidity_mode", "volume")
-
+    min_atm_volume = int(rules.get("min_atm_volume", 0))
+    min_atm_open_interest = int(rules.get("min_atm_open_interest", 500))
     if mode == "open_interest":
-        atm_oi = metrics.get("atm_open_interest", 0)
-        if atm_oi is None:
-            atm_volume = metrics.get("atm_volume", 0)
-            if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
-                return True, False
-        elif atm_oi < rules.get("min_atm_open_interest", 500):
-            return True, False
-    else:
-        # Default: Volume Mode
-        atm_volume = metrics.get("atm_volume", 0)
-        if atm_volume is not None and atm_volume < rules["min_atm_volume"]:
-            return True, False
+        atm_oi_val = _safe_float(metrics.get("atm_open_interest"), default=-1.0)
+        if atm_oi_val < 0:
+            atm_volume_val = _safe_float(metrics.get("atm_volume"), default=-1.0)
+            return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
+        return atm_oi_val < min_atm_open_interest
 
-    return True, False
+    atm_volume_val = _safe_float(metrics.get("atm_volume"), default=-1.0)
+    return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
 
 
 def _create_candidate_flags(
@@ -216,8 +241,6 @@ def _determine_signal_type(
 
     return "FAIR"
 
-    return "FAIR"
-
 
 def _determine_regime_type(flags: dict[str, bool]) -> str:
     """
@@ -265,32 +288,36 @@ def _calculate_variance_score(metrics: dict[str, Any], rules: dict[str, Any]) ->
     """
     score = 0.0
 
-    # 1. VRP Structural Component (50%)
     bias = _safe_float(metrics.get("vrp_structural"), -1.0)
-    bias_score = 0.0
+    bias_score = _variance_component(bias, rules)
     if bias != -1.0:
-        multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
-        bias_dislocation = abs(bias - 1.0) * multiplier
-        bias_score = max(0.0, min(100.0, bias_dislocation))
         score += bias_score * 0.50
 
-    # 2. VRP Tactical Component (50%)
     bias20 = _safe_float(metrics.get("vrp_tactical"), -1.0)
+    bias20_score = _variance_component(bias20, rules)
     if bias20 != -1.0:
-        multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
-        bias20_dislocation = abs(bias20 - 1.0) * multiplier
-        bias20_score = max(0.0, min(100.0, bias20_dislocation))
         score += bias20_score * 0.50
-    elif bias != -1.0:  # Fallback
+    elif bias != -1.0:
         score += bias_score * 0.50
 
-    # 3. Volatility Trap Penalty (50% haircut)
+    score = _apply_trap_penalty(score, metrics, rules)
+    return round(float(score), 1)
+
+
+def _variance_component(bias: float, rules: dict[str, Any]) -> float:
+    if bias == -1.0:
+        return 0.0
+    multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
+    dislocation = abs(bias - 1.0) * multiplier
+    return max(0.0, min(100.0, dislocation))
+
+
+def _apply_trap_penalty(score: float, metrics: dict[str, Any], rules: dict[str, Any]) -> float:
     hv_rank = _safe_float(metrics.get("hv_rank"), -1.0)
     hv_rank_trap = _safe_float(rules.get("hv_rank_trap_threshold", 15.0), 15.0)
     if hv_rank != -1.0 and hv_rank < hv_rank_trap:
-        score *= 0.50
-
-    return round(float(score), 1)
+        return score * 0.50
+    return score
 
 
 import numpy as np
@@ -360,7 +387,14 @@ def main() -> None:
     try:
         config = load_profile_config(args.profile, config_bundle=config_bundle)
     except ValueError as exc:
-        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        payload = build_error(
+            "Invalid screener profile.",
+            details=str(exc),
+            hint="Use --profile with a name from config/runtime_config.json (screener_profiles).",
+        )
+        for line in error_lines(payload):
+            print(line, file=sys.stderr)
+        print(json.dumps(payload, indent=2), file=sys.stderr)
         sys.exit(2)
 
     if args.limit is not None:
@@ -402,7 +436,9 @@ def main() -> None:
     report_data = screen_volatility(config, config_bundle=config_bundle)
 
     if "error" in report_data:
-        print(json.dumps(report_data, indent=2))
+        for line in error_lines(report_data):
+            print(line, file=sys.stderr)
+        print(json.dumps(report_data, indent=2), file=sys.stderr)
         sys.exit(1)
 
     print(json.dumps(report_data, indent=2))

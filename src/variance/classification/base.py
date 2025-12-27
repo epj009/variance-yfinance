@@ -6,26 +6,26 @@ Defines the context and base classes for strategy identification.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
 
-from variance.portfolio_parser import is_stock_type, parse_currency
+from variance.models.position import Position
+from variance.portfolio_parser import is_stock_type
 
 
 @dataclass(frozen=True)
 class ClassificationContext:
     """Pre-computed data shared across classifiers."""
 
-    legs: list[dict[str, Any]]
-    stock_legs: list[dict[str, Any]]
-    option_legs: list[dict[str, Any]]
+    legs: list[Position]
+    stock_legs: list[Position]
+    option_legs: list[Position]
 
-    call_legs: list[dict[str, Any]]
-    put_legs: list[dict[str, Any]]
+    call_legs: list[Position]
+    put_legs: list[Position]
 
-    long_calls: list[dict[str, Any]]
-    short_calls: list[dict[str, Any]]
-    long_puts: list[dict[str, Any]]
-    short_puts: list[dict[str, Any]]
+    long_calls: list[Position]
+    short_calls: list[Position]
+    long_puts: list[Position]
+    short_puts: list[Position]
 
     long_call_qty: float
     short_call_qty: float
@@ -41,24 +41,35 @@ class ClassificationContext:
     underlying_price: float
 
     @classmethod
-    def from_legs(cls, legs: list[dict[str, Any]]) -> "ClassificationContext":
-        """Factory method to build context from raw legs."""
-        stock_legs = [leg for leg in legs if is_stock_type(leg.get("Type", ""))]
-        option_legs = [leg for leg in legs if not is_stock_type(leg.get("Type", ""))]
+    def _ensure_positions(cls, legs: list[Position]) -> list[Position]:
+        for idx, leg in enumerate(legs):
+            if not isinstance(leg, Position):
+                raise TypeError(
+                    f"Classification expects Position objects; got {type(leg).__name__} "
+                    f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+                )
+        return list(legs)
 
-        def _get_side(leg: dict[str, Any]) -> str:
-            s = str(leg.get("Call/Put", "")).strip().upper()
+    @classmethod
+    def from_legs(cls, legs: list[Position]) -> "ClassificationContext":
+        """Factory method to build context from raw legs."""
+        positions = cls._ensure_positions(legs)
+        stock_legs = [leg for leg in positions if is_stock_type(leg.asset_type)]
+        option_legs = [leg for leg in positions if not is_stock_type(leg.asset_type)]
+
+        def _get_side(leg: Position) -> str:
+            s = str(leg.call_put or "").strip().upper()
             if s in ["CALL", "C"]:
                 return "Call"
             if s in ["PUT", "P"]:
                 return "Put"
             return ""
 
-        def _get_qty(leg: dict[str, Any]) -> float:
-            return float(parse_currency(leg.get("Quantity", "0")))
+        def _get_qty(leg: Position) -> float:
+            return float(leg.quantity)
 
-        def _get_strike(leg: dict[str, Any]) -> float:
-            return float(parse_currency(leg.get("Strike Price", "0")))
+        def _get_strike(leg: Position) -> float:
+            return float(leg.strike or 0.0)
 
         call_legs = [leg for leg in option_legs if _get_side(leg) == "Call"]
         put_legs = [leg for leg in option_legs if _get_side(leg) == "Put"]
@@ -68,13 +79,11 @@ class ClassificationContext:
         long_puts = [leg for leg in put_legs if _get_qty(leg) > 0]
         short_puts = [leg for leg in put_legs if _get_qty(leg) < 0]
 
-        expirations = set(
-            str(leg.get("Exp Date", "")).strip() for leg in option_legs if leg.get("Exp Date")
-        )
-        price = float(parse_currency(legs[0].get("Underlying Last Price", "0"))) if legs else 0.0
+        expirations = set(str(leg.exp_date or "").strip() for leg in option_legs if leg.exp_date)
+        price = float(positions[0].underlying_price) if positions else 0.0
 
         return cls(
-            legs=legs,
+            legs=positions,
             stock_legs=stock_legs,
             option_legs=option_legs,
             call_legs=call_legs,
@@ -100,11 +109,11 @@ class StrategyClassifier(ABC):
     """Abstract base class for all strategy identifiers."""
 
     @abstractmethod
-    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[Position], ctx: ClassificationContext) -> bool:
         """Returns True if this classifier can handle the given legs."""
         pass
 
     @abstractmethod
-    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[Position], ctx: ClassificationContext) -> str:
         """Returns the strategy name."""
         pass

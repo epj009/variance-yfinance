@@ -11,6 +11,7 @@ import pytest
 
 from variance import get_market_data
 from variance.interfaces import IMarketDataProvider, MarketData
+from variance.models import Position
 
 
 class MockMarketDataProvider(IMarketDataProvider):
@@ -59,7 +60,7 @@ def temp_cache_db(tmp_path, monkeypatch):
 
     # Explicit cleanup to prevent ResourceWarning
     try:
-        fresh_cache.conn.close()
+        fresh_cache.close_all()
     except Exception:
         pass  # Already closed or doesn't exist
 
@@ -222,7 +223,7 @@ def mock_strategies():
 
 @pytest.fixture
 def make_option_leg():
-    """Factory for creating normalized option leg dictionaries."""
+    """Factory for creating normalized option leg positions."""
 
     def _make(
         symbol: str = "AAPL",
@@ -234,13 +235,14 @@ def make_option_leg():
         pl_open: float = 50.0,
         delta: float = 10.0,
         beta_delta: float = 10.0,
+        beta_gamma: float | None = None,
         theta: float = -2.0,
         gamma: float = 0.05,
         bid: float = 1.00,
         ask: float = 1.10,
         underlying_price: float = 155.0,
-    ) -> dict:
-        return {
+    ):
+        row = {
             "Symbol": f"{symbol} 250117P{int(strike)}",
             "Type": "Option",
             "Call/Put": call_put,
@@ -252,6 +254,7 @@ def make_option_leg():
             "P/L Open": str(pl_open),
             "Delta": str(delta),
             "beta_delta": str(beta_delta),
+            "beta_gamma": "" if beta_gamma is None else str(beta_gamma),
             "Theta": str(theta),
             "Gamma": str(gamma),
             "Bid": str(bid),
@@ -259,6 +262,7 @@ def make_option_leg():
             "Underlying Last Price": str(underlying_price),
             "Mark": str((bid + ask) / 2),
         }
+        return Position.from_row(row)
 
     return _make
 

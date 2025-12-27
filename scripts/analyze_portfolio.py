@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 from variance.analyze_portfolio import analyze_portfolio
 from variance.common import warn_if_not_venv
+from variance.errors import error_lines
 
 
 def build_diagnostics_footer(report_data: dict[str, Any]) -> dict[str, Any]:
@@ -60,6 +61,8 @@ if __name__ == "__main__":
     report_data = analyze_portfolio(args.file_path)
 
     if "error" in report_data:
+        for line in error_lines(report_data):
+            print(line, file=sys.stderr)
         print(json.dumps(report_data, indent=2), file=sys.stderr)
         sys.exit(1)
 

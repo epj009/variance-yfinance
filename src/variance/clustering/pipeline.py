@@ -5,21 +5,23 @@ Defines the sequence for grouping raw option legs into logical strategies.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+
+from variance.clustering.steps.extract import LegInfo
+from variance.models.position import Position
 
 
 @dataclass
 class ClusteringContext:
     """Shared state for the clustering pipeline."""
 
-    raw_legs: list[tuple[int, dict[str, Any]]]
-    leg_infos: list[dict[str, Any]] = field(default_factory=list)
-    clusters: list[list[dict[str, Any]]] = field(default_factory=list)
+    raw_legs: list[tuple[int, Position]]
+    leg_infos: list[LegInfo] = field(default_factory=list)
+    clusters: list[list[Position]] = field(default_factory=list)
     used_indices: set[int] = field(default_factory=set)
 
     # Intermediate state for verticals
-    call_verticals: list[list[dict[str, Any]]] = field(default_factory=list)
-    put_verticals: list[list[dict[str, Any]]] = field(default_factory=list)
+    call_verticals: list[list[Position]] = field(default_factory=list)
+    put_verticals: list[list[Position]] = field(default_factory=list)
 
 
 class ClusteringPipeline:
@@ -28,8 +30,8 @@ class ClusteringPipeline:
     """
 
     def cluster(
-        self, legs_with_idx: list[tuple[int, dict[str, Any]]]
-    ) -> tuple[list[list[dict[str, Any]]], set[int]]:
+        self, legs_with_idx: list[tuple[int, Position]]
+    ) -> tuple[list[list[Position]], set[int]]:
         """
         The Template Method: Defines the clustering algorithm skeleton.
         """

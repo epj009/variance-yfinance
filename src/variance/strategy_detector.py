@@ -5,28 +5,52 @@ Handles strategy identification, clustering, and mapping for portfolio analysis.
 Extracted from analyze_portfolio.py to improve maintainability.
 """
 
+import json
 from collections import defaultdict
 from datetime import datetime
+from functools import lru_cache
 from itertools import combinations
+from pathlib import Path
 from typing import Any, Optional, TypedDict
 
+from .models.position import Position
+
 # Import common utilities
-from .portfolio_parser import get_root_symbol, is_stock_type, parse_currency, parse_dte
+from .portfolio_parser import get_root_symbol, is_stock_type
 
 
 class StrategyCluster(TypedDict, total=False):
     """Type definition for a strategy cluster."""
 
-    legs: list[dict[str, Any]]
+    legs: list[Position]
     strategy_name: str
     root_symbol: str
 
 
-def _leg_dte(leg: dict[str, Any]) -> int:
-    dte = parse_dte(leg.get("DTE"))
-    if dte > 0:
-        return dte
-    exp_str = leg.get("Exp Date")
+def _ensure_position(leg: Position) -> Position:
+    if not isinstance(leg, Position):
+        raise TypeError(
+            "Strategy detection expects Position objects. "
+            "Use PortfolioParser.parse_positions or Position.from_row."
+        )
+    return leg
+
+
+def _ensure_positions(legs: list[Position]) -> list[Position]:
+    for idx, leg in enumerate(legs):
+        if not isinstance(leg, Position):
+            raise TypeError(
+                f"Strategy detection expects Position objects; got {type(leg).__name__} "
+                f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+            )
+    return list(legs)
+
+
+def _leg_dte(leg: Position) -> int:
+    position = _ensure_position(leg)
+    if position.dte > 0:
+        return position.dte
+    exp_str = position.exp_date
     if not exp_str:
         return 0
     try:
@@ -49,14 +73,15 @@ def _get_chain() -> ClassifierChain:
     return _CLASSIFIER_CHAIN
 
 
-def identify_strategy(legs: list[dict[str, Any]]) -> str:
+def identify_strategy(legs: list[Position]) -> str:
     """
     Identify the option strategy based on a list of position legs.
     """
-    return _get_chain().classify(legs)
+    positions = _ensure_positions(legs)
+    return _get_chain().classify(positions)
 
 
-def cluster_strategies(positions: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+def cluster_strategies(positions: list[Position]) -> list[list[Position]]:
     """
     Group individual position legs into logical strategies (e.g., combining a short call and short put into a Strangle).
 
@@ -72,160 +97,195 @@ def cluster_strategies(positions: list[dict[str, Any]]) -> list[list[dict[str, A
     Returns:
         A list of lists, where each inner list is a group of legs forming a strategy.
     """
-    by_root_all_legs = defaultdict(list)
-    for row in positions:
-        root = get_root_symbol(row["Symbol"])
-        if root:  # Ensure root is not empty
-            by_root_all_legs[root].append(row)
+    positions = _ensure_positions(positions)
+    by_root_all_legs = _group_legs_by_root(positions)
 
-    final_clusters = []
-
+    final_clusters: list[list[Position]] = []
     for _root, root_legs_original in by_root_all_legs.items():
-        # Make a mutable copy for this root's legs
-        root_legs = list(root_legs_original)
-
-        stock_legs = [leg for leg in root_legs if is_stock_type(leg["Type"])]
-        option_legs = [leg for leg in root_legs if not is_stock_type(leg["Type"])]
-
-        # Used flags for options within this root to prevent double-counting legs
-        option_used_flags = [False] * len(option_legs)
-        stock_used_flags = [False] * len(stock_legs)  # Keep track of used stocks
-
-        # Phase 1: Identify pure option strategies (grouped by expiration)
-        # Group options by expiration date to find standard spreads first
-        by_exp_options = defaultdict(list)
-        for i, leg in enumerate(option_legs):
-            by_exp_options[leg["Exp Date"]].append((i, leg))
-
-        for _exp, exp_legs_with_indices in by_exp_options.items():
-            current_exp_options = [
-                (idx, leg) for idx, leg in exp_legs_with_indices if not option_used_flags[idx]
-            ]
-
-            if len(current_exp_options) > 1:
-                exp_clusters, used_indices = _cluster_expiration_options(current_exp_options)
-                final_clusters.extend(exp_clusters)
-                for used_idx in used_indices:
-                    option_used_flags[used_idx] = True
-
-        # Phase 1b: Cross-expiration clustering (calendars/diagonals/PMCC/PMCP)
-        remaining_with_indices = [
-            (i, leg) for i, leg in enumerate(option_legs) if not option_used_flags[i]
-        ]
-        if remaining_with_indices:
-            cross_clusters, cross_used = _cluster_cross_expiration_options(remaining_with_indices)
-            final_clusters.extend(cross_clusters)
-            for used_idx in cross_used:
-                option_used_flags[used_idx] = True
-
-        # Phase 2: Handle stock-option combinations with remaining options
-        unclustered_options_after_phase1 = [
-            leg for i, leg in enumerate(option_legs) if not option_used_flags[i]
-        ]
-
-        if stock_legs:
-            # First, try 3-leg combinations: Covered Strangle, Collar
-
-            # Covered Strangle (1 Stock + 1 Short Call + 1 Short Put)
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]:
-                    continue
-
-                temp_short_calls = [
-                    leg
-                    for leg in unclustered_options_after_phase1
-                    if leg["Call/Put"] == "Call" and parse_currency(leg["Quantity"]) < 0
-                ]
-                temp_short_puts = [
-                    leg
-                    for leg in unclustered_options_after_phase1
-                    if leg["Call/Put"] == "Put" and parse_currency(leg["Quantity"]) < 0
-                ]
-
-                if temp_short_calls and temp_short_puts:
-                    # Greedily take the first available
-                    current_combo = [s_leg, temp_short_calls[0], temp_short_puts[0]]
-                    if identify_strategy(current_combo) == "Covered Strangle":
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(temp_short_calls[0])
-                        unclustered_options_after_phase1.remove(temp_short_puts[0])
-                        break  # Break from stock loop, move to next
-
-            # Collar (1 Stock + 1 Short Call + 1 Long Put)
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]:
-                    continue
-
-                temp_short_calls = [
-                    leg
-                    for leg in unclustered_options_after_phase1
-                    if leg["Call/Put"] == "Call" and parse_currency(leg["Quantity"]) < 0
-                ]
-                temp_long_puts = [
-                    leg
-                    for leg in unclustered_options_after_phase1
-                    if leg["Call/Put"] == "Put" and parse_currency(leg["Quantity"]) > 0
-                ]
-
-                if temp_short_calls and temp_long_puts:
-                    current_combo = [s_leg, temp_short_calls[0], temp_long_puts[0]]
-                    if identify_strategy(current_combo) == "Collar":
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(temp_short_calls[0])
-                        unclustered_options_after_phase1.remove(temp_long_puts[0])
-                        break
-
-            # Now, try 2-leg combinations: Covered Call / Covered Put
-            for s_idx, s_leg in enumerate(stock_legs):
-                if stock_used_flags[s_idx]:
-                    continue
-
-                for leg in unclustered_options_after_phase1:
-                    current_combo = [s_leg, leg]
-                    strat_name = identify_strategy(current_combo)
-                    if strat_name in ["Covered Call", "Covered Put"]:
-                        final_clusters.append(current_combo)
-                        stock_used_flags[s_idx] = True
-                        unclustered_options_after_phase1.remove(leg)
-                        break  # Move to next stock or stop trying for this stock
-
-            # Add any remaining stock legs as single stock positions
-            for s_idx, s_leg in enumerate(stock_legs):
-                if not stock_used_flags[s_idx]:
-                    final_clusters.append([s_leg])
-
-            # Add any remaining (truly single) options
-            for o_leg in unclustered_options_after_phase1:
-                final_clusters.append([o_leg])
-
-        else:  # No stock legs, just add all option legs to final clusters
-            for leg in unclustered_options_after_phase1:  # Use the already processed ones
-                final_clusters.append([leg])
+        final_clusters.extend(_cluster_root_legs(list(root_legs_original)))
 
     return final_clusters
 
 
+def _group_legs_by_root(positions: list[Position]) -> dict[str, list[Position]]:
+    by_root_all_legs: dict[str, list[Position]] = defaultdict(list)
+    for leg in positions:
+        root = leg.root_symbol or get_root_symbol(leg.symbol)
+        if root:  # Ensure root is not empty
+            by_root_all_legs[root].append(leg)
+    return by_root_all_legs
+
+
+def _cluster_root_legs(root_legs: list[Position]) -> list[list[Position]]:
+    stock_legs = [leg for leg in root_legs if is_stock_type(leg.asset_type)]
+    option_legs = [leg for leg in root_legs if not is_stock_type(leg.asset_type)]
+
+    option_used_flags = [False] * len(option_legs)
+    clusters: list[list[Position]] = []
+
+    clusters.extend(_cluster_options_by_expiration(option_legs, option_used_flags))
+    clusters.extend(_cluster_cross_expiration(option_legs, option_used_flags))
+
+    unclustered_options = [leg for i, leg in enumerate(option_legs) if not option_used_flags[i]]
+
+    if stock_legs:
+        clusters.extend(_cluster_with_stocks(stock_legs, unclustered_options))
+    else:
+        clusters.extend([[leg] for leg in unclustered_options])
+
+    return clusters
+
+
+def _cluster_options_by_expiration(
+    option_legs: list[Position], option_used_flags: list[bool]
+) -> list[list[Position]]:
+    clusters: list[list[Position]] = []
+    by_exp_options = defaultdict(list)
+    for i, leg in enumerate(option_legs):
+        by_exp_options[leg.exp_date].append((i, leg))
+
+    for _exp, exp_legs_with_indices in by_exp_options.items():
+        current_exp_options = [
+            (idx, leg) for idx, leg in exp_legs_with_indices if not option_used_flags[idx]
+        ]
+
+        if len(current_exp_options) > 1:
+            exp_clusters, used_indices = _cluster_expiration_options(current_exp_options)
+            clusters.extend(exp_clusters)
+            for used_idx in used_indices:
+                option_used_flags[used_idx] = True
+
+    return clusters
+
+
+def _cluster_cross_expiration(
+    option_legs: list[Position], option_used_flags: list[bool]
+) -> list[list[Position]]:
+    clusters: list[list[Position]] = []
+    remaining_with_indices = [
+        (i, leg) for i, leg in enumerate(option_legs) if not option_used_flags[i]
+    ]
+    if remaining_with_indices:
+        cross_clusters, cross_used = _cluster_cross_expiration_options(remaining_with_indices)
+        clusters.extend(cross_clusters)
+        for used_idx in cross_used:
+            option_used_flags[used_idx] = True
+    return clusters
+
+
+def _cluster_with_stocks(
+    stock_legs: list[Position], unclustered_options: list[Position]
+) -> list[list[Position]]:
+    clusters: list[list[Position]] = []
+    stock_used_flags = [False] * len(stock_legs)
+
+    _apply_covered_strangle(stock_legs, unclustered_options, stock_used_flags, clusters)
+    _apply_collar(stock_legs, unclustered_options, stock_used_flags, clusters)
+    _apply_covered_single(stock_legs, unclustered_options, stock_used_flags, clusters)
+
+    for s_idx, s_leg in enumerate(stock_legs):
+        if not stock_used_flags[s_idx]:
+            clusters.append([s_leg])
+
+    for o_leg in unclustered_options:
+        clusters.append([o_leg])
+
+    return clusters
+
+
+def _apply_covered_strangle(
+    stock_legs: list[Position],
+    unclustered_options: list[Position],
+    stock_used_flags: list[bool],
+    clusters: list[list[Position]],
+) -> None:
+    for s_idx, s_leg in enumerate(stock_legs):
+        if stock_used_flags[s_idx]:
+            continue
+
+        temp_short_calls = [
+            leg for leg in unclustered_options if (leg.call_put == "Call" and leg.quantity < 0)
+        ]
+        temp_short_puts = [
+            leg for leg in unclustered_options if (leg.call_put == "Put" and leg.quantity < 0)
+        ]
+
+        if temp_short_calls and temp_short_puts:
+            current_combo = [s_leg, temp_short_calls[0], temp_short_puts[0]]
+            if identify_strategy(current_combo) == "Covered Strangle":
+                clusters.append(current_combo)
+                stock_used_flags[s_idx] = True
+                unclustered_options.remove(temp_short_calls[0])
+                unclustered_options.remove(temp_short_puts[0])
+                break
+
+
+def _apply_collar(
+    stock_legs: list[Position],
+    unclustered_options: list[Position],
+    stock_used_flags: list[bool],
+    clusters: list[list[Position]],
+) -> None:
+    for s_idx, s_leg in enumerate(stock_legs):
+        if stock_used_flags[s_idx]:
+            continue
+
+        temp_short_calls = [
+            leg for leg in unclustered_options if (leg.call_put == "Call" and leg.quantity < 0)
+        ]
+        temp_long_puts = [
+            leg for leg in unclustered_options if (leg.call_put == "Put" and leg.quantity > 0)
+        ]
+
+        if temp_short_calls and temp_long_puts:
+            current_combo = [s_leg, temp_short_calls[0], temp_long_puts[0]]
+            if identify_strategy(current_combo) == "Collar":
+                clusters.append(current_combo)
+                stock_used_flags[s_idx] = True
+                unclustered_options.remove(temp_short_calls[0])
+                unclustered_options.remove(temp_long_puts[0])
+                break
+
+
+def _apply_covered_single(
+    stock_legs: list[Position],
+    unclustered_options: list[Position],
+    stock_used_flags: list[bool],
+    clusters: list[list[Position]],
+) -> None:
+    for s_idx, s_leg in enumerate(stock_legs):
+        if stock_used_flags[s_idx]:
+            continue
+
+        for leg in list(unclustered_options):
+            current_combo = [s_leg, leg]
+            strat_name = identify_strategy(current_combo)
+            if strat_name in ["Covered Call", "Covered Put"]:
+                clusters.append(current_combo)
+                stock_used_flags[s_idx] = True
+                unclustered_options.remove(leg)
+                break
+
+
 def _cluster_expiration_options(
-    exp_legs_with_indices: list[tuple[int, dict[str, Any]]],
-) -> tuple[list[list[dict[str, Any]]], set[int]]:
+    exp_legs_with_indices: list[tuple[int, Position]],
+) -> tuple[list[list[Position]], set[int]]:
     """
     Cluster options within a single expiration to avoid merging distinct strategies.
     """
-    clusters: list[list[dict[str, Any]]] = []
+    clusters: list[list[Position]] = []
     used_indices: set[int] = set()
 
     # Split by Open Date to prevent merging different trades opened at different times.
     # If Open Date is missing, we treat it as a single 'Unknown' bucket to allow
     # greedy matching, but we must ensure we don't merge distinct strategies.
-    by_open_date: dict[str, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    by_open_date: dict[str, list[tuple[int, Position]]] = defaultdict(list)
     for idx, leg in exp_legs_with_indices:
         # If date is missing, use a unique-ish key per leg to avoid forced merging
         # but ONLY if we want to be strict. Actually, for greedy matching to work
         # (e.g. matching a loose call and put into a strangle), they SHOULD be in the same bucket.
         # The bug is likely that we are TOO greedy.
-        key = (leg.get("Open Date") or "UNKNOWN").strip()
+        key = (leg.open_date or "UNKNOWN").strip()
         by_open_date[key].append((idx, leg))
 
     for _, legs_with_idx in by_open_date.items():
@@ -237,12 +297,12 @@ def _cluster_expiration_options(
 
 
 def _cluster_cross_expiration_options(
-    legs_with_indices: list[tuple[int, dict[str, Any]]],
-) -> tuple[list[list[dict[str, Any]]], set[int]]:
+    legs_with_indices: list[tuple[int, Position]],
+) -> tuple[list[list[Position]], set[int]]:
     """
     Cluster multi-expiration option pairs (calendars/diagonals/PMCC/PMCP).
     """
-    clusters: list[list[dict[str, Any]]] = []
+    clusters: list[list[Position]] = []
     used_indices: set[int] = set()
 
     excluded_names = {
@@ -254,9 +314,9 @@ def _cluster_cross_expiration_options(
         "Empty",
     }
 
-    by_open_date: dict[str, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    by_open_date: dict[str, list[tuple[int, Position]]] = defaultdict(list)
     for idx, leg in legs_with_indices:
-        key = (leg.get("Open Date") or "").strip()
+        key = (leg.open_date or "").strip()
         by_open_date[key].append((idx, leg))
 
     for _, group in by_open_date.items():
@@ -264,12 +324,12 @@ def _cluster_cross_expiration_options(
         for (idx_a, leg_a), (idx_b, leg_b) in combinations(group, 2):
             if idx_a in used_indices or idx_b in used_indices:
                 continue
-            if leg_a.get("Call/Put") != leg_b.get("Call/Put"):
+            if leg_a.call_put != leg_b.call_put:
                 continue
-            if leg_a.get("Exp Date") == leg_b.get("Exp Date"):
+            if leg_a.exp_date == leg_b.exp_date:
                 continue
-            qty_a = parse_currency(leg_a.get("Quantity", "0"))
-            qty_b = parse_currency(leg_b.get("Quantity", "0"))
+            qty_a = leg_a.quantity
+            qty_b = leg_b.quantity
             if qty_a == 0 or qty_b == 0 or qty_a * qty_b > 0:
                 continue
 
@@ -300,8 +360,8 @@ def _cluster_cross_expiration_options(
 
 
 def _cluster_same_open_date(
-    legs_with_idx: list[tuple[int, dict[str, Any]]],
-) -> tuple[list[list[dict[str, Any]]], set[int]]:
+    legs_with_idx: list[tuple[int, Position]],
+) -> tuple[list[list[Position]], set[int]]:
     """
     Groups options into logical clusters using the Clustering Pipeline.
     """
@@ -325,94 +385,50 @@ def map_strategy_to_id(name: str, net_cost: float) -> Optional[str]:
         Strategy ID matching strategies.json, or None if no mapping exists
     """
     name_lower = name.lower()
+    is_credit = net_cost < 0
 
-    # 1. Strangles & Straddles
-    if "strangle" in name_lower:
-        return "short_strangle"  # Variance assumes Short Strangle
-    if "straddle" in name_lower:
-        return "short_straddle"
+    for rule in _load_strategy_mappings():
+        rule_type = str(rule.get("type", "contains"))
+        side = rule.get("side")
+        if side and side not in name_lower:
+            continue
 
-    # 2. Iron Condors / Flies
-    if "dynamic width iron condor" in name_lower:
-        return "dynamic_width_iron_condor"
-    if "iron condor" in name_lower:
-        return "iron_condor"
-    if "iron butterfly" in name_lower or "iron fly" in name_lower:
-        return "iron_fly"
+        match = False
+        if rule_type == "exact":
+            match = name_lower == str(rule.get("pattern", ""))
+        elif rule_type == "contains":
+            match = str(rule.get("pattern", "")) in name_lower
+        elif rule_type == "contains_any":
+            patterns = rule.get("patterns", [])
+            match = any(str(pat) in name_lower for pat in patterns)
+        elif rule_type == "contains_all":
+            patterns = rule.get("patterns", [])
+            match = all(str(pat) in name_lower for pat in patterns)
 
-    # 3. Vertical Spreads (Directional)
-    if "vertical spread" in name_lower:
-        is_credit = net_cost < 0
-        if "call" in name_lower:
-            return "short_call_vertical_spread" if is_credit else "long_call_vertical_spread"
-        if "put" in name_lower:
-            return "short_put_vertical_spread" if is_credit else "long_put_vertical_spread"
+        if not match:
+            continue
 
-    # 4. Calendars / Diagonals
-    if "calendar spread" in name_lower:
-        if "call" in name_lower:
-            return "call_calendar_spread"
-        if "put" in name_lower:
-            return "put_calendar_spread"
-    if "poor man's covered call" in name_lower or "poor mans covered call" in name_lower:
-        return "poor_mans_covered_call"
-    if "poor man's covered put" in name_lower or "poor mans covered put" in name_lower:
-        return "poor_mans_covered_put"
+        if rule.get("credit_only"):
+            return rule.get("id") if is_credit else None
+        if rule.get("debit_only"):
+            return rule.get("id") if not is_credit else None
 
-    # 5. Naked Options (Short)
-    if name_lower in ["short call"]:
-        return "short_naked_call"
-    if name_lower in ["short put"]:
-        return "short_naked_put"
+        credit_id = rule.get("credit_id")
+        debit_id = rule.get("debit_id")
+        if credit_id or debit_id:
+            return credit_id if is_credit else debit_id
 
-    # 6. Covered
-    if "covered call" in name_lower:
-        return "covered_call"
-    if "covered put" in name_lower:
-        return "covered_put"
-
-    # 7. ZEBRA
-    if "call zebra" in name_lower:
-        return "call_zebra"
-    if "put zebra" in name_lower:
-        return "put_zebra"
-
-    # 8. Exotics
-    if "reverse big lizard" in name_lower:
-        return "reverse_big_lizard"
-    if "big lizard" in name_lower:
-        return "big_lizard"
-    if "reverse jade lizard" in name_lower or "twisted sister" in name_lower:
-        return "reverse_jade_lizard"
-    if "jade lizard" in name_lower:
-        return "jade_lizard"
-    if "front-ratio" in name_lower or "front ratio" in name_lower or "ratio spread" in name_lower:
-        if "call" in name_lower:
-            return "call_front_ratio_spread"
-        if "put" in name_lower:
-            return "put_front_ratio_spread"
-    if "broken wing butterfly" in name_lower:
-        if "call" in name_lower:
-            return "call_broken_wing_butterfly"
-        if "put" in name_lower:
-            return "put_broken_wing_butterfly"
-    if "broken heart butterfly" in name_lower:
-        if "call" in name_lower:
-            return "call_broken_heart_butterfly"
-        if "put" in name_lower:
-            return "put_broken_heart_butterfly"
-    if "butterfly" in name_lower:
-        if "call" in name_lower:
-            return "call_butterfly"
-        if "put" in name_lower:
-            return "put_butterfly"
-
-    # 9. Double Diagonal
-    if "double diagonal" in name_lower or "diagonal spread" in name_lower:
-        return "double_diagonal" if net_cost < 0 else None
-
-    # 10. Back Spread / Ratio Backspread
-    if "back spread" in name_lower or ("ratio" in name_lower and "backspread" in name_lower):
-        return "back_spread"
+        return rule.get("id")
 
     return None
+
+
+@lru_cache(maxsize=1)
+def _load_strategy_mappings() -> list[dict[str, Any]]:
+    root = Path(__file__).resolve().parents[2]
+    path = root / "config" / "strategy_mappings.json"
+    with path.open(encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, list):
+        raise ValueError("strategy_mappings.json must be a list of rule objects.")
+    return [rule for rule in data if isinstance(rule, dict)]

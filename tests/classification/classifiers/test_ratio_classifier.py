@@ -4,12 +4,17 @@ Unit tests for RatioClassifier.
 
 from variance.classification.base import ClassificationContext
 from variance.classification.classifiers.ratio import RatioClassifier
+from variance.models import Position
 
 
 def test_identifies_ratio_spread():
     legs = [
-        {"Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Type": "Option"},
-        {"Call/Put": "Call", "Quantity": "-2", "Strike Price": "110", "Type": "Option"},
+        Position.from_row(
+            {"Call/Put": "Call", "Quantity": "1", "Strike Price": "100", "Type": "Option"}
+        ),
+        Position.from_row(
+            {"Call/Put": "Call", "Quantity": "-2", "Strike Price": "110", "Type": "Option"}
+        ),
     ]
     ctx = ClassificationContext.from_legs(legs)
     classifier = RatioClassifier()
@@ -19,8 +24,12 @@ def test_identifies_ratio_spread():
 
 def test_identifies_zebra():
     legs = [
-        {"Call/Put": "Call", "Quantity": "2", "Strike Price": "100", "Type": "Option"},
-        {"Call/Put": "Call", "Quantity": "-1", "Strike Price": "110", "Type": "Option"},
+        Position.from_row(
+            {"Call/Put": "Call", "Quantity": "2", "Strike Price": "100", "Type": "Option"}
+        ),
+        Position.from_row(
+            {"Call/Put": "Call", "Quantity": "-1", "Strike Price": "110", "Type": "Option"}
+        ),
     ]
     ctx = ClassificationContext.from_legs(legs)
     classifier = RatioClassifier()

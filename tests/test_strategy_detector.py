@@ -4,7 +4,14 @@ Unit tests for strategy_detector module.
 
 import pytest
 
-from variance.strategy_detector import cluster_strategies, identify_strategy, map_strategy_to_id
+import variance.strategy_detector as strategy_detector
+from variance.models import Position
+from variance.strategy_detector import (
+    _leg_dte,
+    cluster_strategies,
+    identify_strategy,
+    map_strategy_to_id,
+)
 
 
 def make_leg(
@@ -16,6 +23,7 @@ def make_leg(
     dte="45",
     underlying_price="100",
     delta=None,
+    open_date=None,
 ):
     leg = {
         "Symbol": symbol,
@@ -28,20 +36,24 @@ def make_leg(
         "Underlying Last Price": str(underlying_price),
         "Delta": "" if delta is None else str(delta),
     }
-    return leg
+    if open_date:
+        leg["Open Date"] = open_date
+    return Position.from_row(leg)
 
 
 def make_stock_leg(symbol="ABC", qty=100, underlying_price="100"):
-    return {
-        "Symbol": symbol,
-        "Type": "Stock",
-        "Call/Put": "",
-        "Quantity": str(qty),
-        "Strike Price": "0",
-        "Exp Date": "",
-        "DTE": "",
-        "Underlying Last Price": str(underlying_price),
-    }
+    return Position.from_row(
+        {
+            "Symbol": symbol,
+            "Type": "Stock",
+            "Call/Put": "",
+            "Quantity": str(qty),
+            "Strike Price": "0",
+            "Exp Date": "",
+            "DTE": "",
+            "Underlying Last Price": str(underlying_price),
+        }
+    )
 
 
 class TestIdentifyStrategy:
@@ -49,127 +61,153 @@ class TestIdentifyStrategy:
 
     def test_identify_single_stock(self):
         legs = [
-            {
-                "Type": "Stock",
-                "Call/Put": "",
-                "Quantity": "100",
-                "Strike Price": "0",
-                "Exp Date": "",
-            }
+            Position.from_row(
+                {
+                    "Type": "Stock",
+                    "Call/Put": "",
+                    "Quantity": "100",
+                    "Strike Price": "0",
+                    "Exp Date": "",
+                }
+            )
         ]
         assert identify_strategy(legs) == "Stock"
 
     def test_identify_long_call(self):
         legs = [
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "100",
-                "Exp Date": "2024-01-19",
-            }
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "100",
+                    "Exp Date": "2024-01-19",
+                }
+            )
         ]
         assert identify_strategy(legs) == "Long Call"
 
     def test_identify_short_put(self):
         legs = [
-            {
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "95",
-                "Exp Date": "2024-01-19",
-            }
+            Position.from_row(
+                {
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "-1",
+                    "Strike Price": "95",
+                    "Exp Date": "2024-01-19",
+                }
+            )
         ]
         assert identify_strategy(legs) == "Short Put"
 
     def test_identify_strangle(self):
         legs = [
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "105",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "95",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "105",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "-1",
+                    "Strike Price": "95",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         assert identify_strategy(legs) == "Short Strangle"
 
     def test_identify_iron_condor(self):
         legs = [
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "110",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "115",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "90",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "1",
-                "Strike Price": "85",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "110",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "115",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "-1",
+                    "Strike Price": "90",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "1",
+                    "Strike Price": "85",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         assert identify_strategy(legs) == "Iron Condor"
 
     def test_identify_covered_call(self):
         legs = [
-            {
-                "Type": "Stock",
-                "Call/Put": "",
-                "Quantity": "100",
-                "Strike Price": "0",
-                "Exp Date": "",
-            },
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "105",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Type": "Stock",
+                    "Call/Put": "",
+                    "Quantity": "100",
+                    "Strike Price": "0",
+                    "Exp Date": "",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "105",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         assert identify_strategy(legs) == "Covered Call"
 
     def test_identify_vertical_spread_call(self):
         legs = [
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "100",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "105",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "100",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "105",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         assert identify_strategy(legs) == "Vertical Spread (Call)"
 
@@ -195,8 +233,27 @@ class TestMapStrategyToId:
     def test_map_double_diagonal(self):
         assert map_strategy_to_id("Double Diagonal", -150.0) == "double_diagonal"
 
+    def test_map_double_diagonal_debit_returns_none(self):
+        assert map_strategy_to_id("Double Diagonal", 150.0) is None
+
     def test_map_back_spread(self):
         assert map_strategy_to_id("Back Spread", 50.0) == "back_spread"
+
+    def test_map_broken_wing_call(self):
+        assert (
+            map_strategy_to_id("Broken Wing Butterfly (Call)", 50.0) == "call_broken_wing_butterfly"
+        )
+
+    def test_map_broken_heart_put(self):
+        assert (
+            map_strategy_to_id("Broken Heart Butterfly (Put)", 50.0) == "put_broken_heart_butterfly"
+        )
+
+    def test_map_calendar_call(self):
+        assert map_strategy_to_id("Calendar Spread (Call)", 50.0) == "call_calendar_spread"
+
+    def test_map_calendar_put(self):
+        assert map_strategy_to_id("Calendar Spread (Put)", 50.0) == "put_calendar_spread"
 
     def test_map_unknown_strategy(self):
         assert map_strategy_to_id("Unknown Strategy", 0.0) is None
@@ -207,38 +264,46 @@ class TestClusterStrategies:
 
     def test_cluster_separates_multiple_verticals(self):
         positions = [
-            {
-                "Symbol": "ABC",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "100",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "ABC",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "105",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "ABC",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "110",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "ABC",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "115",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Symbol": "ABC",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "100",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "ABC",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "105",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "ABC",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "110",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "ABC",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "115",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 2
@@ -247,38 +312,46 @@ class TestClusterStrategies:
 
     def test_cluster_builds_iron_condor(self):
         positions = [
-            {
-                "Symbol": "XYZ",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "110",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "XYZ",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "115",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "XYZ",
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "90",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "XYZ",
-                "Type": "Put",
-                "Call/Put": "Put",
-                "Quantity": "1",
-                "Strike Price": "85",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-1",
+                    "Strike Price": "110",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "115",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "-1",
+                    "Strike Price": "90",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Put",
+                    "Call/Put": "Put",
+                    "Quantity": "1",
+                    "Strike Price": "85",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 1
@@ -286,30 +359,36 @@ class TestClusterStrategies:
 
     def test_cluster_builds_butterfly(self):
         positions = [
-            {
-                "Symbol": "XYZ",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "100",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "XYZ",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "-2",
-                "Strike Price": "105",
-                "Exp Date": "2024-01-19",
-            },
-            {
-                "Symbol": "XYZ",
-                "Type": "Call",
-                "Call/Put": "Call",
-                "Quantity": "1",
-                "Strike Price": "110",
-                "Exp Date": "2024-01-19",
-            },
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "100",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "-2",
+                    "Strike Price": "105",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
+            Position.from_row(
+                {
+                    "Symbol": "XYZ",
+                    "Type": "Call",
+                    "Call/Put": "Call",
+                    "Quantity": "1",
+                    "Strike Price": "110",
+                    "Exp Date": "2024-01-19",
+                }
+            ),
         ]
         clusters = cluster_strategies(positions)
         assert len(clusters) == 1
@@ -332,6 +411,82 @@ class TestClusterStrategies:
         clusters = cluster_strategies(positions)
         assert len(clusters) == 1
         assert identify_strategy(clusters[0]) == "Short Straddle"
+
+    def test_cluster_builds_covered_strangle(self, monkeypatch):
+        original = strategy_detector.identify_strategy
+
+        def fake_identify_strategy(legs):
+            if any(getattr(leg, "is_stock", False) for leg in legs) and len(legs) == 3:
+                return "Covered Strangle"
+            return original(legs)
+
+        monkeypatch.setattr("variance.strategy_detector.identify_strategy", fake_identify_strategy)
+
+        positions = [
+            make_stock_leg(symbol="XYZ"),
+            make_leg(symbol="XYZ", option_type="Call", qty=-1, strike=110, exp="2024-01-19"),
+            make_leg(symbol="XYZ", option_type="Put", qty=-1, strike=90, exp="2024-02-16"),
+        ]
+        clusters = cluster_strategies(positions)
+        assert len(clusters) == 1
+        assert strategy_detector.identify_strategy(clusters[0]) == "Covered Strangle"
+
+    def test_cluster_builds_collar(self, monkeypatch):
+        original = strategy_detector.identify_strategy
+
+        def fake_identify_strategy(legs):
+            if any(getattr(leg, "is_stock", False) for leg in legs) and len(legs) == 3:
+                return "Collar"
+            return original(legs)
+
+        monkeypatch.setattr("variance.strategy_detector.identify_strategy", fake_identify_strategy)
+
+        positions = [
+            make_stock_leg(symbol="XYZ"),
+            make_leg(symbol="XYZ", option_type="Call", qty=-1, strike=110, exp="2024-01-19"),
+            make_leg(symbol="XYZ", option_type="Put", qty=1, strike=90, exp="2024-02-16"),
+        ]
+        clusters = cluster_strategies(positions)
+        assert len(clusters) == 1
+        assert strategy_detector.identify_strategy(clusters[0]) == "Collar"
+
+    def test_cluster_cross_expiration_respects_open_date(self):
+        positions = [
+            make_leg(
+                symbol="XYZ",
+                option_type="Call",
+                qty=-1,
+                strike=100,
+                exp="2024-01-19",
+                open_date="2024-01-01",
+            ),
+            make_leg(
+                symbol="XYZ",
+                option_type="Call",
+                qty=1,
+                strike=100,
+                exp="2024-02-16",
+                open_date="2024-01-02",
+            ),
+        ]
+
+        clusters = cluster_strategies(positions)
+        assert len(clusters) == 2
+
+    def test_cluster_cross_expiration_skips_same_side(self):
+        positions = [
+            make_leg(symbol="XYZ", option_type="Call", qty=1, strike=100, exp="2024-01-19"),
+            make_leg(symbol="XYZ", option_type="Call", qty=1, strike=100, exp="2024-02-16"),
+        ]
+
+        clusters = cluster_strategies(positions)
+        assert len(clusters) == 2
+
+
+class TestLegDte:
+    def test_leg_dte_invalid_date_returns_zero(self):
+        leg = Position.from_row({"DTE": "", "Exp Date": "bad-date"})
+        assert _leg_dte(leg) == 0
 
 
 @pytest.mark.parametrize(

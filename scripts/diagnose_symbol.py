@@ -19,6 +19,7 @@ import json
 from typing import Any
 
 from variance.config_loader import load_config_bundle
+from variance.errors import build_error, warning_detail_message
 from variance.get_market_data import get_market_data
 from variance.models.market_specs import (
     DataIntegritySpec,
@@ -47,18 +48,26 @@ def diagnose_symbol(
 
     # Check for fetch errors
     if "error" in raw_data:
+        detail_message = warning_detail_message(raw_data)
         if json_output:
+            payload = build_error(
+                str(raw_data.get("error")),
+                warning_detail=raw_data.get("warning_detail"),
+                warning_message=detail_message,
+            )
             return {
                 "symbol": symbol,
                 "status": "ERROR",
-                "error": raw_data.get("error"),
                 "warning": raw_data.get("warning"),
+                **payload,
             }
         print(f"\n{'=' * 80}")
         print(f"DIAGNOSING: {symbol}")
         print(f"{'=' * 80}")
         print(f"❌ FETCH ERROR: {raw_data.get('error')}")
         print(f"   Warning: {raw_data.get('warning', 'N/A')}")
+        if detail_message:
+            print(f"   Detail: {detail_message}")
         return {"symbol": symbol, "status": "ERROR"}
 
     # Extract key metrics

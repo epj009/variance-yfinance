@@ -1,29 +1,34 @@
 from variance import analyze_portfolio
+from variance.models import Position
 from variance.portfolio_parser import PortfolioParser
 from variance.strategy_detector import identify_strategy
 
 
 # Mocking leg data helpers
 def make_leg(otype, qty, strike):
-    return {
-        "Type": "Option",
-        "Call/Put": otype,
-        "Quantity": str(qty),
-        "Strike Price": str(strike),
-        "Exp Date": "2025-01-17",
-        "DTE": "45",
-    }
+    return Position.from_row(
+        {
+            "Type": "Option",
+            "Call/Put": otype,
+            "Quantity": str(qty),
+            "Strike Price": str(strike),
+            "Exp Date": "2025-01-17",
+            "DTE": "45",
+        }
+    )
 
 
 def make_stock_leg(qty):
-    return {
-        "Type": "Stock",
-        "Call/Put": "",
-        "Quantity": str(qty),
-        "Strike Price": "",
-        "Exp Date": "",
-        "DTE": "",
-    }
+    return Position.from_row(
+        {
+            "Type": "Stock",
+            "Call/Put": "",
+            "Quantity": str(qty),
+            "Strike Price": "",
+            "Exp Date": "",
+            "DTE": "",
+        }
+    )
 
 
 def make_config_bundle(trading_rules):

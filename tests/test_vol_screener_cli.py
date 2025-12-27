@@ -108,5 +108,5 @@ def test_main_exits_on_screen_error(monkeypatch, capsys):
         vol_screener.main()
 
     assert exc.value.code == 1
-    output = capsys.readouterr().out
+    output = capsys.readouterr().err
     assert "boom" in output

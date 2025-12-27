@@ -11,6 +11,8 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.tree import Tree
 
+from .errors import build_error, error_lines
+
 # Define professional theme
 VARIANCE_THEME = Theme(
     {
@@ -34,6 +36,16 @@ class TUIRenderer:
         self.console = Console(theme=VARIANCE_THEME)
         self.portfolio_summary = self.data.get("portfolio_summary", {})
         self.show_diagnostics = show_diagnostics
+
+    def _resolve_opportunities(self) -> dict[str, Any]:
+        opportunities = self.data.get("opportunities")
+        if isinstance(opportunities, dict):
+            return opportunities
+        if isinstance(self.data.get("candidates"), list) and isinstance(
+            self.data.get("summary"), dict
+        ):
+            return self.data
+        return {}
 
     def render(self) -> None:
         """Main entry point for TUI rendering."""
@@ -282,7 +294,7 @@ class TUIRenderer:
 
     def render_opportunities(self) -> None:
         """Renders top vol screener opportunities using Rich Table"""
-        opportunities = self.data.get("opportunities", {})
+        opportunities = self._resolve_opportunities()
         candidates = opportunities.get("candidates", [])
         meta = opportunities.get("meta", {})
         summary = opportunities.get("summary", {})
@@ -532,7 +544,7 @@ class TUIRenderer:
 
             panels.append(self._build_diag_panel("TRIAGE", items))
 
-        opportunities = self.data.get("opportunities", {})
+        opportunities = self._resolve_opportunities()
         summary = opportunities.get("summary", {})
         if summary:
             items = [
@@ -617,13 +629,47 @@ def main() -> None:
 
     data = {}
     if args.input_file:
-        with open(args.input_file) as f:
-            data = json.load(f)
+        try:
+            with open(args.input_file) as f:
+                data = json.load(f)
+        except FileNotFoundError as exc:
+            payload = build_error(
+                "Input file not found.",
+                details=str(exc),
+                hint="Provide a valid JSON report path.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as exc:
+            payload = build_error(
+                "Invalid JSON input.",
+                details=str(exc),
+                hint="Ensure the file contains valid JSON report data.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
     elif not sys.stdin.isatty():
-        data = json.load(sys.stdin)
+        try:
+            data = json.load(sys.stdin)
+        except json.JSONDecodeError as exc:
+            payload = build_error(
+                "Invalid JSON input from stdin.",
+                details=str(exc),
+                hint="Pipe a valid JSON report into this command.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
 
     if not data:
         return
+    if isinstance(data, dict) and "error" in data:
+        for line in error_lines(data):
+            print(line, file=sys.stderr)
+        print(json.dumps(data, indent=2), file=sys.stderr)
+        sys.exit(1)
 
     renderer = TUIRenderer(data, show_diagnostics=args.show_diagnostics)
     renderer.render()

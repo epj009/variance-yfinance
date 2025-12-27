@@ -1,12 +1,21 @@
+#!/usr/bin/env python3
+"""
+Watchlist Screening Diagnostic Tool
+
+Summarizes why symbols pass or fail each filter in the screening pipeline.
+"""
+
 import csv
 import sys
 from collections import defaultdict
 from typing import Any, Optional, cast
 
-from .config_loader import load_config_bundle
-from .diagnostics import ScreenerDiagnostics
-from .get_market_data import MarketDataFactory
-from .vol_screener import _is_illiquid
+from variance.config_loader import load_config_bundle
+from variance.diagnostics import ScreenerDiagnostics
+from variance.errors import warning_detail_message
+from variance.get_market_data import MarketDataFactory
+from variance.portfolio_parser import get_root_symbol
+from variance.vol_screener import _is_illiquid
 
 
 def diagnose_watchlist(limit: Optional[int] = None) -> None:
@@ -53,7 +62,11 @@ def diagnose_watchlist(limit: Optional[int] = None) -> None:
 
         data = market_data[sym]
         if "error" in data:
-            stats[f"API_ERROR_{data['error']}"].append(sym)
+            detail_message = warning_detail_message(data)
+            if detail_message:
+                stats[f"API_ERROR_{data['error']}"].append(f"{sym} ({detail_message})")
+            else:
+                stats[f"API_ERROR_{data['error']}"].append(sym)
             diagnostics.record_market_data_error(data.get("error"))
             continue
 
@@ -141,8 +154,6 @@ def diagnose_watchlist(limit: Optional[int] = None) -> None:
     # --- Phase 4: Deduplicate Passed by Root ---
     deduplicated_passed: dict[str, str] = {}
     for sym in passed:
-        from .portfolio_parser import get_root_symbol
-
         root = get_root_symbol(sym)
         if root not in deduplicated_passed or len(sym) < len(deduplicated_passed[root]):
             deduplicated_passed[root] = sym

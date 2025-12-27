@@ -173,105 +173,41 @@ class TastytradeClient:
 
         metrics: TastytradeMetrics = {"symbol": symbol}
 
-        # HV30 & HV90 (Parse first for context)
-        hv30_val: Optional[float] = None
-        hv30 = item.get("historical-volatility-30-day")
-        if hv30 is not None:
-            try:
-                hv30_val = float(hv30)
-                metrics["hv30"] = hv30_val
-            except (ValueError, TypeError):
-                pass
+        hv30_val = self._safe_float(item.get("historical-volatility-30-day"))
+        if hv30_val is not None:
+            metrics["hv30"] = hv30_val
 
-        hv90_val: Optional[float] = None
-        hv90 = item.get("historical-volatility-90-day")
-        if hv90 is not None:
-            try:
-                hv90_val = float(hv90)
-                metrics["hv90"] = hv90_val
-            except (ValueError, TypeError):
-                pass
+        hv90_val = self._safe_float(item.get("historical-volatility-90-day"))
+        if hv90_val is not None:
+            metrics["hv90"] = hv90_val
 
-        # IV: Context-Aware Scaling
-        raw_iv = item.get("implied-volatility-index")
-        if raw_iv is not None:
-            try:
-                val = float(raw_iv)
-                if val > 0:
-                    # Determine if we should scale by 100
-                    # Use HV as anchor if available
-                    anchor_vol = hv30_val if hv30_val else hv90_val
+        iv_val = self._parse_iv(item.get("implied-volatility-index"), hv30_val, hv90_val)
+        if iv_val is not None:
+            metrics["iv"] = iv_val
 
-                    if val < 1.0:
-                        # Hard rule: No equity/commodity has < 1% IV. Assume decimal.
-                        metrics["iv"] = val * 100.0
-                    elif anchor_vol and anchor_vol > 0:
-                        diff_unscaled = abs(val - anchor_vol)
-                        diff_scaled = abs((val * 100.0) - anchor_vol)
-
-                        if diff_scaled < diff_unscaled:
-                            metrics["iv"] = val * 100.0
-                        else:
-                            metrics["iv"] = val
-                    else:
-                        # Fallback heuristic: If < 5.0, assume decimal (500% cutoff)
-                        if val < 5.0:
-                            metrics["iv"] = val * 100.0
-                        else:
-                            metrics["iv"] = val
-            except (ValueError, TypeError):
-                pass
-
-        # IV Rank & Percentile (already in 0-100 range)
-        iv_rank = item.get("implied-volatility-index-rank")
+        iv_rank = self._safe_float(item.get("implied-volatility-index-rank"))
         if iv_rank is not None:
-            try:
-                metrics["iv_rank"] = float(iv_rank)
-            except (ValueError, TypeError):
-                pass
+            metrics["iv_rank"] = iv_rank
 
-        iv_percentile = item.get("implied-volatility-percentile")
+        iv_percentile = self._parse_iv_percentile(item.get("implied-volatility-percentile"))
         if iv_percentile is not None:
-            try:
-                val = float(iv_percentile)
-                # Normalize to 0-100 range (Tastytrade returns 0-1 decimal)
-                if val <= 1.0:
-                    metrics["iv_percentile"] = val * 100.0
-                else:
-                    metrics["iv_percentile"] = val  # Already in percent
-            except (ValueError, TypeError):
-                pass
+            metrics["iv_percentile"] = iv_percentile
 
-        # Liquidity metrics
-        liquidity_rating = item.get("liquidity-rating")
+        liquidity_rating = self._safe_int(item.get("liquidity-rating"))
         if liquidity_rating is not None:
-            try:
-                metrics["liquidity_rating"] = int(liquidity_rating)
-            except (ValueError, TypeError):
-                pass
+            metrics["liquidity_rating"] = liquidity_rating
 
-        liquidity_value = item.get("liquidity-value")
+        liquidity_value = self._safe_float(item.get("liquidity-value"))
         if liquidity_value is not None:
-            try:
-                metrics["liquidity_value"] = float(liquidity_value)
-            except (ValueError, TypeError):
-                pass
+            metrics["liquidity_value"] = liquidity_value
 
-        # Correlation
-        corr_spy = item.get("corr-spy-3month")
+        corr_spy = self._safe_float(item.get("corr-spy-3month"))
         if corr_spy is not None:
-            try:
-                metrics["corr_spy_3month"] = float(corr_spy)
-            except (ValueError, TypeError):
-                pass
+            metrics["corr_spy_3month"] = corr_spy
 
-        # Beta
-        beta = item.get("beta")
+        beta = self._safe_float(item.get("beta"))
         if beta is not None:
-            try:
-                metrics["beta"] = float(beta)
-            except (ValueError, TypeError):
-                pass
+            metrics["beta"] = beta
 
         # Earnings
         earnings = item.get("earnings", {})
@@ -286,6 +222,50 @@ class TastytradeClient:
             metrics["updated_at"] = str(updated_at)
 
         return metrics
+
+    @staticmethod
+    def _safe_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _safe_int(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_iv(
+        raw_iv: Any, hv30_val: Optional[float], hv90_val: Optional[float]
+    ) -> Optional[float]:
+        val = TastytradeClient._safe_float(raw_iv)
+        if val is None or val <= 0:
+            return None
+
+        anchor_vol = hv30_val if hv30_val else hv90_val
+        if val < 1.0:
+            return val * 100.0
+        if anchor_vol and anchor_vol > 0:
+            diff_unscaled = abs(val - anchor_vol)
+            diff_scaled = abs((val * 100.0) - anchor_vol)
+            return val * 100.0 if diff_scaled < diff_unscaled else val
+        if val < 5.0:
+            return val * 100.0
+        return val
+
+    @staticmethod
+    def _parse_iv_percentile(raw_val: Any) -> Optional[float]:
+        val = TastytradeClient._safe_float(raw_val)
+        if val is None:
+            return None
+        return val * 100.0 if val <= 1.0 else val
 
     def _fetch_api_data(
         self, url: str, headers: dict[str, str], params: dict[str, str]

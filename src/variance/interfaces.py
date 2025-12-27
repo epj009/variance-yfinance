@@ -1,4 +1,4 @@
-from typing import Optional, Protocol, TypedDict
+from typing import Any, Optional, Protocol, TypedDict
 
 
 class MarketData(TypedDict, total=False):
@@ -28,6 +28,8 @@ class MarketData(TypedDict, total=False):
     liquidity_value: Optional[float]  # Numeric liquidity score (Tastytrade)
     data_source: Optional[str]  # "tastytrade" | "yfinance" | "composite"
     warning: Optional[str]  # Warning messages (e.g., "tastytrade_fallback")
+    warning_detail: Optional[dict[str, Any]]  # Structured warning metadata
+    warning_message: Optional[str]  # User-facing warning text
 
 
 class IMarketDataProvider(Protocol):

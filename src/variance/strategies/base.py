@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 from ..models.actions import ActionCommand, ActionFactory
+from ..models.position import Position
 
 
 class BaseStrategy(ABC):
@@ -54,7 +55,7 @@ class BaseStrategy(ABC):
         self.defense_mechanic = mgmt.get("defense_mechanic", "roll_untested")
 
     @abstractmethod
-    def is_tested(self, legs: list[dict[str, Any]], underlying_price: float) -> bool:
+    def is_tested(self, legs: list[Position], underlying_price: float) -> bool:
         """Determines if the strategy is currently under pressure (ITM or breached)."""
         pass
 

@@ -1,3 +1,4 @@
+from variance.models import Position
 from variance.strategies.butterfly import ButterflyStrategy
 
 
@@ -9,12 +10,23 @@ def make_strategy():
     )
 
 
+def _make_leg(quantity: str, strike: str) -> Position:
+    return Position.from_row(
+        {
+            "Symbol": "AAPL",
+            "Type": "Option",
+            "Quantity": quantity,
+            "Strike Price": strike,
+        }
+    )
+
+
 def test_is_tested_outside_short_strikes():
     strategy = make_strategy()
     legs = [
-        {"Quantity": "-1", "Strike Price": "100"},
-        {"Quantity": "-1", "Strike Price": "110"},
-        {"Quantity": "1", "Strike Price": "90"},
+        _make_leg("-1", "100"),
+        _make_leg("-1", "110"),
+        _make_leg("1", "90"),
     ]
 
     assert strategy.is_tested(legs, underlying_price=120.0) is True
@@ -24,8 +36,8 @@ def test_is_tested_outside_short_strikes():
 def test_is_tested_no_short_strikes():
     strategy = make_strategy()
     legs = [
-        {"Quantity": "1", "Strike Price": "100"},
-        {"Quantity": "1", "Strike Price": "110"},
+        _make_leg("1", "100"),
+        _make_leg("1", "110"),
     ]
 
     assert strategy.is_tested(legs, underlying_price=120.0) is False

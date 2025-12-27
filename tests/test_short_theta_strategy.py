@@ -7,6 +7,7 @@ filters (check_toxic_theta), and profit harvest inheritance from BaseStrategy.
 
 import pytest
 
+from variance.models import Position
 from variance.strategies.short_theta import ShortThetaStrategy
 
 
@@ -48,19 +49,24 @@ def short_theta_strategy(mock_strategy_config, mock_trading_rules):
     )
 
 
+def _make_leg(call_put: str, quantity: str, strike: str, asset_type: str = "Option") -> Position:
+    return Position.from_row(
+        {
+            "Symbol": "AAPL",
+            "Type": asset_type,
+            "Call/Put": call_put,
+            "Quantity": quantity,
+            "Strike Price": strike,
+        }
+    )
+
+
 class TestIsTestedShortPut:
     """Test ShortThetaStrategy.is_tested() for short put legs."""
 
     def test_is_tested_short_put_itm(self, short_theta_strategy):
         """Short put ITM when price < strike should return True."""
-        legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "150.0",
-            }
-        ]
+        legs = [_make_leg("Put", "-1", "150.0")]
         underlying_price = 145.0  # Price < Strike = ITM for put
 
         result = short_theta_strategy.is_tested(legs, underlying_price)
@@ -69,14 +75,7 @@ class TestIsTestedShortPut:
 
     def test_is_tested_short_put_otm(self, short_theta_strategy):
         """Short put OTM when price > strike should return False."""
-        legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "150.0",
-            }
-        ]
+        legs = [_make_leg("Put", "-1", "150.0")]
         underlying_price = 155.0  # Price > Strike = OTM for put
 
         result = short_theta_strategy.is_tested(legs, underlying_price)
@@ -89,14 +88,7 @@ class TestIsTestedShortCall:
 
     def test_is_tested_short_call_itm(self, short_theta_strategy):
         """Short call ITM when price > strike should return True."""
-        legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "150.0",
-            }
-        ]
+        legs = [_make_leg("Call", "-1", "150.0")]
         underlying_price = 155.0  # Price > Strike = ITM for call
 
         result = short_theta_strategy.is_tested(legs, underlying_price)
@@ -105,14 +97,7 @@ class TestIsTestedShortCall:
 
     def test_is_tested_short_call_otm(self, short_theta_strategy):
         """Short call OTM when price < strike should return False."""
-        legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Call",
-                "Quantity": "-1",
-                "Strike Price": "150.0",
-            }
-        ]
+        legs = [_make_leg("Call", "-1", "150.0")]
         underlying_price = 145.0  # Price < Strike = OTM for call
 
         result = short_theta_strategy.is_tested(legs, underlying_price)
@@ -125,14 +110,7 @@ class TestIsTestedLongLegs:
 
     def test_is_tested_ignores_long_legs(self, short_theta_strategy):
         """Long legs (qty > 0) should never be considered tested."""
-        legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Put",
-                "Quantity": "1",  # Long leg
-                "Strike Price": "150.0",
-            }
-        ]
+        legs = [_make_leg("Put", "1", "150.0")]
         underlying_price = 145.0  # Would be ITM if short, but is long
 
         result = short_theta_strategy.is_tested(legs, underlying_price)
@@ -145,14 +123,7 @@ class TestIsTestedStockLegs:
 
     def test_is_tested_ignores_stock_legs(self, short_theta_strategy):
         """Stock legs should never be considered tested."""
-        legs = [
-            {
-                "Type": "Stock",
-                "Call/Put": "",
-                "Quantity": "100",
-                "Strike Price": None,
-            }
-        ]
+        legs = [_make_leg("", "100", "0", asset_type="Stock")]
         underlying_price = 150.0
 
         result = short_theta_strategy.is_tested(legs, underlying_price)

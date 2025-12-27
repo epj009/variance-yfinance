@@ -10,6 +10,7 @@ Checks each filter step-by-step for futures symbols.
 from typing import Any
 
 from variance.config_loader import load_config_bundle
+from variance.errors import warning_detail_message
 from variance.get_market_data import get_market_data
 from variance.models.market_specs import (
     DataIntegritySpec,
@@ -42,6 +43,9 @@ def diagnose_symbol(symbol: str, rules: dict[str, Any]) -> None:
     if "error" in raw_data:
         print(f"❌ FETCH ERROR: {raw_data.get('error')}")
         print(f"   Warning: {raw_data.get('warning', 'N/A')}")
+        detail_message = warning_detail_message(raw_data)
+        if detail_message:
+            print(f"   Detail: {detail_message}")
         return
 
     # Print key metrics

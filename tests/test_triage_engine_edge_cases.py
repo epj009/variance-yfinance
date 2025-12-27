@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from variance import triage_engine
+from variance.models import Position
 
 
 def test_validate_futures_delta_low_delta_flags(mock_market_config):
@@ -23,12 +24,24 @@ def test_validate_futures_delta_disabled(mock_market_config):
 
 
 def test_beta_weight_gamma_prefers_beta_gamma():
-    leg = {"Gamma": "0.05", "beta_gamma": "0.12"}
+    leg = Position.from_row(
+        {"Symbol": "AAPL", "Type": "Option", "Quantity": "1", "Gamma": "0.05", "beta_gamma": "0.12"}
+    )
     assert triage_engine._beta_weight_gamma(leg) == 0.12
 
 
 def test_beta_weight_gamma_scales_from_beta_delta():
-    leg = {"Gamma": "0.5", "beta_gamma": "", "beta_delta": "20", "Delta": "10"}
+    leg = Position.from_row(
+        {
+            "Symbol": "AAPL",
+            "Type": "Option",
+            "Quantity": "1",
+            "Gamma": "0.5",
+            "beta_gamma": "",
+            "beta_delta": "20",
+            "Delta": "10",
+        }
+    )
     assert triage_engine._beta_weight_gamma(leg) == 2.0
 
 
@@ -38,8 +51,8 @@ def test_calculate_days_held_handles_formats():
     newer = today - timedelta(days=3)
 
     legs = [
-        {"Open Date": older.isoformat()},
-        {"Open Date": newer.strftime("%b %d %Y")},
+        Position.from_row({"Open Date": older.isoformat()}),
+        Position.from_row({"Open Date": newer.strftime("%b %d %Y")}),
     ]
 
     assert triage_engine.calculate_days_held(legs) == 3
@@ -56,24 +69,26 @@ def test_calculate_cluster_metrics_uses_raw_delta_and_warns_futures(mock_market_
         "rules": rules,
     }
     legs = [
-        {
-            "Symbol": "/ESZ5",
-            "Type": "Option",
-            "Call/Put": "Put",
-            "Quantity": "-1",
-            "Strike Price": "4500",
-            "Exp Date": "2025-01-17",
-            "DTE": "10",
-            "Cost": "-100",
-            "P/L Open": "10",
-            "Delta": "0.2",
-            "beta_delta": "",
-            "Theta": "-1",
-            "Gamma": "0.05",
-            "Bid": "1.0",
-            "Ask": "1.1",
-            "Underlying Last Price": "4500",
-        }
+        Position.from_row(
+            {
+                "Symbol": "/ESZ5",
+                "Type": "Option",
+                "Call/Put": "Put",
+                "Quantity": "-1",
+                "Strike Price": "4500",
+                "Exp Date": "2025-01-17",
+                "DTE": "10",
+                "Cost": "-100",
+                "P/L Open": "10",
+                "Delta": "0.2",
+                "beta_delta": "",
+                "Theta": "-1",
+                "Gamma": "0.05",
+                "Bid": "1.0",
+                "Ask": "1.1",
+                "Underlying Last Price": "4500",
+            }
+        )
     ]
 
     metrics = triage_engine.calculate_cluster_metrics(legs, context)
@@ -102,13 +117,13 @@ def test_get_position_aware_opportunities_excludes_concentrated(monkeypatch):
     )
 
     positions = [
-        {"Symbol": "AAPL", "Cost": "-100"},
-        {"Symbol": "MSFT", "Cost": "-10"},
+        Position.from_row({"Symbol": "AAPL", "Cost": "-100"}),
+        Position.from_row({"Symbol": "MSFT", "Cost": "-10"}),
     ]
     clusters = [
-        [{"Symbol": "AAPL"}],
-        [{"Symbol": "AAPL"}],
-        [{"Symbol": "MSFT"}],
+        [Position.from_row({"Symbol": "AAPL"})],
+        [Position.from_row({"Symbol": "AAPL"})],
+        [Position.from_row({"Symbol": "MSFT"})],
     ]
     rules = {
         "concentration_limit_pct": 0.05,

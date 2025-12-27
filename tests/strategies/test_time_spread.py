@@ -1,3 +1,4 @@
+from variance.models import Position
 from variance.strategies.time_spread import TimeSpreadStrategy
 
 
@@ -9,9 +10,21 @@ def make_strategy():
     )
 
 
+def _make_leg(call_put: str, quantity: str, strike: str) -> Position:
+    return Position.from_row(
+        {
+            "Symbol": "AAPL",
+            "Type": "Option",
+            "Call/Put": call_put,
+            "Quantity": quantity,
+            "Strike Price": strike,
+        }
+    )
+
+
 def test_is_tested_short_call_breached():
     strategy = make_strategy()
-    legs = [{"Quantity": "-1", "Strike Price": "100", "Call/Put": "Call"}]
+    legs = [_make_leg("Call", "-1", "100")]
 
     assert strategy.is_tested(legs, underlying_price=105.0) is True
     assert strategy.is_tested(legs, underlying_price=95.0) is False
@@ -19,7 +32,7 @@ def test_is_tested_short_call_breached():
 
 def test_is_tested_short_put_breached():
     strategy = make_strategy()
-    legs = [{"Quantity": "-1", "Strike Price": "100", "Call/Put": "Put"}]
+    legs = [_make_leg("Put", "-1", "100")]
 
     assert strategy.is_tested(legs, underlying_price=95.0) is True
     assert strategy.is_tested(legs, underlying_price=105.0) is False
@@ -27,7 +40,7 @@ def test_is_tested_short_put_breached():
 
 def test_is_tested_no_short_legs():
     strategy = make_strategy()
-    legs = [{"Quantity": "1", "Strike Price": "100", "Call/Put": "Call"}]
+    legs = [_make_leg("Call", "1", "100")]
 
     assert strategy.is_tested(legs, underlying_price=105.0) is False
 

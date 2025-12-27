@@ -4,7 +4,7 @@ Classifier Registry
 Manages the explicit chain of strategy classifiers.
 """
 
-from typing import Any
+from variance.models.position import Position
 
 from .base import ClassificationContext, StrategyClassifier
 from .classifiers.butterfly import ButterflyClassifier
@@ -37,14 +37,22 @@ class ClassifierChain:
             RatioClassifier(),
         ]
 
-    def classify(self, legs: list[dict[str, Any]]) -> str:
+    def classify(self, legs: list[Position]) -> str:
         """
         Classifies legs using the chain. First match wins.
         """
         if not legs:
             return "Empty"
 
+        for idx, leg in enumerate(legs):
+            if not isinstance(leg, Position):
+                raise TypeError(
+                    f"ClassifierChain expects Position objects; got {type(leg).__name__} "
+                    f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+                )
+
         ctx = ClassificationContext.from_legs(legs)
+        legs = ctx.legs
 
         for classifier in self._chain:
             if classifier.can_classify(legs, ctx):

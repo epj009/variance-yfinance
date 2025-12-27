@@ -12,13 +12,9 @@ import variance.triage.handlers  # noqa: F401
 from variance.triage.chain import TriageChain
 from variance.triage.request import TriageRequest
 
+from .models.position import Position
+
 # Import common utilities
-from .portfolio_parser import (
-    get_root_symbol,
-    is_stock_type,
-    parse_currency,
-    parse_dte,
-)
 from .strategies.factory import StrategyFactory
 from .strategy_detector import (
     identify_strategy,
@@ -76,7 +72,17 @@ class TriageMetrics(TypedDict):
     total_capital_at_risk: float
 
 
-def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext) -> dict[str, Any]:
+def _ensure_positions(legs: list[Position]) -> list[Position]:
+    for idx, leg in enumerate(legs):
+        if not isinstance(leg, Position):
+            raise TypeError(
+                f"Triage expects Position objects; got {type(leg).__name__} "
+                f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+            )
+    return list(legs)
+
+
+def calculate_cluster_metrics(legs: list[Position], context: TriageContext) -> dict[str, Any]:
     """
     Step 1 of Triage: Calculate raw Greeks and P/L for a cluster.
     """
@@ -84,20 +90,19 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     market_config = context["market_config"]
     rules = context["rules"]
 
-    root = get_root_symbol(legs[0]["Symbol"])
+    legs = _ensure_positions(legs)
+    root = legs[0].root_symbol
 
     # Calculate DTE (Only for Options)
     dtes = []
     for leg in legs:
-        l_type = str(leg.get("Type", "")).upper()
-        if "OPTION" not in l_type:
+        if not leg.is_option:
             continue
 
-        dte_val = parse_dte(leg.get("DTE"))
-        if dte_val > 0:
-            val = dte_val
+        if leg.dte > 0:
+            val = leg.dte
         else:
-            exp_str = leg.get("Exp Date")
+            exp_str = leg.exp_date
             if not exp_str or exp_str == "None" or exp_str == "":
                 val = 999
             else:
@@ -119,10 +124,10 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     dte = min(dtes) if dtes else 999
 
     strategy_name = identify_strategy(legs)
-    net_pl = sum(parse_currency(leg["P/L Open"]) for leg in legs)
+    net_pl = sum(leg.pl_open for leg in legs)
 
     # Calculate net cost
-    net_cost = sum(parse_currency(leg["Cost"]) for leg in legs)
+    net_cost = sum(leg.cost for leg in legs)
 
     # Resolve Strategy ID
     strategy_id = map_strategy_to_id(strategy_name, net_cost)
@@ -136,20 +141,21 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     uses_raw_delta = False
 
     for leg in legs:
-        b_delta_str = leg.get("beta_delta")
-        if b_delta_str is None or str(b_delta_str).strip() == "":
-            raw_delta_str = leg.get("Delta")
-            if raw_delta_str and str(raw_delta_str).strip() != "":
-                b_delta = parse_currency(raw_delta_str)
+        raw_data = leg.raw_data or {}
+        beta_delta_present = str(raw_data.get("beta_delta", "")).strip() != ""
+        if not beta_delta_present:
+            raw_delta_present = str(raw_data.get("Delta", "")).strip() != ""
+            if raw_delta_present:
+                b_delta = float(leg.delta or 0.0)
                 uses_raw_delta = True
             else:
                 b_delta = 0.0
         else:
-            b_delta = parse_currency(b_delta_str)
+            b_delta = float(leg.beta_delta or 0.0)
 
         strategy_delta += b_delta
 
-        leg_root = get_root_symbol(leg["Symbol"])
+        leg_root = leg.root_symbol
         futures_check = validate_futures_delta(
             root=leg_root, beta_delta=b_delta, market_config=market_config, rules=rules
         )
@@ -158,8 +164,8 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
 
         b_gamma = _beta_weight_gamma(leg)
         strategy_gamma += b_gamma
-        cluster_gamma_raw += parse_currency(leg.get("Gamma", "0"))
-        cluster_theta_raw += parse_currency(leg.get("Theta", "0"))
+        cluster_gamma_raw += float(leg.gamma or 0.0)
+        cluster_theta_raw += float(leg.theta or 0.0)
 
     pl_pct = None
     if net_cost < 0:
@@ -183,9 +189,7 @@ def calculate_cluster_metrics(legs: list[dict[str, Any]], context: TriageContext
     except (TypeError, ValueError, IndexError):
         live_price = 0.0
 
-    price = (
-        live_price if live_price > 0 else parse_currency(legs[0].get("Underlying Last Price", "0"))
-    )
+    price = live_price if live_price > 0 else float(legs[0].underlying_price or 0.0)
 
     return {
         "root": root,
@@ -350,17 +354,16 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     }
 
 
-def triage_cluster(legs: list[dict[str, Any]], context: TriageContext) -> TriageResult:
+def triage_cluster(legs: list[Position], context: TriageContext) -> TriageResult:
     """
     Triage a single strategy cluster and determine action code.
-    Backward-compatible entry point.
     """
     metrics = calculate_cluster_metrics(legs, context)
     return determine_cluster_action(metrics, context)
 
 
 def triage_portfolio(
-    clusters: list[list[dict[str, Any]]], context: TriageContext
+    clusters: list[list[Position]], context: TriageContext
 ) -> tuple[list[TriageResult], TriageMetrics]:
     """
     Triage all clusters in a portfolio and calculate portfolio-level metrics.
@@ -386,7 +389,8 @@ def triage_portfolio(
         if not legs:
             continue
 
-        option_legs = [leg for leg in legs if not is_stock_type(leg["Type"])]
+        legs = _ensure_positions(legs)
+        option_legs = [leg for leg in legs if leg.is_option]
         total_option_legs += len(option_legs)
 
         # Step 1: Calculate cluster-level metrics
@@ -400,25 +404,25 @@ def triage_portfolio(
 
         # Aggregate Greeks and Friction
         for leg in legs:
-            leg_theta = parse_currency(leg["Theta"])
+            leg_theta = float(leg.theta or 0.0)
             total_portfolio_theta += leg_theta
             total_abs_theta += abs(leg_theta)
 
-            leg_vega = parse_currency(leg.get("Vega", "0"))
+            leg_vega = float(leg.vega or 0.0)
             total_portfolio_vega += leg_vega
 
             leg_gamma = _beta_weight_gamma(leg)
             total_portfolio_gamma += leg_gamma
 
             # Friction
-            bid = parse_currency(leg["Bid"])
-            ask = parse_currency(leg["Ask"])
-            qty = abs(parse_currency(leg["Quantity"]))
+            bid = float(leg.bid or 0.0)
+            ask = float(leg.ask or 0.0)
+            qty = abs(float(leg.quantity))
 
             if ask > bid and qty > 0:
                 spread = ask - bid
                 multiplier = 100.0
-                sym = leg["Symbol"].upper()
+                sym = leg.symbol.upper()
                 futures_multipliers = market_config.get("FUTURES_MULTIPLIERS", {})
                 if sym.startswith("/"):
                     if sym in futures_multipliers:
@@ -480,8 +484,8 @@ def triage_portfolio(
 
 
 def get_position_aware_opportunities(
-    positions: list[dict[str, Any]],
-    clusters: list[list[dict[str, Any]]],
+    positions: list[Position],
+    clusters: list[list[Position]],
     net_liquidity: float,
     rules: dict[str, Any],
     market_data: Optional[dict[str, Any]] = None,
@@ -498,8 +502,11 @@ def get_position_aware_opportunities(
 
     # 1. Extract all unique roots
     held_roots = set()
+    positions = _ensure_positions(positions)
+    normalized_clusters = [_ensure_positions(cluster) for cluster in clusters if cluster]
+
     for pos in positions:
-        root = get_root_symbol(pos.get("Symbol", ""))
+        root = pos.root_symbol
         if root:
             held_roots.add(root)
 
@@ -516,18 +523,17 @@ def get_position_aware_opportunities(
 
     # 3. Calculate concentration per root
     root_clusters = defaultdict(list)
-    for cluster in clusters:
+    for cluster in normalized_clusters:
         if cluster:
-            root = get_root_symbol(cluster[0].get("Symbol", ""))
+            root = cluster[0].root_symbol
             if root:
                 root_clusters[root].append(cluster)
 
     root_exposure: defaultdict[str, float] = defaultdict(float)
     for pos in positions:
-        root = get_root_symbol(pos.get("Symbol", ""))
+        root = pos.root_symbol
         if root:
-            cost_str = pos.get("Cost", "0")
-            cost = abs(parse_currency(cost_str))
+            cost = abs(float(pos.cost or 0.0))
             root_exposure[root] += cost
 
     # 4. Apply Stacking Rule
@@ -677,18 +683,18 @@ def detect_hedge_tag(
     return True
 
 
-def _beta_weight_gamma(leg: dict[str, Any]) -> float:
+def _beta_weight_gamma(leg: Position) -> float:
     """Calculates beta-weighted gamma for a single leg."""
-    gamma = parse_currency(leg.get("Gamma", "0"))
-    beta_gamma = leg.get("beta_gamma")
-    if beta_gamma is not None and str(beta_gamma).strip() != "":
-        return parse_currency(beta_gamma)
-    b_delta_str = leg.get("beta_delta")
-    raw_delta_str = leg.get("Delta")
+    gamma = float(leg.gamma or 0.0)
+    if leg.beta_gamma is not None:
+        return float(leg.beta_gamma)
+    raw_data = leg.raw_data or {}
+    b_delta_str = raw_data.get("beta_delta")
+    raw_delta_str = raw_data.get("Delta")
 
-    if b_delta_str and raw_delta_str:
-        b_delta = parse_currency(b_delta_str)
-        raw_delta = parse_currency(raw_delta_str)
+    if b_delta_str is not None and raw_delta_str is not None:
+        b_delta = float(leg.beta_delta or 0.0)
+        raw_delta = float(leg.delta or 0.0)
         if abs(raw_delta) > 0.001:
             beta = b_delta / raw_delta
             # Gamma scales by beta squared
@@ -697,11 +703,12 @@ def _beta_weight_gamma(leg: dict[str, Any]) -> float:
     return gamma
 
 
-def calculate_days_held(legs: list[dict[str, Any]]) -> int:
+def calculate_days_held(legs: list[Position]) -> int:
     """Calculates the minimum days a cluster has been held."""
+    legs = _ensure_positions(legs)
     days = []
     for leg in legs:
-        open_date_str = leg.get("Open Date")
+        open_date_str = leg.open_date
         if open_date_str:
             try:
                 # Handle Tastytrade format or simple ISO

@@ -7,7 +7,8 @@ Handles logic for strategies that are net sellers of premium (Strangles, Iron Co
 from typing import Any, Optional
 
 from ..models.actions import ActionCommand
-from ..portfolio_parser import is_stock_type, parse_currency
+from ..models.position import Position
+from ..portfolio_parser import is_stock_type
 from .base import BaseStrategy
 
 
@@ -22,18 +23,17 @@ class ShortThetaStrategy(BaseStrategy):
     Includes mechanical 'Tested' checks and institutional Toxic Theta filters.
     """
 
-    def is_tested(self, legs: list[dict[str, Any]], underlying_price: float) -> bool:
+    def is_tested(self, legs: list[Position], underlying_price: float) -> bool:
         """Standard check: Is any short leg In-The-Money?"""
         for leg in legs:
-            if is_stock_type(leg.get("Type", "")):
+            if is_stock_type(leg.asset_type):
                 continue
 
-            qty = parse_currency(leg.get("Quantity", "0"))
-            if qty >= 0:
+            if leg.quantity >= 0:
                 continue  # Only short legs can be "tested" in this context
 
-            otype = leg.get("Call/Put")
-            strike = parse_currency(leg.get("Strike Price", "0"))
+            otype = leg.call_put
+            strike = float(leg.strike or 0.0)
 
             if otype == "Call" and underlying_price > strike:
                 return True

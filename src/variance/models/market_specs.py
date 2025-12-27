@@ -154,7 +154,7 @@ class VrpTacticalSpec(Specification[dict[str, Any]]):
         if hv_floor <= 0:
             return False
 
-        metrics["vrp_tactical"] = iv_f / hv_floor
+        _vrp_tactical = iv_f / hv_floor
         return True
 
 
