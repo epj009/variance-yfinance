@@ -132,26 +132,29 @@ def apply_specifications(
             else:
                 continue
 
-        if not main_spec.is_satisfied_by(metrics_dict):
-            _update_counters(
-                sym,
-                metrics_dict,
-                config,
-                rules,
-                diagnostics,
-                structural_threshold,
-                hv_floor_absolute,
-                portfolio_returns,
-                raw_data,
-            )
-            continue
+        # Skip main spec filter if show_all is enabled
+        if not show_all:
+            if not main_spec.is_satisfied_by(metrics_dict):
+                _update_counters(
+                    sym,
+                    metrics_dict,
+                    config,
+                    rules,
+                    diagnostics,
+                    structural_threshold,
+                    hv_floor_absolute,
+                    portfolio_returns,
+                    raw_data,
+                )
+                continue
 
         # Skip tactical filter if show_all is enabled
         if not show_all and not tactical_spec.is_satisfied_by(metrics_dict):
             diagnostics.incr("tactical_skipped_count")
             continue
 
-        if corr_spec:
+        # Skip correlation filter if show_all is enabled
+        if not show_all and corr_spec:
             corr_result = corr_spec.evaluate(metrics_dict)
             if not corr_result.passed:
                 diagnostics.incr("correlation_skipped_count")
