@@ -4,6 +4,7 @@ Concrete Market Specifications
 Implementations of the Specification pattern for volatility filtering.
 """
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -122,15 +123,16 @@ class LowVolTrapSpec(Specification[dict[str, Any]]):
 
 
 class VrpTacticalSpec(Specification[dict[str, Any]]):
-    """Requires tactical VRP to be computable (IV and HV20)."""
+    """Requires tactical VRP to exceed minimum threshold (IV/HV30 or IV/HV20)."""
 
-    def __init__(self, hv_floor: float):
+    def __init__(self, hv_floor: float, threshold: float = 1.0):
         self.hv_floor = hv_floor
+        self.threshold = threshold
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         vrp_tactical = metrics.get("vrp_tactical")
         if vrp_tactical is not None:
-            return True
+            return float(vrp_tactical) > self.threshold
 
         iv = metrics.get("iv")
         hv20 = metrics.get("hv20")
@@ -151,7 +153,7 @@ class VrpTacticalSpec(Specification[dict[str, Any]]):
             return False
 
         _vrp_tactical = iv_f / hv_floor
-        return True
+        return _vrp_tactical > self.threshold
 
 
 class SectorExclusionSpec(Specification[dict[str, Any]]):
@@ -176,9 +178,17 @@ class DataIntegritySpec(Specification[dict[str, Any]]):
             "iv_scale_assumed_decimal",
             "after_hours_stale",
             "tastytrade_fallback",
+            "yfinance_unavailable_cached",
             None,
         ]
         return warning in soft_warnings
+
+
+@dataclass(frozen=True)
+class CorrelationResult:
+    passed: bool
+    correlation: Optional[float]
+    used_proxy: bool
 
 
 class CorrelationSpec(Specification[dict[str, Any]]):
@@ -230,9 +240,9 @@ class CorrelationSpec(Specification[dict[str, Any]]):
 
         return None
 
-    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+    def evaluate(self, metrics: dict[str, Any]) -> CorrelationResult:
         if self.portfolio_returns is None or len(self.portfolio_returns) == 0:
-            return True
+            return CorrelationResult(True, None, False)
 
         symbol = str(metrics.get("symbol", ""))
         candidate_returns = metrics.get("returns")
@@ -242,11 +252,13 @@ class CorrelationSpec(Specification[dict[str, Any]]):
             proxy_returns = self._get_etf_proxy_returns(symbol)
             if proxy_returns:
                 candidate_returns = proxy_returns
-                metrics["correlation_via_proxy"] = True  # Transparency flag
+                used_proxy = True
             else:
                 # No returns and no proxy = cannot verify diversification
                 # Must reject for safety (prevent blind correlation risk)
-                return False
+                return CorrelationResult(False, None, False)
+        else:
+            used_proxy = False
 
         from .correlation import CorrelationEngine
 
@@ -254,10 +266,10 @@ class CorrelationSpec(Specification[dict[str, Any]]):
             self.portfolio_returns, np.array(candidate_returns)
         )
 
-        # Attach the rho for downstream TUI rendering
-        metrics["portfolio_rho"] = corr
+        return CorrelationResult(corr <= self.max_correlation, corr, used_proxy)
 
-        return corr <= self.max_correlation
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        return self.evaluate(metrics).passed
 
 
 class IVPercentileSpec(Specification[dict[str, Any]]):

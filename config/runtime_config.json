@@ -518,15 +518,26 @@
     "balanced": {
       "min_vrp_structural": 1.0,
       "allow_illiquid": false,
-      "min_iv_percentile": 50
+      "min_iv_percentile": 50,
+      "min_tt_liquidity_rating": 4
     },
     "broad": {
       "min_vrp_structural": 0.85,
-      "allow_illiquid": true
+      "allow_illiquid": true,
+      "min_iv_percentile": 30
     },
     "high_quality": {
       "min_vrp_structural": 1.2,
-      "allow_illiquid": false
+      "allow_illiquid": false,
+      "min_iv_percentile": 70,
+      "min_tt_liquidity_rating": 4
+    },
+    "aggressive": {
+      "min_vrp_structural": 1.0,
+      "allow_illiquid": false,
+      "min_iv_percentile": 40,
+      "retail_min_price": 10.0,
+      "min_tt_liquidity_rating": 3
     }
   }
 }

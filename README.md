@@ -152,6 +152,8 @@ export TT_REFRESH_TOKEN='your_token'
 
 ## 🚀 Usage
 
+**Note**: Both `./variance` and `./screen` automatically load Tastytrade credentials from `.env.tastytrade` if present. No need to manually source the file.
+
 ### 1. Daily Portfolio Triage
 The primary command for managing existing risk. It finds your latest CSV, runs the analysis pipeline, and renders the TUI.
 ```bash
@@ -161,8 +163,26 @@ The primary command for managing existing risk. It finds your latest CSV, runs t
 ### 2. Volatility Screener
 Scan your watchlist for high-probability entries based on tactical VRP markups.
 ```bash
-python3 scripts/vol_screener.py
+./screen                         # Default: balanced profile (pretty output)
+./screen --profile broad         # Lower thresholds, more candidates
+./screen --profile aggressive    # Allows lower-priced stocks ($10+ vs $25+)
+./screen --profile high_quality  # Stricter filters, highest conviction
+./screen --show-all              # Show ALL symbols, bypass all filters (debugging)
+./screen --json                  # Raw JSON output (for scripting/piping)
 ```
+
+**Profiles:**
+- **balanced** (default): VRP ≥ 1.0, Price ≥ $25, IV% ≥ 50, TT Rating ≥ 4 (retail-safe liquidity)
+- **broad**: VRP ≥ 0.85, allows illiquid, IV% ≥ 30 (maximum opportunities)
+- **aggressive**: VRP ≥ 1.0, Price ≥ $10, IV% ≥ 40, TT Rating ≥ 3 (accepts fair liquidity, blue-chip friendly)
+- **high_quality**: VRP ≥ 1.2, Price ≥ $25, IV% ≥ 70, TT Rating ≥ 4 (institutional grade)
+
+**Output includes:**
+- Candidates sorted by score (highest first)
+- VRP Structural and Tactical metrics
+- IV Percentile and signal classification
+- Filter diagnostics showing why symbols were rejected
+- Data quality warnings
 
 ### 3. Quantitative Research Lab
 Run deeper audits on your portfolio's "Alpha-Theta" quality and sector concentration.

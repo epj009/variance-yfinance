@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# SCREEN: Vol Screener Launcher with Auto-Credentials
+# Usage:
+#   ./screen                    # Run with 'balanced' profile (default)
+#   ./screen --profile broad    # Run with specific profile
+#   ./screen 50                 # Limit to first 50 symbols (avoid rate limiting)
+#   ./screen --show-all         # Show ALL symbols, bypass all filters (debugging)
+#   ./screen --json             # Raw JSON output (for scripting)
+#   ./screen --help             # Show help
+#
+# NOTE: Yahoo Finance may rate-limit large watchlists (>100 symbols).
+#       Use a limit (e.g., ./screen 50) to scan fewer symbols and avoid 429 errors.
+
+# Auto-load Tastytrade credentials if available
+if [ -f .env.tastytrade ]; then
+    source .env.tastytrade
+fi
+
+# Export credentials for Python to access via os.getenv()
+export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
+
+# Check if user wants raw JSON output
+JSON_OUTPUT=false
+FILTERED_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--json" ]; then
+        JSON_OUTPUT=true
+        # Don't add to filtered args (not a screener arg)
+    else
+        FILTERED_ARGS+=("$arg")
+    fi
+done
+
+# Run the vol screener
+if [ "$JSON_OUTPUT" = true ]; then
+    # Raw JSON output for scripting/piping
+    ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"
+else
+    # Pretty-printed human-readable output
+    ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}" 2>/dev/null | ./venv/bin/python scripts/format_screener_output.py
+fi

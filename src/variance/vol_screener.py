@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Optional, Union
 
@@ -11,13 +11,16 @@ from .config_loader import ConfigBundle, load_config_bundle
 from .errors import build_error, error_lines
 
 
-@dataclass
+@dataclass(frozen=True)
 class ScreenerConfig:
     limit: Optional[int] = None
     min_vrp_structural: Optional[float] = None
     min_variance_score: Optional[float] = None
     min_iv_percentile: Optional[float] = None  # New
+    retail_min_price: Optional[float] = None  # Profile-level override for retail price floor
+    min_tt_liquidity_rating: Optional[int] = None  # Profile-level override for TT liquidity rating
     allow_illiquid: bool = False
+    show_all: bool = False  # Bypass all filters, show entire watchlist
     exclude_sectors: list[str] = field(default_factory=list)
     include_asset_classes: list[str] = field(default_factory=list)
     exclude_asset_classes: list[str] = field(default_factory=list)
@@ -49,6 +52,10 @@ def load_profile_config(
             "min_variance_score", rules.get("min_variance_score", 10.0)
         ),
         min_iv_percentile=profile_data.get("min_iv_percentile", 0.0),  # Default to 0 if missing
+        retail_min_price=profile_data.get("retail_min_price"),  # Profile-level override
+        min_tt_liquidity_rating=profile_data.get(
+            "min_tt_liquidity_rating"
+        ),  # Profile-level override
         allow_illiquid=profile_data.get("allow_illiquid", False),
         exclude_sectors=list(profile_data.get("exclude_sectors", []) or []),
         include_asset_classes=list(profile_data.get("include_asset_classes", []) or []),
@@ -79,17 +86,42 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
         return "N/A"
 
 
-def _is_illiquid(symbol: str, metrics: dict[str, Any], rules: dict[str, Any]) -> tuple[bool, bool]:
+def _is_illiquid(
+    symbol: str,
+    metrics: dict[str, Any],
+    rules: dict[str, Any],
+    profile_min_rating: Optional[int] = None,
+) -> tuple[bool, bool]:
     """
     Checks if a symbol fails the liquidity rules.
     Returns: (is_illiquid, is_implied_pass)
+
+    Args:
+        symbol: The symbol to check
+        metrics: Market data metrics for the symbol
+        rules: Trading rules from config
+        profile_min_rating: Optional profile-level override for min TT liquidity rating
     """
     if _is_futures_symbol(symbol) and not _has_tastytrade_liquidity(metrics):
         return False, False
 
-    if _fails_tt_liquidity_rating(metrics, rules):
-        return True, False
+    # Check Tastytrade rating first (most reliable)
+    tt_rating = metrics.get("liquidity_rating")
+    if tt_rating is not None:
+        # Use profile override if present, otherwise fall back to rules
+        min_rating = (
+            profile_min_rating
+            if profile_min_rating is not None
+            else int(rules.get("min_tt_liquidity_rating", 4))
+        )
+        if int(tt_rating) >= min_rating:
+            # Trust Tastytrade rating - skip OI/volume checks
+            return False, False
+        else:
+            # TT rating below threshold
+            return True, False
 
+    # No TT rating - use bid/ask and activity checks
     implied_pass, is_implied = _check_implied_liquidity(metrics, rules)
     if implied_pass:
         return False, is_implied
@@ -149,7 +181,9 @@ def _fails_activity_gate(metrics: dict[str, Any], rules: dict[str, Any]) -> bool
     min_atm_volume = int(rules.get("min_atm_volume", 0))
     min_atm_open_interest = int(rules.get("min_atm_open_interest", 500))
     if mode == "open_interest":
-        atm_oi_val = _safe_float(metrics.get("atm_open_interest"), default=-1.0)
+        atm_oi_val = _safe_float(
+            metrics.get("atm_open_interest", metrics.get("atm_oi")), default=-1.0
+        )
         if atm_oi_val < 0:
             atm_volume_val = _safe_float(_get_activity_volume(metrics), default=-1.0)
             return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
@@ -225,7 +259,8 @@ def _determine_signal_type(
 
     # Statistical Extreme Check (The /NG Paradox Fix)
     # If IV is at statistical extremes (>80% of last year), it is RICH regardless of tactical discount
-    if iv_percentile is not None and iv_percentile > 80.0:
+    iv_pct_rich = float(rules.get("iv_percentile_rich_threshold", 80.0))
+    if iv_percentile is not None and iv_percentile > iv_pct_rich:
         return "RICH"
 
     if flags.get("is_cheap"):  # VRP Tactical Markup < -10%
@@ -233,7 +268,8 @@ def _determine_signal_type(
 
     # Rich Logic: High markup takes precedence over Coiled state
     # Priority 1: Tactical VRP Markup > 20%
-    if vrp_t_markup is not None and vrp_t_markup > 0.20:
+    tactical_rich = float(rules.get("vrp_tactical_rich_threshold", 0.20))
+    if vrp_t_markup is not None and vrp_t_markup > tactical_rich:
         return "RICH"
 
     # Priority 2: Structural VRP (Fallback if Tactical is missing/flat)
@@ -385,6 +421,11 @@ def main() -> None:
         type=str,
         help="Comma-separated list of symbols currently in portfolio (will be flagged as held, not excluded)",
     )
+    parser.add_argument(
+        "--show-all",
+        action="store_true",
+        help="Bypass all filters and show entire watchlist (useful for debugging)",
+    )
 
     args = parser.parse_args()
     config_bundle = load_config_bundle()
@@ -401,8 +442,11 @@ def main() -> None:
         print(json.dumps(payload, indent=2), file=sys.stderr)
         sys.exit(2)
 
+    updates: dict[str, Any] = {}
     if args.limit is not None:
-        config.limit = args.limit
+        updates["limit"] = args.limit
+    if args.show_all:
+        updates["show_all"] = True
 
     exclude_list = None
     if args.exclude_sectors:
@@ -427,15 +471,17 @@ def main() -> None:
         held_symbols_list = [s.strip().upper() for s in args.held_symbols.split(",") if s.strip()]
 
     if exclude_list:
-        config.exclude_sectors = exclude_list
+        updates["exclude_sectors"] = exclude_list
     if include_assets:
-        config.include_asset_classes = include_assets
+        updates["include_asset_classes"] = include_assets
     if exclude_assets:
-        config.exclude_asset_classes = exclude_assets
+        updates["exclude_asset_classes"] = exclude_assets
     if exclude_symbols_list:
-        config.exclude_symbols = exclude_symbols_list
+        updates["exclude_symbols"] = exclude_symbols_list
     if held_symbols_list:
-        config.held_symbols = held_symbols_list
+        updates["held_symbols"] = held_symbols_list
+    if updates:
+        config = replace(config, **updates)
 
     report_data = screen_volatility(config, config_bundle=config_bundle)
 

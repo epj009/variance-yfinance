@@ -45,10 +45,15 @@ def apply_specifications(
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
     hv_rank_trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
     vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
+    vrp_tactical_threshold = float(rules.get("vrp_tactical_threshold", 1.15))
     volatility_momentum_min_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
 
-    # Retail Efficiency Params
-    retail_min_price = float(rules.get("retail_min_price", 25.0))
+    # Retail Efficiency Params (profile can override global setting)
+    retail_min_price = float(
+        config.retail_min_price
+        if config.retail_min_price is not None
+        else rules.get("retail_min_price", 25.0)
+    )
     retail_max_slippage = float(rules.get("retail_max_slippage", 0.05))
 
     scalable_spec = ScalableGateSpec(
@@ -59,7 +64,10 @@ def apply_specifications(
     main_spec: Specification[dict[str, Any]] = DataIntegritySpec()
     corr_spec = None
 
-    show_all = config.min_vrp_structural is not None and config.min_vrp_structural <= 0
+    # Check if we should bypass all filters (--show-all flag or min_vrp_structural <= 0)
+    show_all = getattr(config, "show_all", False) or (
+        config.min_vrp_structural is not None and config.min_vrp_structural <= 0
+    )
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
         main_spec &= LowVolTrapSpec(hv_floor_absolute)
@@ -70,7 +78,7 @@ def apply_specifications(
         if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
             main_spec &= IVPercentileSpec(config.min_iv_percentile)
 
-    tactical_spec = VrpTacticalSpec(hv_floor_absolute)
+    tactical_spec = VrpTacticalSpec(hv_floor_absolute, vrp_tactical_threshold)
 
     if config.exclude_sectors:
         main_spec &= SectorExclusionSpec(config.exclude_sectors)
@@ -138,13 +146,20 @@ def apply_specifications(
             )
             continue
 
-        if not tactical_spec.is_satisfied_by(metrics_dict):
+        # Skip tactical filter if show_all is enabled
+        if not show_all and not tactical_spec.is_satisfied_by(metrics_dict):
             diagnostics.incr("tactical_skipped_count")
             continue
 
-        if corr_spec and not corr_spec.is_satisfied_by(metrics_dict):
-            diagnostics.incr("correlation_skipped_count")
-            continue
+        if corr_spec:
+            corr_result = corr_spec.evaluate(metrics_dict)
+            if not corr_result.passed:
+                diagnostics.incr("correlation_skipped_count")
+                continue
+            if corr_result.used_proxy:
+                metrics_dict["correlation_via_proxy"] = True
+            if corr_result.correlation is not None:
+                metrics_dict["portfolio_rho"] = corr_result.correlation
 
         candidates.append(metrics_dict)
 
@@ -170,7 +185,7 @@ def _update_counters(
     # Re-import locally to avoid cycle
     from variance.vol_screener import _is_illiquid
 
-    is_illiquid, _ = _is_illiquid(sym, metrics, rules)
+    is_illiquid, _ = _is_illiquid(sym, metrics, rules, config.min_tt_liquidity_rating)
     if is_illiquid and not config.allow_illiquid:
         diagnostics.incr("illiquid_skipped_count")
 
@@ -230,6 +245,7 @@ def _update_counters(
         "iv_scale_assumed_decimal",
         "after_hours_stale",
         "tastytrade_fallback",
+        "yfinance_unavailable_cached",
         None,
     ]
     if warning not in soft_warnings:

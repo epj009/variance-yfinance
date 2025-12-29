@@ -246,6 +246,24 @@ def test_is_illiquid_passes_when_activity_is_sufficient():
     assert is_implied is False
 
 
+def test_is_illiquid_uses_profile_min_tt_rating_override():
+    """Test that profile-level min_tt_liquidity_rating overrides rules."""
+    rules = {"min_tt_liquidity_rating": 4}
+    metrics = {"liquidity_rating": 3}  # TT rating = 3
+
+    # Without profile override: should be illiquid (3 < 4)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules)
+    assert is_illiquid is True
+
+    # With profile override to 3: should be liquid (3 >= 3)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules, profile_min_rating=3)
+    assert is_illiquid is False
+
+    # With profile override to 5: should be illiquid (3 < 5)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules, profile_min_rating=5)
+    assert is_illiquid is True
+
+
 def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_market_provider):
     """Test that --exclude-asset-classes filters correctly."""
     watchlist = tmp_path / "watchlist.csv"

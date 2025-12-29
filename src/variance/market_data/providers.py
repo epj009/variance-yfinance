@@ -37,6 +37,7 @@ class YFinanceProvider(IMarketDataProvider):
         results: dict[str, MarketData] = {}
 
         market_is_open = self.market_open_fn()
+        allow_after_hours_fetch = self.allow_after_hours_fetch and market_is_open
 
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_symbol = {
@@ -44,7 +45,7 @@ class YFinanceProvider(IMarketDataProvider):
                     process_single_symbol,
                     s,
                     self.cache,
-                    self.allow_after_hours_fetch,
+                    allow_after_hours_fetch,
                     self.ticker_factory,
                     self.market_open_fn,
                 ): s
@@ -79,6 +80,7 @@ class TastytradeProvider(IMarketDataProvider):
         market_open_fn: Optional[MarketOpenFn] = None,
     ):
         self.cache = cache_instance if cache_instance else cache
+        self.market_open_fn = market_open_fn or is_market_open
         self.yf_provider = (
             yf_fallback
             if yf_fallback
@@ -96,7 +98,16 @@ class TastytradeProvider(IMarketDataProvider):
         except TastytradeAuthError:
             self.tt_client = None
 
+    def _is_market_open(self) -> bool:
+        try:
+            return bool(self.market_open_fn())
+        except Exception:
+            return True
+
     def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
+        # NOTE: Tastytrade API works after hours! Only skip if client is unavailable
+        # After hours: fresh Tastytrade metrics + cached yfinance price = valid composite
+
         if self.tt_client is None:
             results = self.yf_provider.get_market_data(symbols)
             for sym in results:
@@ -144,9 +155,16 @@ class TastytradeProvider(IMarketDataProvider):
 
         final_results: dict[str, MarketData] = {}
         for sym in symbols:
-            final_results[sym] = self._merge_tastytrade_yfinance(
-                sym, tt_metrics.get(sym), yf_results.get(sym)
-            )
+            merged = self._merge_tastytrade_yfinance(sym, tt_metrics.get(sym), yf_results.get(sym))
+            final_results[sym] = merged
+
+            # Cache the merged Tastytrade+yfinance result
+            # This ensures we don't lose Tastytrade metrics on yfinance rate limit fallback
+            if "error" not in merged:
+                from ..market_data.helpers import get_dynamic_ttl, make_cache_key
+
+                cache_key = make_cache_key("market_data", sym)
+                self.cache.set(cache_key, merged, get_dynamic_ttl("iv", 900))
 
         return final_results
 
@@ -225,13 +243,17 @@ class TastytradeProvider(IMarketDataProvider):
             return merged_data
 
         hv90 = tt_data.get("hv90")
-        hv252 = yf_data.get("hv252") if yf_data else None
+        # YF Fallback: Prefer synthetic HV90 over HV252 to match regime
+        yf_hv90 = yf_data.get("hv90") if yf_data else None
+        yf_hv252 = yf_data.get("hv252") if yf_data else None
         hv_floor = HV_FLOOR_PERCENT
 
         if hv90 is not None and hv90 > 0:
             merged_data["vrp_structural"] = iv / max(hv90, hv_floor)
-        elif hv252 is not None and hv252 > 0:
-            merged_data["vrp_structural"] = iv / max(hv252, hv_floor)
+        elif yf_hv90 is not None and yf_hv90 > 0:
+            merged_data["vrp_structural"] = iv / max(yf_hv90, hv_floor)
+        elif yf_hv252 is not None and yf_hv252 > 0:
+            merged_data["vrp_structural"] = iv / max(yf_hv252, hv_floor)
 
         hv30 = tt_data.get("hv30")
         hv20 = yf_data.get("hv20") if yf_data else None
