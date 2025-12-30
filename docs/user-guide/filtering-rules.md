@@ -226,20 +226,24 @@ Result: ✅ PASS
 
 ---
 
-### 7. **IVPercentileSpec** (IV Rank Filter)
-**Purpose**: Ensure IV is elevated vs its own 1-year range.
+### 7. **IVPercentileSpec** (IV Percentile Filter)
+**Purpose**: Ensure IV is elevated vs its own 1-year percentile distribution.
 
 **Formula**:
 ```
 IV Percentile >= 20
 
-Where IV Percentile:
-  0 = Lowest IV in past year
-  50 = Middle of range
-  100 = Highest IV in past year
+Where IV Percentile (IVP):
+  0 = Lowest IV in past year (bottom percentile)
+  50 = Median IV (50th percentile)
+  100 = Highest IV in past year (top percentile)
 ```
 
-**Rationale**: Even if VRP > 1.10 (IV > HV), we want IV to be elevated historically. IVP < 20 means IV is in bottom 20% of its range.
+**⚠️ Not to be confused with IV Rank (IVR)**:
+- **IV Percentile**: Percentile-based ranking (what Variance uses)
+- **IV Rank**: Simple range-based metric (not used for filtering)
+
+**Rationale**: Even if VRP > 1.10 (IV > HV), we want IV to be elevated historically. IVP < 20 means IV is in bottom 20th percentile of its distribution.
 
 **Example**:
 ```

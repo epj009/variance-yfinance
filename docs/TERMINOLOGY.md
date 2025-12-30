@@ -82,24 +82,43 @@
 
 ### Implied Volatility (IV)
 
-| Term | Definition |
-|------|------------|
-| **IV** | Implied Volatility |
-| **IV Percentile** (or **IVP**) | IV rank in 1-year range (0-100) |
-| **IV Rank** | Same as IV Percentile |
+| Term | Definition | Source |
+|------|------------|--------|
+| **IV** | Implied Volatility (current ATM IV) | Tastytrade |
+| **IV Percentile (IVP)** | Percentile ranking of current IV in 1-year distribution (0-100) | Tastytrade |
+| **IV Rank (IVR)** | Position of IV between 52-week high and low (0-100) | Tastytrade |
 
-**❌ Avoid**: "Implied vol", "IVol" (use IV)
+**⚠️ CRITICAL: IVP ≠ IVR**
+- **IV Percentile (IVP)**: Percentile-based (how many days had lower IV)
+  - Formula: `COUNT(IV_past_year < IV_current) / 252 × 100`
+  - Example: IVP=80 means current IV is higher than 80% of the past year
+- **IV Rank (IVR)**: Range-based (position in min-max range)
+  - Formula: `(IV_current - IV_52w_low) / (IV_52w_high - IV_52w_low) × 100`
+  - Example: IVR=80 means IV is 80% of the way from low to high
+
+**Why Both?**
+- IVP better for statistical significance (distribution-aware)
+- IVR simpler to calculate and visualize (range-based)
+- Variance uses **IVP** for filtering (more statistically robust)
+
+**❌ Avoid**: "Implied vol", "IVol" (use IV), conflating IVP and IVR
 
 ---
 
 ### Volatility Metrics
 
-| Term | Definition | Usage |
-|------|------------|-------|
-| **HV Rank** | HV percentile in 1-year range | Positional context |
-| **Compression** | HV declining (HV30 < HV90) | Momentum context |
-| **Expansion** | HV rising (HV30 > HV90) | Momentum context |
-| **Volatility Trap** | Rich IV + Low HV Rank | Risk scenario |
+| Term | Definition | Calculated By | Usage |
+|------|------------|---------------|-------|
+| **HV Rank** | Percentile ranking of HV20 vs rolling 20-day HVs over 1 year | Variance (local) | VolatilityTrapSpec filter |
+| **Compression** | HV declining (HV30 < HV90) | Formula | Momentum context |
+| **Expansion** | HV rising (HV30 > HV90) | Formula | Momentum context |
+| **Volatility Trap** | Rich IV (VRP > 1.30) + Low HV Rank (< 15) | Combined check | Risk scenario |
+
+**HV Rank Detail**:
+- Formula: `COUNT(HV20_rolling_past_year < HV20_current) / num_days × 100`
+- Calculated locally in `get_market_data.py`
+- Different from IV Rank (which measures IV, not HV)
+- Used to detect volatility traps (high IV but low HV baseline)
 
 ---
 

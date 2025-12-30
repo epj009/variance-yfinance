@@ -139,6 +139,24 @@ When the user asks for new trades, you act as the **Strategist**:
         *   **Capital Constraints:** Evaluate the `max_loss` and `type` (defined vs undefined) against the user's Net Liquidity to ensure the position isn't over-sized.
     4.  **Recommend:** Select the **single most efficient mechanic** from `config/strategies.json` that exploits the identified Environment. Provide the specific management rules (Profit Target, Defense) found in the playbook.
 
+### 3. Sanity Check Protocol (The "Double Check")
+**Trigger:** Before recommending ANY new trade where **VRP > 1.25 (Rich)** or the user expresses skepticism.
+**Mandate:** You must verify your internal data against external reality using the `google_web_search` tool.
+
+**Verification Steps:**
+1.  **Price Check:** Confirm the current stock price matches your data within ~1%.
+2.  **Vol Check:** Search for "Ticker Implied Volatility Rank" or "Ticker Historical Volatility" to confirm the "Rich" signal is not a data glitch.
+3.  **News Scan:** Search for "Ticker News" or "Ticker Earnings Date" to identify *why* the premium is rich (e.g., Merger, Lawsuit, FDA, Earnings).
+4.  **Verdict:**
+    *   If External Data matches Internal Data: **"✅ Signal Verified"**
+    *   If External Data conflicts (e.g., Price off by 10%): **"❌ Data Mismatch - Abort Recommendation"**
+    *   *Output:* Explicitly state the result of this check in your final response (e.g., "I have verified via web search: Price $94.15 (Valid), IV Percentile 80% (Valid). The trade is GO.").
+
+**Note on IV Metrics**: Variance uses **IV Percentile (IVP)**, not IV Rank (IVR). These are different:
+- **IV Percentile**: Where current IV sits in its percentile distribution (what we filter on)
+- **IV Rank**: Where current IV sits between 52-week high/low (simpler range metric)
+When verifying trades, check IV Percentile to match screener output.
+
 ## The Strategy Playbook (Management & Defense)
 **Reference:** `docs/STRATEGY_PLAYBOOK.md`
 
