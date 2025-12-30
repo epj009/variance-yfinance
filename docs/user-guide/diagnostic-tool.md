@@ -85,7 +85,7 @@ DIAGNOSING: /ZN (HELD POSITION)
 ✅ VrpStructural: True
    VRP 1.79 > 1.1
 ✅ IVPercentile: True
-   Futures exempted
+   IVP 35.2 >= 20
 ❌ ScalableGate: False
    VTM 0.000 < 1.35 OR Divergence 0.558 < 1.1
 
@@ -204,7 +204,7 @@ The diagnostic tests these filters in order:
 | 4 | **VolatilityTrap** | HV Rank >= 15 (if VRP > 1.30) |
 | 5 | **VolatilityMomentum** | HV30/HV90 >= 0.85 |
 | 6 | **RetailEfficiency** | Price >= $25, Slippage <= 5% |
-| 7 | **IVPercentile** | IV Percentile >= 20 (futures exempted) |
+| 7 | **IVPercentile** | IV Percentile >= 20 |
 | 8 | **Liquidity** | Tastytrade rating >= 4 |
 | 9 | **ScalableGate** | VTM >= 1.35 (only for `--held`) |
 
@@ -223,11 +223,11 @@ The diagnostic tests these filters in order:
 
 ---
 
-### Scenario: Futures show "Futures exempted" for IV Percentile
+### Scenario: Futures rejected by IV Percentile filter
 
-**Explanation**: Tastytrade doesn't provide IV Percentile for futures. They automatically pass this filter.
+**Explanation**: Tastytrade provides IV Percentile for both equities and futures. Futures are subject to the same IV% threshold as equities.
 
-**Not a Problem**: This is expected behavior added 2025-12-25.
+**If Rejected**: The futures contract has low IV relative to its historical range. This is normal market behavior - not all futures will pass at all times.
 
 ---
 

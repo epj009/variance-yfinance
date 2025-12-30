@@ -248,14 +248,17 @@ cat config/trading_rules.reorganized.json
 
 ### Issue: Futures not appearing in screener
 
-**Cause:** Futures exempt from IV Percentile filter (Tastytrade doesn't provide)
+**Cause:** Futures are subject to same filters as equities (including IV Percentile)
 
 **Verify:**
 ```bash
-./scripts/diagnose_futures_filtering.py
+./scripts/diagnose_symbol.py /CL /ES /GC
 
-# Should show "IVPercentile: PASS (futures exempted)"
+# Check which filters are rejecting the futures
+# Common: Low IV Percentile, Low VRP, or Low Liquidity Rating
 ```
+
+**Fix:** Futures must meet minimum IV Percentile threshold. If market volatility is low, fewer futures will qualify.
 
 ## Data Quality Issues
 

@@ -276,24 +276,21 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
     """
     Filters based on IV Percentile (IVP) from Tastytrade.
 
-    Note: Tastytrade does not provide IV Percentile for futures.
-    Futures are automatically exempted from this filter.
+    Tastytrade provides IV Percentile for both equities and futures.
+
+    Note: If iv_percentile is None (data unavailable), the symbol fails this filter.
+    This is conservative - we only trade when we have confirmed statistical context.
     """
 
     def __init__(self, min_percentile: float):
         self.min_percentile = min_percentile
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        # If IV Percentile is missing, we assume it fails the filter (conservative)
-        # unless min_percentile is 0, then we pass everything.
+        # If threshold is 0 or negative, pass everything (filter disabled)
         if self.min_percentile <= 0:
             return True
 
-        # Futures exemption: Tastytrade doesn't provide IV Percentile for futures
-        symbol = str(metrics.get("symbol", ""))
-        if symbol.startswith("/"):
-            return True
-
+        # Require IV Percentile data for all symbols (equities and futures)
         iv_pct = metrics.get("iv_percentile")
         if iv_pct is None:
             return False

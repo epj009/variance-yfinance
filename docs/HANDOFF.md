@@ -441,10 +441,10 @@ Specialized diagnostic for futures symbols:
 
 ### Data Sources
 1. **Tastytrade API:**
-   - Primary source for IV, liquidity ratings, option chains
+   - Primary source for IV, IV Percentile, liquidity ratings, HV30/HV90
    - Requires API credentials (not included)
    - Rate limits: Unknown (not documented)
-   - Futures IV Percentile: NOT PROVIDED (futures exempt from IVP filter)
+   - Futures IV Percentile: ✅ PROVIDED for both equities and futures
 
 2. **yfinance (Fallback):**
    - Used for price, historical volatility

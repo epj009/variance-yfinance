@@ -207,8 +207,8 @@ Symbol enters screening pipeline
    NO → REJECT (penny stock)
    YES → Continue
   ↓
-7. IVPercentile: IVP >= 20 OR futures?
-   NO → REJECT (IV too low)
+7. IVPercentile: IVP >= 20?
+   NO → REJECT (IV too low vs historical range)
    YES → Continue
   ↓
 8. Liquidity: Rating >= 4 OR good volume/spreads?

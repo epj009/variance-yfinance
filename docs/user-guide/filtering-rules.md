@@ -256,7 +256,7 @@ Result: ✅ PASS
 
 **Config**: `min_iv_percentile: 20.0`
 
-**Futures Exemption**: Tastytrade doesn't provide IV Percentile for futures (`/ES`, `/CL`, etc.), so futures automatically pass this filter.
+**Note**: Tastytrade provides IV Percentile for both equities and futures. This filter applies to all symbols.
 
 ---
 
@@ -403,7 +403,7 @@ Why: Edge hasn't surged enough to justify adding
 | **VolatilityTrap** | HV Rank (if VRP>1.30) | >= 15 | Low VRP (<1.30) | None |
 | **VolatilityMomentum** | HV30 / HV90 | >= 0.85 | Missing data | None |
 | **RetailEfficiency** | Price + Slippage | >= $25, <= 5% | None | None |
-| **IVPercentile** | IV Percentile | >= 20 | **Futures** | None |
+| **IVPercentile** | IV Percentile | >= 20 | None | None |
 | **Liquidity** | TT Rating or Volume | >= 4 or 500 | None | `--allow-illiquid` |
 | **Correlation** | Portfolio rho | <= 0.70 | No holdings | None |
 | **Scalable Gate** | Edge surge | >= 1.35 | New positions | Remove from `--held` |
@@ -542,6 +542,7 @@ See `docs/user-guide/diagnostic-tool.md` for full documentation.
 ---
 
 **Version History**:
+- **2.1** (2025-12-29): BUGFIX: Removed incorrect futures IV Percentile exemption (Tastytrade DOES provide IV% for futures)
 - **2.0** (2025-12-25): HV90/HV30 methodology, VolatilityMomentumSpec added
-- **1.5** (2025-12-25): Futures IV Percentile exemption, market hours cache
+- **1.5** (2025-12-25): ~~Futures IV Percentile exemption~~ (incorrect assumption - removed in 2.1), market hours cache
 - **1.0** (2025-12-20): Initial Tastytrade integration

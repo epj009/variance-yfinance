@@ -181,15 +181,13 @@ def diagnose_symbol(
     spec_ivp = IVPercentileSpec(min_ivp)
     passed = spec_ivp.is_satisfied_by(raw_data)
     ivp = raw_data.get("iv_percentile")
-    is_future = symbol.startswith("/")
     results["IVPercentile"] = {
         "passed": passed,
         "threshold": min_ivp,
         "value": float(ivp) if ivp else None,
-        "futures_exemption": is_future,
-        "reason": "Futures exempted"
-        if is_future
-        else (f"IVP {ivp} {'>=' if passed else '<'} {min_ivp}" if ivp else "Missing IV Percentile"),
+        "reason": f"IVP {ivp:.1f} {'>=' if passed else '<'} {min_ivp}"
+        if ivp
+        else "Missing IV Percentile",
     }
 
     # 8. Liquidity (simplified check)

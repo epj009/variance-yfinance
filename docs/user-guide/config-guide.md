@@ -188,11 +188,11 @@ Controls whipsaw protection and volatility momentum filtering.
 
 **Rationale**: Even if VRP > 1.10, we want IV to be elevated vs its own history.
 
-**Exemptions**: Futures (`/ES`, `/CL`, etc.) are automatically exempted - Tastytrade doesn't provide IV Percentile for futures.
+**Exemptions**: None. Tastytrade provides IV Percentile for both equities and futures.
 
 **Related**:
 - Filter: `IVPercentileSpec`
-- Fix: 2025-12-25 (futures exemption added)
+- Fix: 2025-12-29 (removed incorrect futures exemption - Tastytrade DOES provide IV% for futures)
 
 ---
 
