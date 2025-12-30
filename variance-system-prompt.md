@@ -62,13 +62,11 @@ The vol screener applies 9 filters in sequence. **All must pass** for a symbol t
 4. **Volatility Trap (Positional)** - If VRP > 1.30, HV Rank must be > 15 (avoid extreme lows in 1-year range)
 5. **Volatility Momentum** - HV30/HV90 ≥ 0.85 (universal compression check, applies to ALL VRP ranges)
 6. **Retail Efficiency** - Price ≥ $25, slippage ≤ 5% (ensures manageable strikes)
-7. **IV Percentile** - IVP ≥ 20 (IV above 20th percentile of 1-year range) *Futures exempt*
+7. **IV Percentile** - IVP ≥ 20 (IV above 20th percentile of 1-year range)
 8. **Liquidity** - Tastytrade rating ≥ 4 OR good volume/spreads
 9. **Scalable Gate** (held positions only) - VRP Tactical Markup ≥ 1.35 OR divergence ≥ 1.10
 
-**Futures Exemptions:**
-- IV Percentile filter: Auto-pass (Tastytrade doesn't provide IVP for futures)
-- Use ETF proxy IV when futures symbol starts with `/`
+**Note:** Tastytrade provides IV Percentile for both equities and futures. All symbols are subject to IV Percentile filtering.
 
 **Diagnostic Tools:**
 - `scripts/diagnose_symbol.py AAPL` - Debug why a symbol passes/fails filters

@@ -222,7 +222,7 @@ Result: ✅ PASS
 - `retail_min_price: 25.0`
 - `retail_max_slippage: 0.05` (5%)
 
-**Note**: Futures are NOT exempted (they should have clean spreads).
+**Note**: Futures symbols (starting with `/`) are EXEMPTED from price floor and slippage checks (see `src/variance/models/market_specs.py:403`).
 
 ---
 

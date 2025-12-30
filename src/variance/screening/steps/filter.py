@@ -38,13 +38,13 @@ def apply_specifications(
 
     # 2. Compose Specs
     structural_threshold = float(
-        rules.get("vrp_structural_threshold", 0.85)
+        rules.get("vrp_structural_threshold", 1.10)
         if config.min_vrp_structural is None
         else config.min_vrp_structural
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
     hv_rank_trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
-    vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
+    vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.30))
     vrp_tactical_threshold = float(rules.get("vrp_tactical_threshold", 1.15))
     volatility_momentum_min_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
 
