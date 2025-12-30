@@ -6,6 +6,7 @@ import numpy as np
 
 from variance.models.market_specs import (
     CorrelationSpec,
+    DataIntegritySpec,
     IVPercentileSpec,
     LiquiditySpec,
     LowVolTrapSpec,
@@ -49,15 +50,35 @@ def test_sector_exclusion_spec():
 
 
 def test_vrp_tactical_spec_no_mutation():
-    spec = VrpTacticalSpec(5.0)
+    spec = VrpTacticalSpec(5.0, 1.15)
     metrics = {"iv": 20.0, "hv20": 10.0}
+    # VRP = 20/10 = 2.0 > 1.15 threshold
 
     assert spec.is_satisfied_by(metrics) is True
     assert "vrp_tactical" not in metrics
 
 
+def test_vrp_tactical_spec_threshold():
+    """Test that VRP tactical respects the threshold parameter."""
+    spec = VrpTacticalSpec(hv_floor=5.0, threshold=1.15)
+
+    # VRP = 23/20 = 1.15 (exactly at threshold - should fail with >)
+    assert spec.is_satisfied_by({"iv": 23.0, "hv20": 20.0}) is False
+
+    # VRP = 24/20 = 1.20 > 1.15 (should pass)
+    assert spec.is_satisfied_by({"iv": 24.0, "hv20": 20.0}) is True
+
+    # VRP = 20/20 = 1.00 < 1.15 (should fail)
+    assert spec.is_satisfied_by({"iv": 20.0, "hv20": 20.0}) is False
+
+    # Test with pre-computed vrp_tactical
+    assert spec.is_satisfied_by({"vrp_tactical": 1.20}) is True
+    assert spec.is_satisfied_by({"vrp_tactical": 1.15}) is False
+    assert spec.is_satisfied_by({"vrp_tactical": 1.10}) is False
+
+
 def test_vrp_tactical_spec_invalid_inputs():
-    spec = VrpTacticalSpec(5.0)
+    spec = VrpTacticalSpec(5.0, 1.15)
 
     assert spec.is_satisfied_by({"iv": None, "hv20": 10.0}) is False
     assert spec.is_satisfied_by({"iv": 20.0, "hv20": None}) is False
@@ -115,14 +136,19 @@ def test_correlation_spec_uses_proxy_for_futures(monkeypatch):
     monkeypatch.setattr("variance.config_loader.load_market_config", fake_market_config)
 
     metrics = {"symbol": "/ES"}
-    assert spec.is_satisfied_by(metrics) is False
-    assert metrics.get("correlation_via_proxy") is True
+    result = spec.evaluate(metrics)
+    assert result.passed is False
+    assert result.used_proxy is True
+    assert result.correlation is not None
 
 
 def test_iv_percentile_spec():
     spec = IVPercentileSpec(min_percentile=30.0)
 
-    assert spec.is_satisfied_by({"symbol": "/ES"}) is True
+    # Futures are NOT exempted (bug was fixed in commit ba5e298)
+    assert spec.is_satisfied_by({"symbol": "/ES", "iv_percentile": 50.0}) is True
+    assert spec.is_satisfied_by({"symbol": "/ES", "iv_percentile": 20.0}) is False
+    assert spec.is_satisfied_by({"symbol": "/ES"}) is False  # Missing iv_percentile
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": None}) is False
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": "bad"}) is False
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": 40.0}) is True
@@ -162,6 +188,25 @@ def test_scalable_gate_spec():
     assert spec.is_satisfied_by({"vrp_tactical_markup": 0.3, "vrp_structural": 1.0}) is True
     assert spec.is_satisfied_by({"vrp_tactical_markup": 0.1, "vrp_structural": 0.5}) is True
     assert spec.is_satisfied_by({"vrp_tactical_markup": 0.1, "vrp_structural": 2.0}) is False
+
+
+def test_data_integrity_spec():
+    """Test DataIntegritySpec soft warning handling."""
+    spec = DataIntegritySpec()
+
+    # Soft warnings should PASS
+    assert spec.is_satisfied_by({"warning": "iv_scale_corrected"}) is True
+    assert spec.is_satisfied_by({"warning": "iv_scale_assumed_decimal"}) is True
+    assert spec.is_satisfied_by({"warning": "after_hours_stale"}) is True
+    assert spec.is_satisfied_by({"warning": "tastytrade_fallback"}) is True
+    assert spec.is_satisfied_by({"warning": "yfinance_unavailable_cached"}) is True
+    assert spec.is_satisfied_by({"warning": None}) is True
+    assert spec.is_satisfied_by({}) is True  # No warning key
+
+    # Critical/unknown warnings should FAIL
+    assert spec.is_satisfied_by({"warning": "critical_error"}) is False
+    assert spec.is_satisfied_by({"warning": "data_fetch_failed"}) is False
+    assert spec.is_satisfied_by({"warning": "unknown_issue"}) is False
 
 
 def test_specification_and_operator():

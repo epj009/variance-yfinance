@@ -1,5 +1,5 @@
 {
-    "vrp_structural_threshold": 1.00,
+    "vrp_structural_threshold": 1.10,
     "vrp_structural_rich_threshold": 1.30,
     "vrp_tactical_threshold": 1.15,
     "vrp_tactical_rich_threshold": 0.20,
