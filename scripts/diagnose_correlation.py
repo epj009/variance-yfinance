@@ -11,7 +11,7 @@ import numpy as np
 from rich.console import Console
 from rich.table import Table
 
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 from variance.models.correlation import CorrelationEngine
 from variance.portfolio_parser import PortfolioParser, get_root_symbol
 

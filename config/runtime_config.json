@@ -23,6 +23,7 @@
       "hv": 86400,
       "iv": 900,
       "price": 600,
+      "market_data": 86400,
       "earnings": 604800,
       "sector": 2592000
     }

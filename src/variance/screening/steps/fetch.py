@@ -5,7 +5,7 @@ Market Data Fetching Step
 from typing import Any
 
 from variance.diagnostics import MarketDataDiagnostics
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 
 
 def fetch_market_data(symbols: list[str]) -> tuple[dict[str, Any], dict[str, int]]:

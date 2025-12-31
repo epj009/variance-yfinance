@@ -22,18 +22,24 @@ export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
 
 # Check if user wants raw JSON output
 JSON_OUTPUT=false
+HELP_MODE=false
 FILTERED_ARGS=()
 for arg in "$@"; do
     if [ "$arg" = "--json" ]; then
         JSON_OUTPUT=true
         # Don't add to filtered args (not a screener arg)
+    elif [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
+        HELP_MODE=true
+        FILTERED_ARGS+=("$arg")
     else
         FILTERED_ARGS+=("$arg")
     fi
 done
 
 # Run the vol screener
-if [ "$JSON_OUTPUT" = true ]; then
+if [ "$HELP_MODE" = true ]; then
+    ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"
+elif [ "$JSON_OUTPUT" = true ]; then
     # Raw JSON output for scripting/piping
     ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"
 else

@@ -138,7 +138,7 @@ def test_normalize_row_put_lowercase():
 
 # --- Integration-style logic tests with stubbed market data (no network) ---
 
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 
 
 def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path, mock_market_provider):

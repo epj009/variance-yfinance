@@ -1,5 +1,5 @@
 from variance import vol_screener
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 
 
 def make_config_bundle(trading_rules, system_config, market_config=None):

@@ -11,7 +11,7 @@ from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
 from .diagnostics import MarketDataDiagnostics, TriageDiagnostics
 from .errors import build_error
-from .get_market_data import MarketDataFactory
+from .market_data.service import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
 )

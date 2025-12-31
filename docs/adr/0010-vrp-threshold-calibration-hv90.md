@@ -314,15 +314,15 @@ if vrp_252 > 0.85 AND vrp_90 > 1.10:
 
 ### Documentation Created
 
-1. **`docs/implementation/threshold_calibration_hv90.md`**
+1. **`docs/implementation/threshold-adjustments-2025-12-27.md`**
    - Full technical analysis
    - Calibration methodology
    - Before/after comparison
 
-2. **`docs/implementation/THRESHOLD_UPDATE_SUMMARY.md`**
-   - Quick reference card
+2. **`docs/implementation/vrp-tactical-threshold-implementation.md`**
+   - VRP tactical threshold implementation details
    - Validation steps
-   - Rollback instructions
+   - Configuration changes
 
 3. **`docs/analysis/hv252_vs_hv90_tradeoffs.md`**
    - Strategic implications

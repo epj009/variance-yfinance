@@ -13,7 +13,7 @@ from typing import Any, Optional, cast
 from variance.config_loader import load_config_bundle
 from variance.diagnostics import ScreenerDiagnostics
 from variance.errors import warning_detail_message
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 from variance.portfolio_parser import get_root_symbol
 from variance.vol_screener import _is_illiquid
 

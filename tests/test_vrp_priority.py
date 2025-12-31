@@ -11,7 +11,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from variance.get_market_data import TastytradeProvider
+from variance.market_data.providers import TastytradeProvider
 
 
 def test_vrp_structural_prefers_tastytrade():

@@ -130,12 +130,14 @@
   - All thresholds documented
   - Reorganized version available (trading_rules.reorganized.json)
 
-- [x] **config/universe.json** - Watchlist symbols
+- [x] **watchlists/default-watchlist.csv** - Watchlist symbols
   - Supports equities and futures
+  - *(Future: config/universe.json)*
 
-- [x] **config/portfolio.json** - Current positions
-  - Format documented
-  - Example provided
+- [x] **positions/*.csv** - Current positions
+  - CSV format from broker exports
+  - Sample: positions/dummy_portfolio.csv
+  - *(Future: config/portfolio.json)*
 
 ### Build Configuration
 - [x] **pyproject.toml** - Python project config

@@ -31,10 +31,14 @@ ruff check . --fix && ruff format . && mypy src/variance
 | Main code | `src/variance/` |
 | Tests | `tests/` |
 | Config | `config/trading_rules.json` |
-| Watchlist | `config/universe.json` |
-| Portfolio | `config/portfolio.json` |
+| Watchlist | `config/universe.json` † |
+| Portfolio | `config/portfolio.json` † |
 | Docs | `docs/` |
 | Diagnostic tools | `scripts/` |
+
+† *Future/placeholder - Currently implemented as:*
+- *Watchlist: `watchlists/default-watchlist.csv`*
+- *Portfolio: `positions/*.csv` (CSV exports from broker)*
 
 ## Key Configuration
 
@@ -259,12 +263,12 @@ None currently used. All config in `config/` directory.
 
 ## File Formats
 
-**`config/universe.json`:**
+**`config/universe.json`:** *(Future/placeholder - currently `watchlists/default-watchlist.csv`)*
 ```json
 ["AAPL", "TSLA", "/ES", "/CL"]
 ```
 
-**`config/portfolio.json`:**
+**`config/portfolio.json`:** *(Future/placeholder - currently `positions/*.csv`)*
 ```json
 {
   "positions": [

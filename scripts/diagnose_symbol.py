@@ -20,7 +20,7 @@ from typing import Any
 
 from variance.config_loader import load_config_bundle
 from variance.errors import build_error, warning_detail_message
-from variance.get_market_data import get_market_data
+from variance.market_data.service import get_market_data
 from variance.models.market_specs import (
     DataIntegritySpec,
     IVPercentileSpec,

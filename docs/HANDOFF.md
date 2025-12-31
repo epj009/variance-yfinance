@@ -57,13 +57,19 @@ variance-yfinance/
 │   └── diagnose_futures_filtering.py
 ├── config/                    # Configuration files
 │   ├── trading_rules.json     # Filter thresholds & trading parameters
-│   ├── universe.json          # Watchlist of symbols to screen
-│   └── portfolio.json         # Current positions (user-maintained)
+│   ├── universe.json †        # [Future] Watchlist of symbols to screen
+│   └── portfolio.json †       # [Future] Current positions (user-maintained)
+├── watchlists/                # Current watchlist implementation
+│   └── default-watchlist.csv  # Symbol watchlist (CSV format)
+├── positions/                 # Current portfolio implementation
+│   └── *.csv                  # Position exports from broker
 └── docs/                      # Documentation
     ├── adr/                   # Architecture Decision Records
     ├── user-guide/            # End-user documentation
     └── implementation/        # Technical specs
 ```
+
+**Note:** † Files marked as [Future] are aspirational JSON config files. Currently implemented as CSV files in `watchlists/` and `positions/` directories.
 
 ## Core Architecture Patterns
 
@@ -139,7 +145,7 @@ for handler in handlers:
 
 ### Screening Pipeline
 ```
-1. Load (universe.json)
+1. Load watchlist (watchlists/default-watchlist.csv)
    ↓
 2. Fetch Market Data (Tastytrade API + yfinance)
    ↓
@@ -218,13 +224,17 @@ HV Rank = (HV252 - HV252_min) / (HV252_max - HV252_min) * 100
 
 **See:** `docs/user-guide/config-guide.md` for full reference.
 
-### `config/universe.json`
-List of symbols to screen. Supports:
+### `config/universe.json` *(Future/placeholder)*
+**Current implementation:** `watchlists/default-watchlist.csv`
+
+Planned JSON format for watchlist symbols:
 - Equities: `"AAPL"`, `"TSLA"`
 - Futures: `"/ES"`, `"/CL"`, `"/ZN"`
 
-### `config/portfolio.json`
-Your current positions. Format:
+### `config/portfolio.json` *(Future/placeholder)*
+**Current implementation:** `positions/*.csv` (broker CSV exports)
+
+Planned JSON format for current positions:
 ```json
 {
   "positions": [
@@ -284,7 +294,7 @@ def test_my_new_spec_passes_when_above_threshold():
 
 5. **Document** in `docs/user-guide/filtering-rules.md`
 
-6. **Write ADR** if architectural (see `docs/adr/0000-template.md`)
+6. **Write ADR** if architectural (see `docs/adr/template.md`)
 
 ### Adding a New Strategy
 
@@ -520,7 +530,7 @@ All significant architectural decisions documented in `docs/adr/`:
 - **ADR-0010:** HV90/HV30 methodology (vs HV252)
 - **ADR-0011:** Volatility spec separation (positional vs momentum)
 
-**Template:** `docs/adr/0000-template.md`
+**Template:** `docs/adr/template.md`
 
 ## Communication Channels
 
@@ -542,8 +552,8 @@ All significant architectural decisions documented in `docs/adr/`:
 
 3. **Explore:**
    - Run diagnostic tools on various symbols
-   - Modify `config/universe.json` and observe results
-   - Add a test position to `config/portfolio.json`
+   - Modify watchlist (`watchlists/default-watchlist.csv`) and observe results
+   - Add a test position (`positions/*.csv`) or use sample portfolio
 
 4. **Practice:**
    - Fix a failing test

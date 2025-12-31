@@ -8,7 +8,7 @@ import os
 import pytest
 
 from variance.analyze_portfolio import analyze_portfolio
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 
 
 class TestAnalyzePortfolioIntegration:

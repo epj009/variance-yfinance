@@ -58,7 +58,7 @@ class TUIRenderer:
 
     def render_integrity_banner(self) -> None:
         """Renders a high-visibility warning if data is stale or after-hours."""
-        from variance.get_market_data import is_market_open
+        from variance.market_data.clock import is_market_open
 
         market_closed = not is_market_open()
 

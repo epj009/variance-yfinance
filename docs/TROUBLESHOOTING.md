@@ -86,7 +86,7 @@ variance-screener
 
 **Solution:**
 - Adjust thresholds in `config/trading_rules.json`
-- Add more symbols to `config/universe.json`
+- Add more symbols to watchlist (`watchlists/default-watchlist.csv`)
 - Check market environment (low vol periods = fewer opportunities)
 
 ### Issue: Portfolio analyzer crashes with "Strategy not recognized"
@@ -95,8 +95,8 @@ variance-screener
 
 **Debug:**
 ```bash
-# Check portfolio.json format
-cat config/portfolio.json | jq '.'
+# Check portfolio CSV format
+head positions/*.csv
 
 # Verify leg counts and types match known strategies
 # Strangle: 2 legs (1 call, 1 put, same DTE, different strikes)
@@ -104,7 +104,7 @@ cat config/portfolio.json | jq '.'
 ```
 
 **Solution:**
-- Fix leg configuration in `config/portfolio.json`
+- Fix leg configuration in position CSV file
 - Add new strategy detector if needed (see HANDOFF.md)
 
 ## Testing Issues
@@ -291,14 +291,14 @@ cat config/trading_rules.reorganized.json
 ### Issue: Tastytrade API returns errors
 
 **Error Types:**
-1. **401 Unauthorized:** Check credentials in `config/tastytrade_credentials.json`
+1. **401 Unauthorized:** Check credentials in `.env.tastytrade`
 2. **429 Too Many Requests:** Rate limit hit, wait and retry
 3. **500 Server Error:** Tastytrade API issue, use fallback (yfinance)
 
 **Fallback Mode:**
 ```bash
 # Remove credentials to force yfinance-only mode
-mv config/tastytrade_credentials.json config/tastytrade_credentials.json.bak
+mv .env.tastytrade .env.tastytrade.bak
 
 # Run without Tastytrade
 variance-screener
@@ -312,8 +312,8 @@ variance-screener
 
 **Solution:**
 ```bash
-# Reduce universe size
-# Edit config/universe.json, keep top 50-100 symbols
+# Reduce watchlist size
+# Edit watchlists/default-watchlist.csv, keep top 50-100 symbols
 
 # Use cache during development
 # Cache persists 24h, much faster
@@ -380,7 +380,7 @@ pip install -e .
 
 ### "ambiguous_strategy"
 **Meaning:** Position legs don't match known strategy pattern
-**Fix:** Verify `config/portfolio.json` leg configuration
+**Fix:** Verify position CSV leg configuration
 
 ## Getting Help
 
@@ -393,7 +393,7 @@ pip install -e .
 **When asking:**
 - Include error message (full traceback)
 - Show command you ran
-- Show relevant config (`config/trading_rules.json`, `config/universe.json`)
+- Show relevant config files (`config/trading_rules.json`, watchlist, positions)
 - Include output from diagnostic tools
 
 **Diagnostic checklist:**
@@ -404,7 +404,7 @@ pip list | grep variance
 
 # 2. Config validation
 cat config/trading_rules.json | jq '.'
-cat config/universe.json | jq '.'
+head watchlists/default-watchlist.csv
 
 # 3. Test run
 pytest -v

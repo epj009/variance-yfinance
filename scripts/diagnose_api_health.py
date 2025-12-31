@@ -139,7 +139,7 @@ def test_environment() -> dict[str, Any]:
 
     # Check market hours
     try:
-        from variance.get_market_data import is_market_open
+        from variance.market_data.clock import is_market_open
 
         market_open = is_market_open()
         status = "OPEN" if market_open else "CLOSED"

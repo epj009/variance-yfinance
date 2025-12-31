@@ -2,6 +2,7 @@
 Shared pytest fixtures for test suite.
 """
 
+import importlib
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -9,8 +10,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from variance import get_market_data
 from variance.interfaces import IMarketDataProvider, MarketData
+from variance.market_data import settings as md_settings
+from variance.market_data.cache import MarketCache
 from variance.models import Position
 
 
@@ -40,8 +42,8 @@ def temp_cache_db(tmp_path, monkeypatch):
     Creates isolated SQLite cache database per test.
 
     - Creates temp .db file in tmp_path
-    - Monkeypatches get_market_data.DB_PATH
-    - Replaces get_market_data.cache with fresh MarketCache instance
+    - Monkeypatches market_data.settings.DB_PATH
+    - Replaces default cache instances with a fresh MarketCache
     - Cleans up after test
 
     Returns:
@@ -50,11 +52,16 @@ def temp_cache_db(tmp_path, monkeypatch):
     db_path = tmp_path / "test_cache.db"
 
     # Patch module-level DB_PATH
-    monkeypatch.setattr(get_market_data, "DB_PATH", str(db_path))
+    monkeypatch.setattr(md_settings, "DB_PATH", str(db_path))
 
-    # Create fresh cache instance
-    fresh_cache = get_market_data.MarketCache(str(db_path))
-    monkeypatch.setattr(get_market_data, "cache", fresh_cache)
+    fresh_cache = MarketCache(str(db_path))
+    cache_mod = importlib.import_module("variance.market_data.cache")
+    providers_mod = importlib.import_module("variance.market_data.providers")
+    service_mod = importlib.import_module("variance.market_data.service")
+
+    monkeypatch.setattr(cache_mod, "cache", fresh_cache)
+    monkeypatch.setattr(providers_mod, "cache", fresh_cache)
+    monkeypatch.setattr(service_mod, "default_cache", fresh_cache)
 
     yield db_path
 

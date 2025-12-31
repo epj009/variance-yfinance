@@ -256,7 +256,12 @@ class CorrelationSpec(Specification[dict[str, Any]]):
         return CorrelationResult(corr <= self.max_correlation, corr, used_proxy)
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        return self.evaluate(metrics).passed
+        result = self.evaluate(metrics)
+        if result.correlation is not None:
+            metrics["portfolio_rho"] = result.correlation
+        if result.used_proxy:
+            metrics["correlation_via_proxy"] = True
+        return result.passed
 
 
 class IVPercentileSpec(Specification[dict[str, Any]]):

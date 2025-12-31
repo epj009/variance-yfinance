@@ -96,6 +96,7 @@ Factory tries providers in order until success (no merge conflicts, only failove
 - **Backward Compatibility**: Legacy HV20/HV252 still populated for fallback scenarios
 
 ## References
-- Implementation Plan: `docs/implementation/tastytrade_swap_plan.md`
-- Technical Spec: Architect agent output (Phase 1)
+- Tastytrade API Research: `docs/implementation/tastytrade-data-research.md`
+- YFinance Migration Guide: `docs/implementation/yfinance-provider-migration.md`
+- YFinance Migration Checklist: `docs/implementation/yfinance-migration-checklist.md`
 - Related ADRs: ADR-0002 (Strategy Pattern), ADR-0005 (Execution Isolation)

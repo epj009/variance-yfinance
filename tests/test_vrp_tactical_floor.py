@@ -27,8 +27,9 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
-from variance import get_market_data
 from variance.config_loader import load_trading_rules
+from variance.market_data.cache import MarketCache
+from variance.market_data.providers import YFinanceProvider
 
 # ============================================================================
 # TEST CLASS 1: VRP Tactical Floor Logic - Unit Tests
@@ -335,11 +336,11 @@ class TestVRPTacticalRegression:
 
 
 class TestVRPTacticalE2E:
-    """End-to-end tests using get_market_data module (mocked)."""
+    """End-to-end tests using YFinanceProvider (mocked)."""
 
     def test_get_market_data_applies_floor(self, temp_cache_db):
         """
-        Test that get_market_data.process_single_symbol applies HV floor correctly.
+        Test that YFinanceProvider._process_single_symbol applies HV floor correctly.
 
         This is an integration test simulating the full data flow.
         """
@@ -386,13 +387,13 @@ class TestVRPTacticalE2E:
         mock_ticker.info = {}
         mock_ticker.calendar = pd.DataFrame()
 
+        provider = YFinanceProvider(cache_instance=MarketCache(str(temp_cache_db)))
+
         # Patch yf.Ticker to return our mock
-        with patch("yfinance.Ticker", return_value=mock_ticker):
+        with patch("variance.market_data.providers.yf.Ticker", return_value=mock_ticker):
             # Force calculate_hv to return low HV20
-            with patch.object(
-                get_market_data, "calculate_hv", return_value={"hv252": 20.0, "hv20": 0.5}
-            ):
-                result = get_market_data.process_single_symbol("TEST")
+            with patch.object(provider, "_calculate_hv", return_value={"hv252": 20.0, "hv20": 0.5}):
+                result = provider._process_single_symbol("TEST")
 
         # Verify result structure
         assert result is not None
