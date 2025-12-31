@@ -40,8 +40,19 @@ def format_screener_output(data: dict[str, Any]) -> None:
     # Profile info
     profile = meta.get("profile", "unknown")
     scan_time = meta.get("scan_timestamp", "N/A")
-    print(f"Profile: {profile}")
-    print(f"Scan Time: {scan_time}")
+    print(f"Profile: {profile.upper()}")
+
+    constraints = summary.get("active_constraints", {})
+    if constraints:
+        vrp = constraints.get("min_vrp", 0.0)
+        ivp = constraints.get("min_ivp", 0.0)
+        yld = constraints.get("min_yield", 0.0)
+        prc = constraints.get("min_price", 0.0)
+        print(
+            f"Active:  VRP > {vrp:.1f} | IVP > {ivp:.0f}% | Yield > {yld:.1f}% | Price > ${prc:.0f}"
+        )
+
+    print(f"Time:    {scan_time}")
     print()
 
     # Summary stats
@@ -68,7 +79,6 @@ def format_screener_output(data: dict[str, Any]) -> None:
         ("VRP Tactical < 1.15", summary.get("tactical_skipped_count", 0)),
         ("Illiquid", summary.get("illiquid_skipped_count", 0)),
         ("Retail Inefficient", summary.get("retail_inefficient_skipped_count", 0)),
-        ("Low Vol Trap", summary.get("low_vol_trap_skipped_count", 0)),
         ("Correlation", summary.get("correlation_skipped_count", 0)),
     ]
 

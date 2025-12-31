@@ -9,7 +9,6 @@ from variance.models.market_specs import (
     DataIntegritySpec,
     IVPercentileSpec,
     LiquiditySpec,
-    LowVolTrapSpec,
     RetailEfficiencySpec,
     ScalableGateSpec,
     SectorExclusionSpec,
@@ -30,15 +29,6 @@ def test_vrp_structural_spec():
     assert spec.is_satisfied_by({"vrp_structural": 0.8}) is False
     # Missing data
     assert spec.is_satisfied_by({}) is False
-
-
-def test_low_vol_trap_spec():
-    spec = LowVolTrapSpec(5.0)
-
-    assert spec.is_satisfied_by({"hv252": 10.0}) is True
-    assert spec.is_satisfied_by({"hv252": 2.0}) is False
-    # Missing data should pass (conservative assumption)
-    assert spec.is_satisfied_by({}) is True
 
 
 def test_sector_exclusion_spec():
@@ -211,14 +201,14 @@ def test_data_integrity_spec():
 
 def test_specification_and_operator():
     spec_a = VrpStructuralSpec(1.0)
-    spec_b = LowVolTrapSpec(5.0)
+    spec_b = VrpTacticalSpec(5.0, 1.15)
 
     combined = spec_a & spec_b
 
     assert isinstance(combined, AndSpecification)
-    assert combined.is_satisfied_by({"vrp_structural": 1.2, "hv252": 10.0}) is True
-    assert combined.is_satisfied_by({"vrp_structural": 0.8, "hv252": 10.0}) is False
-    assert combined.is_satisfied_by({"vrp_structural": 1.2, "hv252": 2.0}) is False
+    assert combined.is_satisfied_by({"vrp_structural": 1.2, "iv": 20.0, "hv20": 10.0}) is True
+    assert combined.is_satisfied_by({"vrp_structural": 0.8, "iv": 20.0, "hv20": 10.0}) is False
+    assert combined.is_satisfied_by({"vrp_structural": 1.2, "iv": 20.0, "hv20": 20.0}) is False
 
 
 def test_specification_or_operator():

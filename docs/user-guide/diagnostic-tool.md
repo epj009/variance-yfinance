@@ -200,13 +200,12 @@ The diagnostic tests these filters in order:
 |---|--------|----------------|
 | 1 | **DataIntegrity** | Data errors/warnings |
 | 2 | **VrpStructural** | VRP > 1.10 |
-| 3 | **LowVolTrap** | HV252 >= 5.0% |
-| 4 | **VolatilityTrap** | HV Rank >= 15 (if VRP > 1.30) |
-| 5 | **VolatilityMomentum** | HV30/HV90 >= 0.85 |
-| 6 | **RetailEfficiency** | Price >= $25, Slippage <= 5% |
-| 7 | **IVPercentile** | IV Percentile >= 20 |
-| 8 | **Liquidity** | Tastytrade rating >= 4 |
-| 9 | **ScalableGate** | VTM >= 1.35 (only for `--held`) |
+| 3 | **VolatilityTrap** | HV Rank >= 15 (if VRP > 1.30) |
+| 4 | **VolatilityMomentum** | HV30/HV90 >= 0.85 |
+| 5 | **RetailEfficiency** | Price >= $25, Slippage <= 5% |
+| 6 | **IVPercentile** | IV Percentile >= 20 |
+| 7 | **Liquidity** | Tastytrade rating >= 4 |
+| 8 | **ScalableGate** | VTM >= 1.35 (only for `--held`) |
 
 ---
 
@@ -349,6 +348,6 @@ cd /path/to/variance-yfinance
 ## Version History
 
 - **1.0.0** (2025-12-25): Initial diagnostic tool
-  - All 9 filters tested
+  - All 8 filters tested
   - `--held` flag for scalability check
   - `--json` output mode

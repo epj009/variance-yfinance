@@ -323,7 +323,6 @@ class TUIRenderer:
                 ("low vrp", summary.get("low_vrp_structural_count", 0)),
                 ("missing tactical VRP", summary.get("tactical_skipped_count", 0)),
                 ("market data errors", summary.get("market_data_error_count", 0)),
-                ("low vol trap", summary.get("low_vol_trap_skipped_count", 0)),
                 ("data integrity", summary.get("data_integrity_skipped_count", 0)),
             ]
             drop_reasons = [r for r in drop_reasons if r[1]]
@@ -335,6 +334,21 @@ class TUIRenderer:
             return
 
         self.console.print("\n[header]🔍 VOL SCREENER OPPORTUNITIES[/header]")
+
+        # Active Constraints Display (UX Enhancement)
+        active_constraints = summary.get("active_constraints", {})
+        if active_constraints:
+            cons_text = Text("   ", style="dim")
+            vrp = active_constraints.get("min_vrp", 0.0)
+            ivp = active_constraints.get("min_ivp", 0.0)
+            yld = active_constraints.get("min_yield", 0.0)
+            prc = active_constraints.get("min_price", 0.0)
+            cons_text.append(
+                f"RULES: VRP > {vrp:.1f} | IVP > {ivp:.0f}% | Yield > {yld:.1f}% | Price > ${prc:.0f}",
+                style="dim cyan",
+            )
+            self.console.print(cons_text)
+
         self.console.print("   [dim]High Vol Bias candidates for portfolio diversification[/dim]")
 
         # Show exclusion info
@@ -556,7 +570,6 @@ class TUIRenderer:
                 ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
                 ("Illiquid", summary.get("illiquid_skipped_count", 0)),
-                ("Low Vol Trap", summary.get("low_vol_trap_skipped_count", 0)),
                 ("HV Rank Trap", summary.get("hv_rank_trap_skipped_count", 0)),
                 ("Retail Inefficient", summary.get("retail_inefficient_skipped_count", 0)),
                 ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),

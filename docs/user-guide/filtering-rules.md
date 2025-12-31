@@ -87,35 +87,7 @@ VRP: 12 / 15 = 0.80 ❌ (fails 1.10 threshold)
 
 ---
 
-### 3. **LowVolTrapSpec** (HV Floor)
-**Purpose**: Reject ultra-low volatility stocks where VRP signals are unreliable.
-
-**Formula**:
-```
-HV252 >= hv_floor (5.0%)
-```
-
-**Rationale**: If a stock's annual volatility is < 5%, it's likely:
-- Utility stock with artificial stability
-- Very low volatility with wide bid/ask spreads
-- False VRP signals (e.g., VRP = 10% / 2% = 5.0, but meaningless)
-
-**Example**:
-```
-Symbol: D (Dominion Energy - Utility)
-HV252: 3.2%
-Result: ❌ REJECT (too stable, unreliable edge)
-
-Symbol: TSLA
-HV252: 45%
-Result: ✅ PASS
-```
-
-**Config**: `hv_floor_percent: 5.0`
-
----
-
-### 4. **VolatilityTrapSpec** (Positional Check)
+### 3. **VolatilityTrapSpec** (Positional Check)
 **Purpose**: Reject symbols where realized volatility is at extreme lows of its 1-year range.
 
 **Logic**:
@@ -152,7 +124,7 @@ Result: ✅ PASS - Healthy vol environment
 
 ---
 
-### 5. **VolatilityMomentumSpec** (Universal Compression Check)
+### 4. **VolatilityMomentumSpec** (Universal Compression Check)
 **Purpose**: Reject symbols where volatility is actively collapsing, regardless of VRP level.
 
 **Formula**:
@@ -195,7 +167,7 @@ Result: ✅ PASS
 
 ---
 
-### 6. **RetailEfficiencySpec** (Tastylive Mechanics)
+### 5. **RetailEfficiencySpec** (Tastylive Mechanics)
 **Purpose**: Ensure the underlying is practical for retail option traders.
 
 **Checks**:
@@ -226,7 +198,7 @@ Result: ✅ PASS
 
 ---
 
-### 7. **IVPercentileSpec** (IV Percentile Filter)
+### 6. **IVPercentileSpec** (IV Percentile Filter)
 **Purpose**: Ensure IV is elevated vs its own 1-year percentile distribution.
 
 **Formula**:
@@ -264,7 +236,7 @@ Result: ✅ PASS
 
 ---
 
-### 8. **LiquiditySpec** (Bid/Ask + Volume)
+### 7. **LiquiditySpec** (Bid/Ask + Volume)
 **Purpose**: Ensure you can enter/exit without excessive slippage.
 
 **Primary Check** (Tastytrade liquidity rating):
@@ -306,7 +278,7 @@ Result: ❌ REJECT
 
 ---
 
-### 9. **CorrelationSpec** (Portfolio Diversification)
+### 8. **CorrelationSpec** (Portfolio Diversification)
 **Purpose**: Prevent adding correlated positions to portfolio.
 
 **Formula**:
@@ -403,7 +375,6 @@ Why: Edge hasn't surged enough to justify adding
 |--------|--------|-----------|------------|-------------|
 | **DataIntegrity** | Data errors | N/A | Soft warnings | None |
 | **VrpStructural** | IV / HV90 | > 1.10 | None | `--min-vrp 0` |
-| **LowVolTrap** | HV252 floor | >= 5.0% | None | None |
 | **VolatilityTrap** | HV Rank (if VRP>1.30) | >= 15 | Low VRP (<1.30) | None |
 | **VolatilityMomentum** | HV30 / HV90 | >= 0.85 | Missing data | None |
 | **RetailEfficiency** | Price + Slippage | >= $25, <= 5% | None | None |

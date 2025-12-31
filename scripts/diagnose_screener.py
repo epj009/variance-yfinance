@@ -114,15 +114,7 @@ def diagnose_watchlist(limit: Optional[int] = None) -> None:
             diagnostics.incr("low_vrp_structural_count")
             dropped = True
 
-        # 3. Low Vol Trap (Absolute)
-        hv252 = data.get("hv252")
-        hv_floor = rules.get("hv_floor_percent", 5.0)
-        if isinstance(hv252, (int, float)) and hv252 < hv_floor:
-            stats["LOW_VOL_TRAP"].append(f"{sym} (HV: {hv252:.1f})")
-            diagnostics.incr("low_vol_trap_skipped_count")
-            dropped = True
-
-        # 4. HV Rank Trap (Relative)
+        # 3. HV Rank Trap (Relative)
         hv_rank = data.get("hv_rank")
         trap_thresh = rules.get("hv_rank_trap_threshold", 15.0)
         rich_thresh = rules.get("vrp_structural_rich_threshold", 1.0)

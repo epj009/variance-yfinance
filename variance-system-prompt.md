@@ -256,7 +256,6 @@ You are responsible for rendering raw data codes into the Variance visual langua
 **2. Screener Flags (`vol_screener.py`):**
 * If `is_rich` is True            → 🔥 `[RICH]`
 * If `is_fair` is True            → ✨ `[FAIR]`
-* If `is_bats_efficient` is True  → 🦇 `[BATS ZONE]`
 * If `is_illiquid` is True        → 🚱 `[ILLIQUID]`
 * If `is_earnings_soon` is True   → ⚠️ `[EARN]`
 * If `vrp_structural` < 0.85 and no flags → ❄️ `[LOW]`

@@ -13,24 +13,10 @@ class ScoreEnrichmentStrategy(EnrichmentStrategy):
     def enrich(self, candidate: dict[str, Any], ctx: Any) -> None:
         rules = ctx.config_bundle.get("trading_rules", {})
 
-        # 1. BATS Efficiency Check
-        price_raw = candidate.get("price")
-        vrp_s_raw = candidate.get("vrp_structural")
-
-        price = float(price_raw) if price_raw is not None else 0.0
-        vrp_s = float(vrp_s_raw) if vrp_s_raw is not None else 0.0
-
-        candidate["is_bats_efficient"] = bool(
-            price > 0
-            and vrp_s > 0
-            and rules["bats_efficiency_min_price"] <= price <= rules["bats_efficiency_max_price"]
-            and vrp_s > rules["bats_efficiency_vrp_structural"]
-        )
-
-        # 2. Variance Score
+        # 1. Variance Score
         from variance.vol_screener import _calculate_variance_score
 
-        candidate["score"] = _calculate_variance_score(candidate, rules)
+        candidate["score"] = _calculate_variance_score(candidate, rules, ctx.config)
 
         proxy_haircut_raw = rules.get("proxy_iv_score_haircut", 1.0)
         proxy_haircut = float(proxy_haircut_raw) if proxy_haircut_raw is not None else 1.0

@@ -133,10 +133,17 @@ Variance separates **Valuation** (is it expensive?) from **Regime** (is it about
 
 ## 5. Scoring (The Variance Score)
 The Variance Score (0-100) is a composite measure of institutional opportunity:
-*   **30% Structural VRP:** Long-term valuation edge.
-*   **30% Tactical VRP:** Immediate timing edge.
-*   **20% VRP Divergence:** Momentum of the alpha.
-*   **20% IV Percentile:** Statistical extreme context.
+*   **Structural VRP:** Long-term valuation edge (dislocation from fair value).
+*   **Tactical VRP:** Immediate timing edge (dislocation from fair value).
+*   **Volatility Momentum:** HV30/HV90 confirmation (trend vs compression).
+*   **HV Rank (Rich Only):** Avoid positional traps when VRP is rich.
+*   **IV Percentile:** Statistical extreme context.
+*   **Yield:** Normalized premium yield (30-day basis).
+*   **Retail Efficiency:** Price + slippage viability.
+*   **Liquidity:** Rating/volume/spread quality.
+
+**Note:** Component weights and ceilings are configurable in `config/trading_rules.json`
+(`variance_score_weights` and `variance_score_*_ceiling`).
 
 ---
 

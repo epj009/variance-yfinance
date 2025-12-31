@@ -71,9 +71,6 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
             "vrp_structural_threshold": 0.8,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },
@@ -88,7 +85,6 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
 
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
-    assert candidates[0]["is_bats_efficient"]
     # DEF excluded by sector, GHI skipped by low VRP
     assert summary["sector_skipped_count"] == 1
     assert summary["low_vrp_structural_count"] == 1
@@ -168,9 +164,6 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
             "vrp_structural_threshold": 0.85,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },
@@ -336,9 +329,6 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
             "vrp_structural_threshold": 0.85,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },

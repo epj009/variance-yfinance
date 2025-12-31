@@ -12,7 +12,6 @@ from variance.models.market_specs import (
     DataIntegritySpec,
     IVPercentileSpec,
     LiquiditySpec,
-    LowVolTrapSpec,
     RetailEfficiencySpec,
     ScalableGateSpec,
     SectorExclusionSpec,
@@ -20,6 +19,7 @@ from variance.models.market_specs import (
     VolatilityTrapSpec,
     VrpStructuralSpec,
     VrpTacticalSpec,
+    YieldSpec,
 )
 from variance.models.specs import Specification
 
@@ -70,13 +70,17 @@ def apply_specifications(
     )
     if not show_all:
         main_spec &= VrpStructuralSpec(structural_threshold)
-        main_spec &= LowVolTrapSpec(hv_floor_absolute)
         main_spec &= VolatilityTrapSpec(hv_rank_trap_threshold, vrp_rich_threshold)
         main_spec &= VolatilityMomentumSpec(volatility_momentum_min_ratio)
         main_spec &= RetailEfficiencySpec(retail_min_price, retail_max_slippage)
         # New: IV Percentile Spec
         if config.min_iv_percentile is not None and config.min_iv_percentile > 0:
             main_spec &= IVPercentileSpec(config.min_iv_percentile)
+
+        # New: Yield Spec
+        min_yield = float(rules.get("min_yield_percent", 0.0))
+        if min_yield > 0:
+            main_spec &= YieldSpec(min_yield)
 
     tactical_spec = VrpTacticalSpec(hv_floor_absolute, vrp_tactical_threshold)
 
@@ -142,7 +146,6 @@ def apply_specifications(
                     rules,
                     diagnostics,
                     structural_threshold,
-                    hv_floor_absolute,
                     portfolio_returns,
                     raw_data,
                 )
@@ -176,7 +179,6 @@ def _update_counters(
     rules: dict[str, Any],
     diagnostics: ScreenerDiagnostics,
     threshold: float,
-    hv_floor: float,
     portfolio_returns: Optional[np.ndarray],
     raw_data: Optional[dict[str, Any]] = None,
 ) -> None:
@@ -196,10 +198,6 @@ def _update_counters(
         diagnostics.incr("missing_vrp_structural_count")
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
         diagnostics.incr("low_vrp_structural_count")
-
-    hv252 = metrics.get("hv252")
-    if hv252 is not None and float(hv252) < hv_floor:
-        diagnostics.incr("low_vol_trap_skipped_count")
 
     hv_rank = metrics.get("hv_rank")
     rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
@@ -241,6 +239,31 @@ def _update_counters(
         iv_pct = metrics.get("iv_percentile")
         if iv_pct is None or float(iv_pct) < config.min_iv_percentile:
             diagnostics.incr("low_iv_percentile_skipped_count")
+
+    # New: Yield Skip
+    min_yield = float(rules.get("min_yield_percent", 0.0))
+    if min_yield > 0:
+        # Re-calc yield locally for diagnostics (duplicate of YieldSpec logic)
+        try:
+            p = float(metrics.get("price") or 0.0)
+            if p > 0:
+                bpr = p * 0.20
+                cb = metrics.get("call_bid")
+                ca = metrics.get("call_ask")
+                pb = metrics.get("put_bid")
+                pa = metrics.get("put_ask")
+                if all(v is None for v in [cb, ca, pb, pa]):
+                    b = float(metrics.get("atm_bid", 0.0))
+                    a = float(metrics.get("atm_ask", 0.0))
+                else:
+                    b = float(cb or 0) + float(pb or 0)
+                    a = float(ca or 0) + float(pa or 0)
+                m = (b + a) / 2
+                y = (m / bpr) * (30.0 / 45.0) * 100.0
+                if y < min_yield:
+                    diagnostics.incr("low_yield_skipped_count")
+        except (ValueError, TypeError):
+            pass
 
     warning = metrics.get("warning")
     soft_warnings = [

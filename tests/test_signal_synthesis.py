@@ -60,7 +60,21 @@ class TestVarianceScore:
 
     @pytest.fixture
     def mock_rules(self):
-        return {"vrp_structural_rich_threshold": 1.0, "hv_rank_trap_threshold": 15.0}
+        return {
+            "vrp_structural_rich_threshold": 1.0,
+            "hv_rank_trap_threshold": 15.0,
+            "variance_score_dislocation_multiplier": 200,
+            "variance_score_weights": {
+                "structural_vrp": 0.5,
+                "tactical_vrp": 0.5,
+                "volatility_momentum": 0.0,
+                "hv_rank": 0.0,
+                "iv_percentile": 0.0,
+                "yield": 0.0,
+                "retail_efficiency": 0.0,
+                "liquidity": 0.0,
+            },
+        }
 
     def test_score_calculation_balanced(self, mock_rules):
         """Score should average structural and tactical components (absolute distance)."""
@@ -83,15 +97,24 @@ class TestVarianceScore:
         assert score == 100.0
 
     def test_score_penalty_trap(self, mock_rules):
-        """Score should be penalized if it's a Short Vol Trap."""
-        metrics = {
-            "vrp_structural": 1.5,  # 100 pts -> 50 weighted
-            "vrp_tactical": 1.5,  # 100 pts -> 50 weighted = 100 total
-            "hv_rank": 10,  # Trap! (< 15)
+        """HV rank component should score low at the trap threshold."""
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 0.0,
+            "hv_rank": 1.0,
+            "iv_percentile": 0.0,
+            "yield": 0.0,
+            "retail_efficiency": 0.0,
+            "liquidity": 0.0,
         }
-        # Trap penalty is 50%
-        score = vol_screener._calculate_variance_score(metrics, mock_rules)
-        assert score == 50.0
+        metrics = {
+            "vrp_structural": 1.5,  # Rich: activates HV rank score
+            "hv_rank": 15,  # At threshold -> 0 score
+        }
+        score = vol_screener._calculate_variance_score(metrics, rules)
+        assert score == 0.0
 
     def test_score_fallback_tactical(self, mock_rules):
         """If tactical missing, fallback to structural."""
@@ -102,6 +125,95 @@ class TestVarianceScore:
         }
         # Should use structural for both components (50 + 50)
         score = vol_screener._calculate_variance_score(metrics, mock_rules)
+        assert score == 100.0
+
+    def test_score_momentum_component(self, mock_rules):
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 1.0,
+            "hv_rank": 0.0,
+            "iv_percentile": 0.0,
+            "yield": 0.0,
+            "retail_efficiency": 0.0,
+            "liquidity": 0.0,
+        }
+        rules["volatility_momentum_min_ratio"] = 0.85
+        rules["variance_score_momentum_ceiling"] = 1.20
+        metrics = {"hv30": 12.0, "hv90": 10.0}
+        score = vol_screener._calculate_variance_score(metrics, rules)
+        assert score == 100.0
+
+    def test_score_iv_percentile_component(self, mock_rules):
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 0.0,
+            "hv_rank": 0.0,
+            "iv_percentile": 1.0,
+            "yield": 0.0,
+            "retail_efficiency": 0.0,
+            "liquidity": 0.0,
+        }
+        rules["min_iv_percentile"] = 50.0
+        metrics = {"iv_percentile": 75.0}
+        score = vol_screener._calculate_variance_score(metrics, rules)
+        assert score == 50.0
+
+    def test_score_yield_component(self, mock_rules):
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 0.0,
+            "hv_rank": 0.0,
+            "iv_percentile": 0.0,
+            "yield": 1.0,
+            "retail_efficiency": 0.0,
+            "liquidity": 0.0,
+        }
+        rules["min_yield_percent"] = 3.0
+        rules["variance_score_yield_ceiling"] = 15.0
+        metrics = {"price": 100.0, "atm_bid": 3.0, "atm_ask": 3.0}
+        score = vol_screener._calculate_variance_score(metrics, rules)
+        assert score == pytest.approx(58.3)
+
+    def test_score_retail_efficiency_component(self, mock_rules):
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 0.0,
+            "hv_rank": 0.0,
+            "iv_percentile": 0.0,
+            "yield": 0.0,
+            "retail_efficiency": 1.0,
+            "liquidity": 0.0,
+        }
+        rules["retail_min_price"] = 25.0
+        rules["retail_max_slippage"] = 0.05
+        rules["variance_score_retail_price_ceiling"] = 100.0
+        metrics = {"price": 50.0, "call_bid": 1.0, "call_ask": 1.05}
+        score = vol_screener._calculate_variance_score(metrics, rules)
+        assert score == pytest.approx(17.9)
+
+    def test_score_liquidity_component(self, mock_rules):
+        rules = dict(mock_rules)
+        rules["variance_score_weights"] = {
+            "structural_vrp": 0.0,
+            "tactical_vrp": 0.0,
+            "volatility_momentum": 0.0,
+            "hv_rank": 0.0,
+            "iv_percentile": 0.0,
+            "yield": 0.0,
+            "retail_efficiency": 0.0,
+            "liquidity": 1.0,
+        }
+        rules["min_tt_liquidity_rating"] = 4
+        metrics = {"liquidity_rating": 5}
+        score = vol_screener._calculate_variance_score(metrics, rules)
         assert score == 100.0
 
 

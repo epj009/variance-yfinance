@@ -24,7 +24,6 @@ from variance.get_market_data import get_market_data
 from variance.models.market_specs import (
     DataIntegritySpec,
     IVPercentileSpec,
-    LowVolTrapSpec,
     RetailEfficiencySpec,
     ScalableGateSpec,
     VolatilityMomentumSpec,
@@ -112,21 +111,7 @@ def diagnose_symbol(
         "reason": f"VRP {vrp} {'>' if passed else '<='} {threshold}" if vrp else "Missing VRP",
     }
 
-    # 3. Low Vol Trap
-    hv_floor = float(rules.get("hv_floor_percent", 5.0))
-    spec_low_vol = LowVolTrapSpec(hv_floor)
-    passed = spec_low_vol.is_satisfied_by(raw_data)
-    hv252 = raw_data.get("hv252")
-    results["LowVolTrap"] = {
-        "passed": passed,
-        "threshold": hv_floor,
-        "value": float(hv252) if hv252 else None,
-        "reason": f"HV252 {hv252} {'>=' if passed else '<'} {hv_floor}"
-        if hv252
-        else "Missing HV252",
-    }
-
-    # 4. Volatility Trap (Positional)
+    # 3. Volatility Trap (Positional)
     rank_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
     vrp_rich = float(rules.get("vrp_structural_rich_threshold", 1.30))
     spec_vol_trap = VolatilityTrapSpec(rank_threshold, vrp_rich)
@@ -143,7 +128,7 @@ def diagnose_symbol(
         "reason": f"VRP {vrp_val:.2f} {'>' if applies else '<='} {vrp_rich}, HV Rank check {'applies' if applies else 'skipped'}",
     }
 
-    # 5. Volatility Momentum (NEW)
+    # 4. Volatility Momentum (NEW)
     momentum_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
     spec_vol_momentum = VolatilityMomentumSpec(momentum_ratio)
     passed = spec_vol_momentum.is_satisfied_by(raw_data)
@@ -163,7 +148,7 @@ def diagnose_symbol(
             "reason": "Missing HV30/HV90 data (pass-through)",
         }
 
-    # 6. Retail Efficiency
+    # 5. Retail Efficiency
     min_price = float(rules.get("retail_min_price", 25.0))
     max_slippage = float(rules.get("retail_max_slippage", 0.05))
     spec_retail = RetailEfficiencySpec(min_price, max_slippage)
@@ -176,7 +161,7 @@ def diagnose_symbol(
         "reason": f"Price ${price:.2f} {'>=' if price >= min_price else '<'} ${min_price}",
     }
 
-    # 7. IV Percentile
+    # 6. IV Percentile
     min_ivp = float(rules.get("min_iv_percentile", 20.0))
     spec_ivp = IVPercentileSpec(min_ivp)
     passed = spec_ivp.is_satisfied_by(raw_data)
@@ -190,7 +175,7 @@ def diagnose_symbol(
         else "Missing IV Percentile",
     }
 
-    # 8. Liquidity (simplified check)
+    # 7. Liquidity (simplified check)
     min_rating = int(rules.get("min_tt_liquidity_rating", 4))
     rating = raw_data.get("liquidity_rating")
     if rating is not None:
@@ -207,7 +192,7 @@ def diagnose_symbol(
             "reason": "No Tastytrade rating (fallback check not shown)",
         }
 
-    # 9. Scalability (if held)
+    # 8. Scalability (if held)
     if is_held:
         markup_threshold = float(rules.get("vrp_scalable_threshold", 1.35))
         divergence_threshold = float(rules.get("scalable_divergence_threshold", 1.10))

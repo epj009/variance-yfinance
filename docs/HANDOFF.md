@@ -208,7 +208,7 @@ HV Rank = (HV252 - HV252_min) / (HV252_max - HV252_min) * 100
 {
   "vrp_structural_threshold": 1.10,        // Minimum VRP to sell premium
   "vrp_structural_rich_threshold": 1.30,   // VRP considered "rich"
-  "hv_floor_percent": 5.0,                 // Minimum HV252 (avoid dead vol)
+  "hv_floor_percent": 5.0,                 // HV floor for VRP calculations
   "volatility_momentum_min_ratio": 0.85,   // Min HV30/HV90 (compression check)
   "min_iv_percentile": 20.0,               // Min IV rank
   "retail_min_price": 25.0,                // Min stock price ($)

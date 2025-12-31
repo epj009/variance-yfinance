@@ -109,19 +109,6 @@ class VrpStructuralSpec(Specification[dict[str, Any]]):
         return vrp is not None and float(vrp) > self.threshold
 
 
-class LowVolTrapSpec(Specification[dict[str, Any]]):
-    """Prevents symbols with extremely low realized vol (noise) from passing."""
-
-    def __init__(self, hv_floor: float):
-        self.hv_floor = hv_floor
-
-    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        hv252 = metrics.get("hv252")
-        if hv252 is None:
-            return True
-        return float(hv252) >= self.hv_floor
-
-
 class VrpTacticalSpec(Specification[dict[str, Any]]):
     """Requires tactical VRP to exceed minimum threshold (IV/HV30 or IV/HV20)."""
 
@@ -437,6 +424,73 @@ class RetailEfficiencySpec(Specification[dict[str, Any]]):
             return False
 
         return True
+
+
+class YieldSpec(Specification[dict[str, Any]]):
+    """
+    Filters based on Estimated Monthly Yield (Normalized to 30 days).
+
+    Formula: (Straddle Mid / (Price * 0.20)) * (30 / 45) * 100.0
+
+    This proxies the 'Juice' of the trade (Return on Capital).
+    Rejects symbols where the premium collected is too small relative to the capital required,
+    even if the VRP/IVP is high.
+
+    Args:
+        min_yield: Minimum 30-day normalized yield percentage (e.g., 3.0 for 3%)
+    """
+
+    def __init__(self, min_yield: float):
+        self.min_yield = min_yield
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        # If threshold is <= 0, filter is disabled
+        if self.min_yield <= 0:
+            return True
+
+        price_raw = metrics.get("price")
+        if price_raw is None:
+            return False
+
+        try:
+            price = float(price_raw)
+            if price <= 0:
+                return False
+
+            call_bid = metrics.get("call_bid")
+            call_ask = metrics.get("call_ask")
+            put_bid = metrics.get("put_bid")
+            put_ask = metrics.get("put_ask")
+
+            # Fallback to ATM values if explicit bid/ask missing
+            if all(v is None for v in [call_bid, call_ask, put_bid, put_ask]):
+                bid = float(metrics.get("atm_bid", 0.0))
+                ask = float(metrics.get("atm_ask", 0.0))
+            else:
+                # Approximate straddle
+                c_bid = float(call_bid or 0.0)
+                c_ask = float(call_ask or 0.0)
+                p_bid = float(put_bid or 0.0)
+                p_ask = float(put_ask or 0.0)
+                bid = c_bid + p_bid
+                ask = c_ask + p_ask
+
+            mid = (bid + ask) / 2
+            if mid <= 0:
+                return False
+
+            # BPR estimate (naked strangle proxy)
+            bpr_est = price * 0.20
+            if bpr_est <= 0:
+                return False
+
+            # 30-day normalized yield from 45 DTE baseline
+            yield_pct = (mid / bpr_est) * (30.0 / 45.0) * 100.0
+
+            return yield_pct >= self.min_yield
+
+        except (ValueError, TypeError):
+            return False
 
 
 class ScalableGateSpec(Specification[dict[str, Any]]):

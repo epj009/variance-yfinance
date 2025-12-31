@@ -15,7 +15,6 @@ from variance.get_market_data import get_market_data
 from variance.models.market_specs import (
     DataIntegritySpec,
     IVPercentileSpec,
-    LowVolTrapSpec,
     RetailEfficiencySpec,
     VolatilityMomentumSpec,
     VolatilityTrapSpec,
@@ -80,16 +79,7 @@ def diagnose_symbol(symbol: str, rules: dict[str, Any]) -> None:
     print(f"{'✅' if passed else '❌'} VrpStructuralSpec (>{threshold}): {passed}")
     print(f"   VRP: {vrp} {'>' if vrp and float(vrp) > threshold else '<='} {threshold}")
 
-    # 3. Low Vol Trap
-    hv_floor = float(rules.get("hv_floor_percent", 5.0))
-    spec_low_vol = LowVolTrapSpec(hv_floor)
-    passed = spec_low_vol.is_satisfied_by(raw_data)
-    results["LowVolTrap"] = passed
-    hv252 = raw_data.get("hv252")
-    print(f"{'✅' if passed else '❌'} LowVolTrapSpec (HV252>{hv_floor}): {passed}")
-    print(f"   HV252: {hv252}")
-
-    # 4. Volatility Trap (Positional)
+    # 3. Volatility Trap (Positional)
     rank_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
     vrp_rich = float(rules.get("vrp_structural_rich_threshold", 1.30))
     spec_vol_trap = VolatilityTrapSpec(rank_threshold, vrp_rich)
@@ -100,7 +90,7 @@ def diagnose_symbol(symbol: str, rules: dict[str, Any]) -> None:
     )
     print(f"   HV Rank: {raw_data.get('hv_rank')}")
 
-    # 5. Volatility Momentum (NEW)
+    # 4. Volatility Momentum (NEW)
     momentum_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
     spec_vol_momentum = VolatilityMomentumSpec(momentum_ratio)
     passed = spec_vol_momentum.is_satisfied_by(raw_data)
@@ -120,7 +110,7 @@ def diagnose_symbol(symbol: str, rules: dict[str, Any]) -> None:
             f"{'✅' if passed else '❌'} VolatilityMomentumSpec: {passed} (missing data, pass-through)"
         )
 
-    # 6. Retail Efficiency
+    # 5. Retail Efficiency
     min_price = float(rules.get("retail_min_price", 25.0))
     max_slippage = float(rules.get("retail_max_slippage", 0.05))
     spec_retail = RetailEfficiencySpec(min_price, max_slippage)
@@ -130,7 +120,7 @@ def diagnose_symbol(symbol: str, rules: dict[str, Any]) -> None:
     print(f"{'✅' if passed else '❌'} RetailEfficiencySpec (price>{min_price}): {passed}")
     print(f"   Price: {price}")
 
-    # 7. IV Percentile
+    # 6. IV Percentile
     min_ivp = 20.0  # From config
     spec_ivp = IVPercentileSpec(min_ivp)
     passed = spec_ivp.is_satisfied_by(raw_data)
@@ -160,7 +150,6 @@ def main() -> None:
     print("\nCurrent Thresholds:")
     print(f"   VRP Structural: {rules.get('vrp_structural_threshold', 1.10)}")
     print(f"   VRP Rich: {rules.get('vrp_structural_rich_threshold', 1.30)}")
-    print(f"   HV Floor: {rules.get('hv_floor_percent', 5.0)}%")
     print(f"   HV Rank Trap: {rules.get('hv_rank_trap_threshold', 15.0)}")
     print(f"   Volatility Momentum: {rules.get('volatility_momentum_min_ratio', 0.85)}")
     print(f"   Min IV Percentile: {rules.get('min_iv_percentile', 20.0)}")

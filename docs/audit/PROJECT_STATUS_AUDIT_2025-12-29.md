@@ -34,7 +34,6 @@
 |---------------------|---------------|---------------------|--------|
 | **DataIntegritySpec** | N/A (always on) | None | ✅ VERIFIED |
 | **VrpStructuralSpec** | ✅ YES | `vrp_structural_threshold` | ✅ VERIFIED |
-| **LowVolTrapSpec** | ✅ YES | `hv_floor_percent` | ✅ VERIFIED |
 | **VolatilityTrapSpec** | ✅ YES | `hv_rank_trap_threshold`, `vrp_structural_rich_threshold` | ✅ VERIFIED |
 | **VolatilityMomentumSpec** | ✅ YES | `volatility_momentum_min_ratio` | ✅ VERIFIED |
 | **RetailEfficiencySpec** | ✅ YES | `retail_min_price`, `retail_max_slippage` | ✅ VERIFIED |
@@ -126,7 +125,6 @@ rules.get("vrp_structural_threshold", 0.85)  # ← OLD THRESHOLD, overridden by 
 |--------|-------------|-------------------|------------------------|
 | DataIntegritySpec | ✅ Line 31 | ✅ MATCH | ✅ N/A |
 | VrpStructuralSpec | ✅ Line 54 | ✅ MATCH | ✅ None |
-| LowVolTrapSpec | ✅ Line 90 | ✅ MATCH | ✅ None |
 | VolatilityTrapSpec | ✅ Line 119 | ✅ MATCH | ✅ Low VRP (<1.30) |
 | VolatilityMomentumSpec | ✅ Line 155 | ✅ MATCH | ✅ Missing data |
 | RetailEfficiencySpec | ✅ Line 198 | ✅ MATCH | ⚠️ **DISCREPANCY** |
@@ -219,7 +217,6 @@ def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
 ```python
 main_spec = DataIntegritySpec()  # Always first
 main_spec &= VrpStructuralSpec(structural_threshold)
-main_spec &= LowVolTrapSpec(hv_floor_absolute)
 main_spec &= VolatilityTrapSpec(hv_rank_trap_threshold, vrp_rich_threshold)
 main_spec &= VolatilityMomentumSpec(volatility_momentum_min_ratio)  # ADR-0011
 main_spec &= RetailEfficiencySpec(retail_min_price, retail_max_slippage)
@@ -365,7 +362,6 @@ tests/test_market_data_service.py        ← Data fetching tests ✅
 |---------------------|-------------|-------------------|-------------------|
 | DataIntegritySpec | ⚠️ Implicit | ✅ Yes | N/A |
 | VrpStructuralSpec | ✅ test_specs.py:23 | ✅ Yes | ✅ test_vrp_priority.py |
-| LowVolTrapSpec | ✅ test_specs.py:34 | ✅ Yes | N/A |
 | VolatilityTrapSpec | ✅ test_specs.py:153 | ✅ Yes | N/A |
 | VolatilityMomentumSpec | ✅ test_specs.py:161 | ✅ Yes | N/A |
 | RetailEfficiencySpec | ✅ test_specs.py:169 | ✅ Yes | N/A |

@@ -80,7 +80,7 @@ Controls the core volatility risk premium (VRP) filtering logic.
 ---
 
 ### `hv_floor_percent` (default: `5.0`)
-**Purpose**: Minimum volatility floor to prevent low-vol noise.
+**Purpose**: Minimum volatility floor used when calculating VRP ratios.
 
 **Formula**: `VRP = IV / max(HV, 5.0%)`
 
@@ -91,11 +91,7 @@ Controls the core volatility risk premium (VRP) filtering logic.
 - `3.0%` = More permissive (allows lower-vol stocks)
 - `7.0%` = More restrictive
 
-**Impact**: Rejects ultra-low volatility symbols.
-
-**Related**:
-- Filter: `LowVolTrapSpec`
-- See: `docs/user-guide/filtering-rules.md#3-lowvoltrapspec`
+**Impact**: Stabilizes VRP calculations (tactical + markup) in low-vol regimes.
 
 ---
 
@@ -238,7 +234,7 @@ Controls whipsaw protection and volatility momentum filtering.
 - `1000` = Higher liquidity requirement
 - `100` = Lower bar (more permissive)
 
-**Related**: Only used when `liquidity_rating` is unavailable.
+**Related**: Fallback filter when Tastytrade's `liquidity_rating` data field is unavailable from the API.
 
 ---
 
@@ -618,17 +614,65 @@ Controls whipsaw protection and volatility momentum filtering.
 
 ---
 
+### `variance_score_weights` (default: composite weights)
+**Purpose**: Weighting for composite variance score components.
+
+**Default**:
+```json
+{
+  "structural_vrp": 0.275,
+  "tactical_vrp": 0.275,
+  "volatility_momentum": 0.1,
+  "hv_rank": 0.1,
+  "iv_percentile": 0.1,
+  "yield": 0.1,
+  "retail_efficiency": 0.05,
+  "liquidity": 0.0
+}
+```
+
+**Notes**:
+- Weights are normalized by their sum.
+- Set a component to `0.0` to remove it from scoring.
+
+---
+
+### `variance_score_momentum_ceiling` (default: `1.20`)
+**Purpose**: Upper bound for HV30/HV90 momentum scoring.
+
+---
+
+### `variance_score_hv_rank_ceiling` (default: `100.0`)
+**Purpose**: Upper bound for HV rank scoring when VRP is rich.
+
+---
+
+### `variance_score_iv_percentile_ceiling` (default: `100.0`)
+**Purpose**: Upper bound for IV percentile scoring.
+
+---
+
+### `variance_score_yield_ceiling` (default: `15.0`)
+**Purpose**: Upper bound for normalized yield scoring.
+
+---
+
+### `variance_score_retail_price_ceiling` (default: `100.0`)
+**Purpose**: Upper bound for retail price scoring.
+
+---
+
+### `variance_score_volume_ceiling_multiplier` (default: `5.0`)
+**Purpose**: Volume ceiling multiplier for liquidity scoring (min volume * multiplier).
+
+---
+
 ### `vrp_tactical_cheap_threshold` (default: `-0.10`)
 **Purpose**: VRP level considered "cheap" (IV < HV).
 
 **Usage**: Flags symbols with VRP < -0.10 (potential long vol opportunities).
 
 ---
-
-### `bats_efficiency_min_price` (default: `15`)
-### `bats_efficiency_max_price` (default: `75`)
-### `bats_efficiency_vrp_structural` (default: `1.0`)
-**Purpose**: BATS (balanced ATM short) strategy parameters.
 
 **Usage**: Strategy-specific filtering for balanced short straddles/strangles.
 

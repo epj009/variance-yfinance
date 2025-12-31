@@ -89,34 +89,7 @@ Result: ❌ REJECTED (tactical filter catches short-term noise)
 
 ---
 
-### 3. ✅ LowVolTrapSpec (NOISE FLOOR)
-
-**File:** `src/variance/models/market_specs.py:115-126`
-
-**What it does:**
-Hard rejects symbols with HV252 < 5% (too quiet to trade profitably).
-
-**Why this prevents whipsaw:**
-- Low-vol stocks have poor liquidity (wide spreads)
-- Price movements dominated by bid/ask bounce (not real signal)
-- Small vol spikes trigger false VRP signals
-
-**Example:**
-```
-Symbol: UTILITY-STOCK
-HV252: 3.2% (barely moves)
-IV: 8.0%
-VRP: 2.5 (looks AMAZING!)
-
-Reality: Options are $0.05 bid / $0.15 ask (200% spread)
-Result: ❌ REJECTED (can't trade this without huge slippage)
-```
-
-**Effectiveness:** **MEDIUM** - Prevents 10-15% of whipsaw trades
-
----
-
-### 4. ✅ DataIntegritySpec (QUALITY GATE)
+### 3. ✅ DataIntegritySpec (QUALITY GATE)
 
 **File:** `src/variance/models/market_specs.py:172-186`
 
@@ -143,7 +116,7 @@ Rejects symbols with data quality warnings (except soft warnings).
 
 ---
 
-### 5. ✅ LiquiditySpec (EXECUTION QUALITY)
+### 4. ✅ LiquiditySpec (EXECUTION QUALITY)
 
 **File:** `src/variance/models/market_specs.py:14-102`
 
@@ -173,7 +146,7 @@ Result: ❌ REJECTED (spread > 25%, rating < 4)
 
 ---
 
-### 6. ✅ CorrelationSpec (DIVERSIFICATION GUARD)
+### 5. ✅ CorrelationSpec (DIVERSIFICATION GUARD)
 
 **File:** `src/variance/models/market_specs.py:188-265`
 
@@ -199,7 +172,7 @@ Result: ❌ REJECTED (correlation > 0.70 threshold)
 
 ---
 
-### 7. ⚠️ IVPercentileSpec (HISTORICAL ANCHOR) **HAS BUG**
+### 6. ⚠️ IVPercentileSpec (HISTORICAL ANCHOR) **HAS BUG**
 
 **File:** `src/variance/models/market_specs.py:267-289`
 
@@ -252,7 +225,7 @@ return iv_pct_val >= self.min_percentile
 
 ---
 
-### 8. ✅ RetailEfficiencySpec (MINIMUM VIABILITY)
+### 7. ✅ RetailEfficiencySpec (MINIMUM VIABILITY)
 
 **File:** `src/variance/models/market_specs.py:326-373`
 
@@ -269,7 +242,7 @@ return iv_pct_val >= self.min_percentile
 
 ---
 
-### 9. ✅ ScalableGateSpec (POSITION ANTI-DUPLICATION)
+### 8. ✅ ScalableGateSpec (POSITION ANTI-DUPLICATION)
 
 **File:** `src/variance/models/market_specs.py:375-396`
 
@@ -424,7 +397,6 @@ class EarningsProximitySpec(Specification[dict[str, Any]]):
 | VolatilityTrapSpec | ✅ | -30% | 13.3% |
 | VrpTacticalSpec | ✅ | -15% | 11.3% |
 | LiquiditySpec | ✅ | -20% | 9.0% |
-| LowVolTrapSpec | ✅ | -10% | 8.1% |
 | DataIntegritySpec | ✅ | Critical (quality) | 8.1% |
 | CorrelationSpec | ✅ | -5% (portfolio) | 7.7% |
 | **IVPercentileSpec** | ⚠️ **BROKEN** | 0% (bug) | 7.7% |
@@ -530,9 +502,8 @@ main_spec &= VolatilityMomentumSpec(
 1. **VolatilityTrapSpec** - Primary whipsaw defense
 2. **VrpTacticalSpec** - Dual-window confirmation
 3. **LiquiditySpec** - Execution quality gate
-4. **LowVolTrapSpec** - Noise floor
-5. **DataIntegritySpec** - Quality gate
-6. **CorrelationSpec** - Portfolio diversification
+4. **DataIntegritySpec** - Quality gate
+5. **CorrelationSpec** - Portfolio diversification
 
 ### ⚠️ Broken (Needs Fix)
 1. **IVPercentileSpec** - Double-scaling bug (line 285)

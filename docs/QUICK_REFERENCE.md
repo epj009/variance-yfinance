@@ -43,7 +43,7 @@ ruff check . --fix && ruff format . && mypy src/variance
 {
   "vrp_structural_threshold": 1.10,        // Min VRP to sell
   "vrp_structural_rich_threshold": 1.30,   // "Rich" VRP level
-  "hv_floor_percent": 5.0,                 // Min HV252
+  "hv_floor_percent": 5.0,                 // HV floor for VRP calculations
   "volatility_momentum_min_ratio": 0.85,   // Min HV30/HV90
   "min_iv_percentile": 20.0,               // Min IV rank
   "retail_min_price": 25.0                 // Min stock price
@@ -191,27 +191,23 @@ Symbol enters screening pipeline
    NO → REJECT (not enough edge)
    YES → Continue
   ↓
-3. LowVolTrap: HV252 >= 5.0?
-   NO → REJECT (dead volatility)
-   YES → Continue
-  ↓
-4. VolatilityTrap: If VRP>1.30, is HV Rank > 15?
+3. VolatilityTrap: If VRP>1.30, is HV Rank > 15?
    NO → REJECT (positional trap)
    YES → Continue
   ↓
-5. VolatilityMomentum: HV30/HV90 >= 0.85?
+4. VolatilityMomentum: HV30/HV90 >= 0.85?
    NO → REJECT (compressing vol)
    YES → Continue
   ↓
-6. RetailEfficiency: Price >= $25?
+5. RetailEfficiency: Price >= $25?
    NO → REJECT (penny stock)
    YES → Continue
   ↓
-7. IVPercentile: IVP >= 20?
+6. IVPercentile: IVP >= 20?
    NO → REJECT (IV too low vs historical range)
    YES → Continue
   ↓
-8. Liquidity: Rating >= 4 OR good volume/spreads?
+7. Liquidity: Rating >= 4 OR good volume/spreads?
    NO → REJECT (illiquid)
    YES → PASS ✅
 ```

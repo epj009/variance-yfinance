@@ -98,10 +98,23 @@
 
   "_____SCORING_AND_SIGNALS_____": "",
   "variance_score_dislocation_multiplier": 200,
+  "variance_score_weights": {
+    "structural_vrp": 0.275,
+    "tactical_vrp": 0.275,
+    "volatility_momentum": 0.1,
+    "hv_rank": 0.1,
+    "iv_percentile": 0.1,
+    "yield": 0.1,
+    "retail_efficiency": 0.05,
+    "liquidity": 0.0
+  },
+  "variance_score_momentum_ceiling": 1.20,
+  "variance_score_hv_rank_ceiling": 100.0,
+  "variance_score_iv_percentile_ceiling": 100.0,
+  "variance_score_yield_ceiling": 15.0,
+  "variance_score_retail_price_ceiling": 100.0,
+  "variance_score_volume_ceiling_multiplier": 5.0,
   "vrp_tactical_cheap_threshold": -0.10,
-  "bats_efficiency_min_price": 15,
-  "bats_efficiency_max_price": 75,
-  "bats_efficiency_vrp_structural": 1.0,
 
   "_____STRESS_TESTING_____": "",
   "stress_scenarios": [
