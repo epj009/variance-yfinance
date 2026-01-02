@@ -23,6 +23,8 @@ class TagRenderer:
         "TOXIC": "💀",
         "EARNINGS_WARNING": "📅",
         "SCALABLE": "➕",
+        "SLOW_THETA": "🐌",
+        "WILD_PL": "🎢",
     }
 
     TAG_COLORS = {
@@ -35,6 +37,8 @@ class TagRenderer:
         "TOXIC": "bold red",
         "EARNINGS_WARNING": "bold yellow",
         "SCALABLE": "bold cyan",
+        "SLOW_THETA": "dim yellow",
+        "WILD_PL": "dim magenta",
     }
 
     def __init__(self, display_rules: Optional[dict[str, Any]] = None):
@@ -91,5 +95,7 @@ class TagRenderer:
             "EARNINGS_WARNING": "ERN",
             "SIZE_THREAT": "SIZE",
             "HEDGE_CHECK": "HDG",
+            "SLOW_THETA": "θ↓",
+            "WILD_PL": "P/L~",
         }
         return abbrevs.get(tag_type, tag_type[:3])
