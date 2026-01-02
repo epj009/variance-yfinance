@@ -34,12 +34,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --gemini)
             AGENT="gemini"
-            MODE="chat"
+            MODE="hybrid"
             shift
             ;;
         --claude)
             AGENT="claude"
-            MODE="chat"
+            MODE="hybrid"
             shift
             ;;
         --chat)
@@ -63,11 +63,11 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --tui       Run Python TUI dashboard only (fast)"
             echo "  --debug     Show diagnostics panels"
-            echo "  --gemini    Run Gemini chat only (no pre-analysis)"
-            echo "  --claude    Run Claude chat only (no pre-analysis)"
-            echo "  --chat      Run default agent chat (Gemini)"
+            echo "  --gemini    Run full analysis with Gemini (TUI + AI)"
+            echo "  --claude    Run full analysis with Claude (TUI + AI)"
+            echo "  --chat      Run chat only with default agent (no analysis)"
             echo "  --hybrid    Run TUI then start interactive strategy session (default)"
-            echo "  --agent     Specify agent for hybrid mode: gemini|claude (default: gemini)"
+            echo "  --agent     Override agent: gemini|claude (default: gemini)"
             exit 0
             ;;
         *)
