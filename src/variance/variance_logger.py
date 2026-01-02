@@ -1,44 +1,30 @@
 import logging
 import os
-import sys
-from datetime import datetime
 
-# Ensure logs directory exists
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
+from .logging_config import setup_logging
 
 
 def setup_logger(name: str = "variance", level: int = logging.INFO) -> logging.Logger:
     """
-    Sets up a standardized logger for the Variance system.
-    Logs to console (stderr) and file (logs/variance.log).
+    Backwards-compatible logger setup.
+
+    Prefer calling setup_logging from variance.logging_config in entrypoints.
     """
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        console_level = os.getenv("VARIANCE_LOG_LEVEL", "INFO")
+        file_level = os.getenv("VARIANCE_FILE_LOG_LEVEL", "DEBUG")
+        enable_debug = os.getenv("VARIANCE_DEBUG", "").lower() in ("1", "true", "yes")
+        json_logs = os.getenv("VARIANCE_JSON_LOGS", "").lower() in ("1", "true", "yes")
+        setup_logging(
+            console_level=console_level,
+            file_level=file_level,
+            enable_debug_file=enable_debug,
+            json_format=json_logs,
+        )
     logger = logging.getLogger(name)
-
-    # prevent adding multiple handlers if setup is called multiple times
-    if logger.handlers:
-        return logger
-
     logger.setLevel(level)
-
-    # Formatter
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-
-    # Console Handler (Stderr)
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    # File Handler
-    log_file = os.path.join(LOG_DIR, f"variance_{datetime.now().strftime('%Y%m%d')}.log")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
     return logger
 
 
-# Singleton instance
 logger = setup_logger()

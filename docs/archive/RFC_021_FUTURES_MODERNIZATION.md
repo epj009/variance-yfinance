@@ -16,7 +16,7 @@ Investigation confirms that our `TastytradeClient` successfully retrieves high-q
 
 ## 2. Motivation
 The current screener treats Futures as "First-Class Citizens with Special Needs."
-*   **Assumption:** Yahoo Finance data for futures options (volume/OI) is unreliable, and Tastytrade data coverage was assumed spotty.
+*   **Assumption:** legacy data source data for futures options (volume/OI) is unreliable, and Tastytrade data coverage was assumed spotty.
 *   **Reality:** `TastytradeClient` returns robust metrics for major and minor futures.
 *   **The Risk:** By auto-passing `LiquiditySpec` and `IVPercentileSpec`, we potentially recommend:
     1.  **Illiquid Products:** Futures with a Tastytrade Liquidity Rating of "1" (e.g., some Ags or Softs) are currently flagged as "Liquid" by the screener.

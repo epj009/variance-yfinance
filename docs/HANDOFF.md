@@ -18,7 +18,7 @@
 ```bash
 # 1. Clone and setup
 git clone <repo-url>
-cd variance-yfinance
+cd variance-legacy provider
 python3 -m venv venv
 source venv/bin/activate
 pip install -e ".[dev]"
@@ -39,7 +39,7 @@ variance-analyze
 ## Project Structure
 
 ```
-variance-yfinance/
+variance-legacy provider/
 ├── src/variance/              # Main application code
 │   ├── models/                # Domain models (Position, Portfolio, Specs)
 │   ├── strategies/            # Strategy detection (Strangle, IronCondor, etc.)
@@ -147,7 +147,7 @@ for handler in handlers:
 ```
 1. Load watchlist (watchlists/default-watchlist.csv)
    ↓
-2. Fetch Market Data (Tastytrade API + yfinance)
+2. Fetch Market Data (Tastytrade API + legacy provider)
    ↓
 3. Filter (Specifications)
    ↓
@@ -456,7 +456,7 @@ Specialized diagnostic for futures symbols:
    - Rate limits: Unknown (not documented)
    - Futures IV Percentile: ✅ PROVIDED for both equities and futures
 
-2. **yfinance (Fallback):**
+2. **legacy provider (Fallback):**
    - Used for price, historical volatility
    - Rate limit: ~2000 requests/hour (market hours) / ~48 requests/hour (after hours)
    - Cache aggressively to avoid limits
@@ -490,7 +490,7 @@ Specialized diagnostic for futures symbols:
   }
   ```
 
-**Fallback:** If credentials missing, uses yfinance exclusively (degraded mode).
+**Fallback:** If credentials missing, uses legacy provider exclusively (degraded mode).
 
 ## Deployment
 

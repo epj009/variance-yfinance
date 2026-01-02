@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 from variance.analyze_portfolio import analyze_portfolio
 from variance.common import warn_if_not_venv
 from variance.errors import error_lines
+from variance.market_data.service import MarketDataFactory
 
 
 def build_diagnostics_footer(report_data: dict[str, Any]) -> dict[str, Any]:
@@ -58,6 +59,27 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     warn_if_not_venv()
+
+    if os.getenv("VARIANCE_TEST_MODE") == "1":
+
+        class _TestProvider:
+            def get_market_data(self, symbols, *, include_returns=False):
+                data = {}
+                for symbol in symbols:
+                    data[symbol] = {
+                        "price": 100.0,
+                        "iv": 20.0,
+                        "hv30": 15.0,
+                        "hv90": 18.0,
+                        "sector": "Test",
+                        "is_stale": False,
+                    }
+                return data
+
+        MarketDataFactory.get_provider = staticmethod(
+            lambda provider_type="tastytrade": _TestProvider()
+        )
+
     report_data = analyze_portfolio(args.file_path)
 
     if "error" in report_data:

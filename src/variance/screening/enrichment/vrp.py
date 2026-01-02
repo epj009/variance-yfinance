@@ -13,9 +13,9 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
     def enrich(self, candidate: dict[str, Any], ctx: Any) -> None:
         rules = ctx.config_bundle.get("trading_rules", {})
 
-        # 1. Basic Stats (Prefer Tastytrade HV fields, fallback to yfinance)
-        hv30 = candidate.get("hv30") or candidate.get("hv20")  # TT first, yf fallback
-        hv90 = candidate.get("hv90") or candidate.get("hv252")  # TT first, yf fallback
+        # 1. Basic Stats (Prefer HV30/HV90, fall back to legacy fields if present)
+        hv30 = candidate.get("hv30") or candidate.get("hv20")
+        hv90 = candidate.get("hv90") or candidate.get("hv252")
         hv20 = candidate.get("hv20")  # Keep for coiled_medium calculation
         iv30 = candidate.get("iv")
         hv_floor_abs = float(rules.get("hv_floor_percent", 5.0))
@@ -44,13 +44,12 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
             pass
 
         # 4. Signal Synthesis
-        from variance.vol_screener import (
-            _create_candidate_flags,
-            _determine_regime_type,
-            _determine_signal_type,
-            _get_recommended_environment,
-            get_days_to_date,
+        from variance.signals import (
+            create_candidate_flags,
+            determine_signal_type,
+            get_recommended_environment,
         )
+        from variance.vol_screener import get_days_to_date
 
         days_to_earn = get_days_to_date(candidate.get("earnings_date"))
         vrp_structural = candidate.get("vrp_structural")
@@ -59,23 +58,22 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
         hv20_f = float(hv20) if hv20 is not None else None
         hv60_f = float(candidate.get("hv60", 0)) or None
 
-        flags = _create_candidate_flags(
-            vrp_s_f,
-            days_to_earn,
-            candidate["Compression Ratio"],
-            candidate["vrp_tactical_markup"],
-            hv20_f,
-            hv60_f,
-            rules,
+        flags = create_candidate_flags(
+            vrp_s_f, days_to_earn, candidate["vrp_tactical_markup"], rules
         )
 
         # Restore TUI keys
         iv_pct_val = candidate.get("iv_percentile")
-        candidate["Signal"] = _determine_signal_type(
-            flags, candidate["vrp_tactical_markup"], rules, iv_pct_val
+        candidate["Signal"] = determine_signal_type(
+            flags,
+            candidate["vrp_tactical_markup"],
+            rules,
+            iv_pct_val,
+            candidate["Compression Ratio"],
+            hv20_f,
+            hv60_f,
         )
-        candidate["Regime"] = _determine_regime_type(flags)
-        candidate["Environment"] = _get_recommended_environment(candidate["Signal"])
+        candidate["Environment"] = get_recommended_environment(candidate["Signal"])
         candidate["Earnings In"] = days_to_earn
         candidate["VRP Structural"] = vrp_structural
         candidate.update(flags)

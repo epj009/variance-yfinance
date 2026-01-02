@@ -80,6 +80,51 @@
   - ADR-0011: Volatility spec separation
   - Template for new ADRs
 
+### Research Documentation (NEW - December 31, 2024)
+- [x] **docs/research/tastytrade-complete-capability-matrix.md** - ⭐ COMPLETE CAPABILITY MATRIX
+  - **80+ REST API endpoints** fully documented
+  - **6 DXLink event types** with complete specifications
+  - **Account Streamer** WebSocket protocol
+  - **Every field documented** (including undocumented fields in actual responses)
+  - **Variance use case matrix** for every capability
+  - **Authentication & authorization** complete guide
+  - **Symbology standards** for all asset types
+  - **API conventions, limits, and best practices**
+  - **Systematic exploration of entire developer.tastytrade.com site**
+  - 28 KB comprehensive reference
+
+- [x] **docs/research/tastytrade-actual-api-fields.md** - Actual API fields reference
+  - Fields ACTUALLY returned vs OpenAPI spec
+  - Hidden fields discovered: HV30, HV90, beta, corr-spy-3month
+  - Market Metrics complete field list (25+ fields)
+  - Market Data complete field list (35+ fields)
+  - Verified against production code
+
+- [x] **docs/research/tastytrade-api-complete-capabilities.md** - Initial exploration (SUPERSEDED)
+  - Original research document
+  - Now superseded by complete-capability-matrix.md
+
+- [x] **docs/research/API-EXPLORATION-SUMMARY.md** - Executive summary
+  - Key discovery: DXLink Candle events solve HV gaps
+  - REST API vs DXLink comparison
+  - Implementation checklist (8-12 hours)
+  - Expected outcomes (80% → 99%+ coverage)
+
+- [x] **scripts/test_dxlink_candles.py** - Candle event test script
+  - Tests historical OHLC retrieval
+  - Validates HV30/HV90 calculation feasibility
+  - Status: Ready to run (pending tastytrade SDK install)
+
+- [x] **scripts/test_tastytrade_candles.py** - REST API candle test
+  - Tested 4 endpoint patterns
+  - Result: REST API has NO historical candles endpoint
+  - Confirmed DXLink is the only solution
+
+- [x] **scripts/diagnose_dxlink_access.py** - DXLink access verification
+  - Result: ✅ CONFIRMED access to DXLink streaming
+  - Token expires: 2026-01-02
+  - WebSocket URL: wss://tasty-openapi-ws.dxfeed.com/realtime
+
 ## ✅ Code Quality
 
 ### Quality Gates (All Passing)
@@ -294,7 +339,7 @@
 ### Prepared By
 - **Author:** Claude Sonnet 4.5 (AI Assistant)
 - **Date:** December 25, 2024
-- **Session:** variance-yfinance context continuation
+- **Session:** variance-legacy provider context continuation
 
 ### Deliverables Summary
 - **4 new core handoff documents** (HANDOFF, QUICK_REFERENCE, TROUBLESHOOTING, DEVELOPMENT_PRIORITIES)
@@ -318,12 +363,24 @@
 - AI agent has complete context
 
 ### Next Contractor Should Focus On
-1. Fix 7 failing integration tests (2-4 hours)
-2. Improve Tastytrade client coverage to 70% (4-6 hours)
-3. Strategy implementation tests (3-4 hours)
-4. Achieve 75% overall coverage
 
-**Estimated effort to production-ready:** 16-22 hours of focused work
+**UPDATED PRIORITY (December 31, 2024):**
+
+1. **DXLink Integration** (8-12 hours) - HIGHEST PRIORITY
+   - Solves missing HV30/HV90 data (80% → 99%+ coverage)
+   - Unlocks TOXIC_THETA handler (live Greeks)
+   - Eliminates legacy provider dependency (unreliable)
+   - Test scripts ready, comprehensive docs completed
+   - See: `docs/research/API-EXPLORATION-SUMMARY.md`
+
+2. Fix 7 failing integration tests (2-4 hours)
+3. Improve Tastytrade client coverage to 70% (4-6 hours)
+4. Strategy implementation tests (3-4 hours)
+5. Achieve 75% overall coverage
+
+**Estimated effort to production-ready:** 24-34 hours of focused work
+- DXLink integration: 8-12 hours (NEW)
+- Testing improvements: 16-22 hours (EXISTING)
 
 ---
 

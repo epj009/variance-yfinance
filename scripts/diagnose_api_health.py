@@ -4,7 +4,7 @@
 """
 API Health Diagnostic Tool
 
-Diagnoses connectivity and rate limiting issues with yfinance and Tastytrade APIs.
+Diagnoses connectivity and rate limiting issues with Tastytrade APIs.
 Helps troubleshoot data fetching failures.
 
 Usage:
@@ -42,39 +42,17 @@ def test_network_connectivity() -> dict[str, Any]:
     try:
         import socket
 
-        socket.gethostbyname("query2.finance.yahoo.com")
+        socket.gethostbyname("api.tastytrade.com")
         print("✅ DNS resolution: OK")
         results["dns"] = "OK"
     except Exception as e:
         print(f"❌ DNS resolution: FAILED - {e}")
         results["dns"] = f"FAILED: {e}"
 
-    # Test HTTP connectivity to Yahoo Finance
+    # Test Tastytrade API
     try:
         import requests
 
-        response = requests.head("https://query2.finance.yahoo.com", timeout=5)
-        print(f"✅ Yahoo Finance reachable: HTTP {response.status_code}")
-        results["yahoo_http"] = response.status_code
-
-        # Check for rate limiting
-        if response.status_code == 429:
-            print("⚠️  WARNING: Rate limit detected (HTTP 429)")
-            retry_after = response.headers.get("Retry-After", "unknown")
-            print(f"   Retry-After: {retry_after}")
-            results["rate_limited"] = True
-            results["retry_after"] = retry_after
-        else:
-            results["rate_limited"] = False
-    except requests.exceptions.Timeout:
-        print("❌ Yahoo Finance: TIMEOUT")
-        results["yahoo_http"] = "TIMEOUT"
-    except Exception as e:
-        print(f"❌ Yahoo Finance: FAILED - {e}")
-        results["yahoo_http"] = f"FAILED: {e}"
-
-    # Test Tastytrade API
-    try:
         api_url = os.getenv("API_BASE_URL", "https://api.tastytrade.com")
         response = requests.head(api_url, timeout=5)
         print(f"✅ Tastytrade API reachable: HTTP {response.status_code}")
@@ -101,7 +79,7 @@ def test_environment() -> dict[str, Any]:
         print("✅ Tastytrade credentials: Found")
         results["tastytrade_creds"] = "Found"
     else:
-        print("⚠️  Tastytrade credentials: Missing (will use yfinance only)")
+        print("⚠️  Tastytrade credentials: Missing (API calls will fail)")
         missing = []
         if not tt_client_id:
             missing.append("TT_CLIENT_ID")
@@ -119,15 +97,6 @@ def test_environment() -> dict[str, Any]:
     results["python_version"] = py_version
 
     # Check key dependencies
-    try:
-        import yfinance
-
-        print(f"✅ yfinance version: {yfinance.__version__}")
-        results["yfinance_version"] = yfinance.__version__
-    except Exception as e:
-        print(f"❌ yfinance: {e}")
-        results["yfinance_version"] = f"ERROR: {e}"
-
     try:
         import requests
 
@@ -160,75 +129,6 @@ def test_environment() -> dict[str, Any]:
     results["current_time_et"] = now.strftime("%Y-%m-%d %H:%M:%S %Z")
 
     return results
-
-
-def test_yfinance_fetch(symbol: str, verbose: bool = False) -> dict[str, Any]:
-    """Test fetching data for a single symbol via yfinance."""
-    result = {"symbol": symbol, "success": False, "errors": [], "data": {}}
-
-    try:
-        import yfinance as yf
-
-        ticker = yf.Ticker(symbol)
-
-        # Test 1: Basic info
-        try:
-            info = ticker.info
-            if info:
-                result["data"]["info"] = "Available"
-                if verbose:
-                    print(f"   Info keys: {list(info.keys())[:5]}...")
-            else:
-                result["errors"].append("Info empty")
-        except Exception as e:
-            result["errors"].append(f"Info failed: {e}")
-
-        # Test 2: Price data
-        try:
-            price = ticker.history(period="1d")
-            if not price.empty:
-                last_close = price["Close"].iloc[-1]
-                result["data"]["price"] = float(last_close)
-                if verbose:
-                    print(f"   Price: ${last_close:.2f}")
-            else:
-                result["errors"].append("Price history empty")
-        except Exception as e:
-            result["errors"].append(f"Price fetch failed: {e}")
-
-        # Test 3: Historical data (1 year)
-        try:
-            hist = ticker.history(period="1y")
-            if not hist.empty:
-                result["data"]["history_rows"] = len(hist)
-                if verbose:
-                    print(f"   History: {len(hist)} rows")
-            else:
-                result["errors"].append("History empty (1y)")
-        except Exception as e:
-            result["errors"].append(f"History fetch failed: {e}")
-
-        # Test 4: Options (if equity)
-        if not symbol.startswith("/") and not symbol.startswith("^"):
-            try:
-                options = ticker.options
-                if options:
-                    result["data"]["options_dates"] = len(options)
-                    if verbose:
-                        print(f"   Options: {len(options)} expiration dates")
-                else:
-                    result["errors"].append("No options available")
-            except Exception as e:
-                result["errors"].append(f"Options fetch failed: {e}")
-
-        # Success if we got any data
-        result["success"] = len(result["data"]) > 0
-
-    except Exception as e:
-        result["errors"].append(f"yfinance error: {e}")
-        result["success"] = False
-
-    return result
 
 
 def test_tastytrade_fetch(symbol: str) -> dict[str, Any]:
@@ -271,21 +171,10 @@ def test_symbol_fetch(symbols: list[str], verbose: bool = False) -> dict[str, An
     """Test fetching data for symbols."""
     print_section("3. SYMBOL DATA FETCHING")
 
-    results = {"yfinance": {}, "tastytrade": {}}
+    results = {"tastytrade": {}}
 
     for symbol in symbols:
         print(f"\n📊 Testing: {symbol}")
-
-        # Test yfinance
-        print("   yfinance:")
-        yf_result = test_yfinance_fetch(symbol, verbose=verbose)
-        if yf_result["success"]:
-            print(f"   ✅ yfinance: OK ({len(yf_result['data'])} data points)")
-        else:
-            print("   ❌ yfinance: FAILED")
-            for error in yf_result["errors"]:
-                print(f"      - {error}")
-        results["yfinance"][symbol] = yf_result
 
         # Test Tastytrade
         print("   Tastytrade:")
@@ -370,21 +259,14 @@ def generate_summary(network: dict, env: dict, symbols: dict, cache: dict) -> No
     print_section("DIAGNOSTIC SUMMARY")
 
     # Network issues
-    if network.get("rate_limited"):
-        print("🔴 ISSUE: Yahoo Finance rate limiting detected")
-        print(f"   Retry after: {network.get('retry_after', 'unknown')}")
-        print("   Solution: Wait 15-60 minutes before retrying")
-    elif network.get("yahoo_http") == "TIMEOUT":
-        print("🔴 ISSUE: Network timeout to Yahoo Finance")
-        print("   Solution: Check internet connection")
-    elif network.get("yahoo_http") not in [200, 301, 302]:
-        print(f"🔴 ISSUE: Yahoo Finance API not responding (HTTP {network.get('yahoo_http')})")
+    if network.get("tastytrade_http") not in [200, 301, 302]:
+        print(f"🔴 ISSUE: Tastytrade API not responding (HTTP {network.get('tastytrade_http')})")
     else:
         print("✅ Network: OK")
 
     # Credentials
     if "Missing" in str(env.get("tastytrade_creds", "")):
-        print("⚠️  INFO: Tastytrade credentials missing - using yfinance only")
+        print("⚠️  INFO: Tastytrade credentials missing - API calls will fail")
     else:
         print("✅ Tastytrade: Configured")
 
@@ -395,9 +277,9 @@ def generate_summary(network: dict, env: dict, symbols: dict, cache: dict) -> No
         print("ℹ️  Market: CLOSED (will use cache if available)")
 
     # Symbol fetch results
-    yf_results = symbols.get("yfinance", {})
-    success_count = sum(1 for r in yf_results.values() if r["success"])
-    total_count = len(yf_results)
+    tt_results = symbols.get("tastytrade", {})
+    success_count = sum(1 for r in tt_results.values() if r["success"])
+    total_count = len(tt_results)
 
     if success_count == total_count and total_count > 0:
         print(f"✅ Symbol fetching: {success_count}/{total_count} successful")
@@ -406,9 +288,8 @@ def generate_summary(network: dict, env: dict, symbols: dict, cache: dict) -> No
     else:
         print("🔴 ISSUE: Symbol fetching failed for all symbols")
         print("   Common causes:")
-        print("   - Rate limiting (wait and retry)")
         print("   - Network connectivity issues")
-        print("   - yfinance API degradation")
+        print("   - Missing/invalid credentials")
 
     # Cache
     if cache.get("cache_found"):
@@ -418,14 +299,10 @@ def generate_summary(network: dict, env: dict, symbols: dict, cache: dict) -> No
 
     # Recommendations
     print("\n📋 RECOMMENDATIONS:")
-    if network.get("rate_limited"):
-        print("   1. Wait 1 hour before retrying")
-        print("   2. Reduce number of symbols in portfolio")
-        print("   3. Use cache from previous successful run")
-    elif success_count == 0:
+    if success_count == 0:
         print("   1. Check internet connection")
-        print("   2. Try again in 15-30 minutes")
-        print("   3. Check if yfinance is experiencing outages")
+        print("   2. Confirm Tastytrade credentials in `.env.tastytrade`")
+        print("   3. Try again in 5-10 minutes")
     elif not cache.get("cache_found"):
         print("   1. Run during market hours to populate cache")
         print("   2. Cache will speed up future runs significantly")
@@ -476,12 +353,9 @@ def main() -> None:
         generate_summary(network, env, symbols, cache)
 
     # Exit code
-    if network.get("rate_limited"):
-        sys.exit(2)  # Rate limited
-    elif all(r["success"] for r in symbols.get("yfinance", {}).values()):
+    if all(r["success"] for r in symbols.get("tastytrade", {}).values()):
         sys.exit(0)  # All good
-    else:
-        sys.exit(1)  # Some failures
+    sys.exit(1)  # Some failures
 
 
 if __name__ == "__main__":

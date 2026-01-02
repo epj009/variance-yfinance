@@ -13,9 +13,9 @@ Authentication via OAuth 2.0 tokens.
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
-from dataclasses import dataclass
 
 import websockets
 from websockets.client import WebSocketClientProtocol
@@ -137,9 +137,7 @@ class DXLinkClient:
             logger.debug("Sent SETUP message")
 
             # Wait for SETUP response
-            response = await asyncio.wait_for(
-                self.websocket.recv(), timeout=self.timeout
-            )
+            response = await asyncio.wait_for(self.websocket.recv(), timeout=self.timeout)
             response_data = json.loads(response)
 
             if response_data.get("type") != "SETUP":
@@ -236,8 +234,7 @@ class DXLinkClient:
         from_time = int((datetime.now() - timedelta(days=days)).timestamp() * 1000)
 
         logger.info(
-            f"Requesting {days} days of {interval} candles for {symbol} "
-            f"(fromTime: {from_time})"
+            f"Requesting {days} days of {interval} candles for {symbol} (fromTime: {from_time})"
         )
 
         # Step 1: Create feed channel
@@ -254,9 +251,7 @@ class DXLinkClient:
             logger.debug(f"Sent CHANNEL_REQUEST for channel {channel_id}")
 
             # Wait for channel response
-            channel_response = await asyncio.wait_for(
-                self.websocket.recv(), timeout=self.timeout
-            )
+            channel_response = await asyncio.wait_for(self.websocket.recv(), timeout=self.timeout)
             channel_data = json.loads(channel_response)
             logger.debug(f"Channel response: {channel_data}")
 
@@ -290,9 +285,7 @@ class DXLinkClient:
             logger.debug("Sent FEED_SETUP")
 
             # Wait for setup response
-            setup_response = await asyncio.wait_for(
-                self.websocket.recv(), timeout=self.timeout
-            )
+            setup_response = await asyncio.wait_for(self.websocket.recv(), timeout=self.timeout)
             setup_data = json.loads(setup_response)
             logger.debug(f"Feed setup response: {setup_data}")
 
@@ -334,9 +327,7 @@ class DXLinkClient:
 
                 try:
                     # Wait for message with short timeout for checking conditions
-                    message = await asyncio.wait_for(
-                        self.websocket.recv(), timeout=1.0
-                    )
+                    message = await asyncio.wait_for(self.websocket.recv(), timeout=1.0)
                     data = json.loads(message)
 
                     # DEBUG: Log all received messages
@@ -355,9 +346,13 @@ class DXLinkClient:
                         if data_lists and len(data_lists) > 0:
                             first_list = data_lists[0]
                             if isinstance(first_list, list) and len(first_list) > 0:
-                                logger.info(f"First event type: {first_list[0]}, items: {len(first_list)-1}")
+                                logger.info(
+                                    f"First event type: {first_list[0]}, items: {len(first_list) - 1}"
+                                )
                                 if len(first_list) > 1:
-                                    logger.info(f"First item sample: {first_list[1][:5] if isinstance(first_list[1], list) else first_list[1]}")
+                                    logger.info(
+                                        f"First item sample: {first_list[1][:5] if isinstance(first_list[1], list) else first_list[1]}"
+                                    )
 
                         for event_list in data_lists:
                             if not isinstance(event_list, list) or len(event_list) < 2:
@@ -365,7 +360,9 @@ class DXLinkClient:
                                 continue
 
                             event_type = event_list[0]  # Event type string
-                            logger.debug(f"Event type: {event_type}, elements: {len(event_list) - 1}")
+                            logger.debug(
+                                f"Event type: {event_type}, elements: {len(event_list) - 1}"
+                            )
 
                             if event_type == "Candle":
                                 # Parse candle events in COMPACT format
@@ -389,7 +386,10 @@ class DXLinkClient:
                                         }
 
                                         # Skip NaN values
-                                        if event_obj["open"] == "NaN" or event_obj["close"] == "NaN":
+                                        if (
+                                            event_obj["open"] == "NaN"
+                                            or event_obj["close"] == "NaN"
+                                        ):
                                             continue
 
                                         # Convert string numbers to floats
@@ -417,17 +417,13 @@ class DXLinkClient:
 
                     elif data.get("type") == "KEEPALIVE":
                         # Respond to keepalive
-                        await self.websocket.send(
-                            json.dumps({"type": "KEEPALIVE", "channel": 0})
-                        )
+                        await self.websocket.send(json.dumps({"type": "KEEPALIVE", "channel": 0}))
 
                 except asyncio.TimeoutError:
                     # Short timeout expired, check if we have enough data
                     if candles:
                         # If we've received candles and there's a pause, assume complete
-                        logger.debug(
-                            f"No more candles received, collected {len(candles)}"
-                        )
+                        logger.debug(f"No more candles received, collected {len(candles)}")
                         break
                     continue
 

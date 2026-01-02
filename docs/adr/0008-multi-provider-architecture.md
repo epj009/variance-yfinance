@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Variance initially relied exclusively on yfinance for all market data (price, IV, HV, earnings). However, yfinance has several limitations:
+Variance initially relied exclusively on legacy provider for all market data (price, IV, HV, earnings). However, legacy provider has several limitations:
 
 1. **IV Quality**: Computed from option chains using complex normalization heuristics, prone to scale errors (decimal vs percent)
 2. **Missing Metrics**: No native IVR (IV Rank), IVP (IV Percentile), or liquidity ratings
@@ -28,23 +28,23 @@ We will implement a **Composite Provider Pattern** using the existing `IMarketDa
 TastytradeProvider (implements IMarketDataProvider):
   ├─ Tastytrade API: iv, iv_rank, iv_percentile, hv30, hv90,
   │                  liquidity_rating, liquidity_value, earnings_date
-  └─ YFinanceProvider (internal): price, returns, sector
+  └─ LegacyProvider (internal): price, returns, sector
 
   Returns: Merged MarketData with data_source="composite"
 ```
 
 **Field Ownership (No Overlaps)**:
 - **Tastytrade owns**: All volatility metrics (IV, HV, IVR, IVP), liquidity data
-- **yfinance owns**: Price, returns, sector classification
+- **legacy provider owns**: Price, returns, sector classification
 - **No conflicts**: Each provider contributes disjoint fields
 
 ### Alternatives Considered
 
 **Option B: Independent Providers + Config Swap**
 ```
-runtime_config.json: { "provider": "tastytrade" } OR { "provider": "yfinance" }
+runtime_config.json: { "provider": "tastytrade" } OR { "provider": "legacy provider" }
 ```
-- **Rejected**: Cannot mix sources (Tastytrade lacks price, yfinance lacks IVR/IVP/HV30/HV90)
+- **Rejected**: Cannot mix sources (Tastytrade lacks price, legacy provider lacks IVR/IVP/HV30/HV90)
 
 **Option C: Multi-Provider Orchestrator with Field-Level Routing**
 ```
@@ -58,15 +58,15 @@ CompositeProvider:
 ### Fallback Strategy
 If Tastytrade fails (auth error, rate limit, server error):
 1. Log warning with failure reason
-2. Fall back to yfinance-only data for entire batch
+2. Fall back to legacy provider-only data for entire batch
 3. Set `warning: "tastytrade_fallback"` on all returned MarketData
-4. Compute VRP using yfinance HV20/HV252 (legacy formulas)
+4. Compute VRP using legacy provider HV20/HV252 (legacy formulas)
 
 ### Provider Priority (Future Extension)
 When adding new brokers (e.g., Interactive Brokers):
 ```
 runtime_config.json: {
-  "provider_priority": ["tastytrade", "interactive_brokers", "yfinance"]
+  "provider_priority": ["tastytrade", "interactive_brokers", "legacy provider"]
 }
 ```
 Factory tries providers in order until success (no merge conflicts, only failover).
@@ -77,14 +77,14 @@ Factory tries providers in order until success (no merge conflicts, only failove
 1. **Clean Separation**: Each provider owns disjoint fields, zero merge conflicts
 2. **Extensibility**: New brokers can be added by implementing `IMarketDataProvider`
 3. **Graceful Degradation**: System continues working if Tastytrade unavailable
-4. **Field-Level Quality**: Use best source for each data type (Tastytrade for vol, yfinance for price)
+4. **Field-Level Quality**: Use best source for each data type (Tastytrade for vol, legacy provider for price)
 5. **Runtime Swappable**: Can A/B test providers via config without code changes
 6. **Single Responsibility**: Each provider does one thing well
 
 ### Cons
-1. **Internal Coupling**: TastytradeProvider internally depends on YFinanceProvider for price/returns
+1. **Internal Coupling**: TastytradeProvider internally depends on LegacyProvider for price/returns
    - **Mitigation**: Dependency injection allows mocking/testing
-2. **Dual API Calls**: Each symbol requires two API calls (Tastytrade + yfinance)
+2. **Dual API Calls**: Each symbol requires two API calls (Tastytrade + legacy provider)
    - **Mitigation**: Parallel execution via ThreadPoolExecutor, caching reduces redundant calls
 3. **Config Complexity**: More settings in `runtime_config.json` (Tastytrade section)
    - **Mitigation**: Sensible defaults, env var validation on startup
@@ -97,6 +97,6 @@ Factory tries providers in order until success (no merge conflicts, only failove
 
 ## References
 - Tastytrade API Research: `docs/implementation/tastytrade-data-research.md`
-- YFinance Migration Guide: `docs/implementation/yfinance-provider-migration.md`
-- YFinance Migration Checklist: `docs/implementation/yfinance-migration-checklist.md`
+- LegacyProvider Migration Guide: `docs/implementation/legacy provider-provider-migration.md`
+- LegacyProvider Migration Checklist: `docs/implementation/legacy provider-migration-checklist.md`
 - Related ADRs: ADR-0002 (Strategy Pattern), ADR-0005 (Execution Isolation)

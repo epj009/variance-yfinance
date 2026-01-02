@@ -162,7 +162,7 @@ def test_analyze_portfolio_harvest_action(monkeypatch, tmp_path, mock_market_pro
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     # Create dummy CSV
     csv_path = tmp_path / "positions.csv"
@@ -227,7 +227,7 @@ def test_asset_mix_calculation_equity_heavy(tmp_path, monkeypatch, mock_market_p
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
     config_bundle = make_config_bundle(
         {
             "vrp_structural_threshold": 0.85,
@@ -342,7 +342,7 @@ def test_asset_mix_calculation_equity_warning(tmp_path, monkeypatch, mock_market
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
     config_bundle = make_config_bundle(
         {
             "vrp_structural_threshold": 0.85,
@@ -451,7 +451,7 @@ def test_asset_mix_diversified(tmp_path, monkeypatch, mock_market_provider):
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
     config_bundle = make_config_bundle(
         {
             "vrp_structural_threshold": 0.85,
@@ -536,7 +536,7 @@ def test_friction_horizon_calculation(tmp_path, monkeypatch, mock_market_provide
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
     config_bundle = make_config_bundle(
         {
             "vrp_structural_threshold": 0.85,

@@ -8,7 +8,7 @@ Currently, Variance relies on a single IV point (IV30). This creates "Numerator 
 
 ## 3. Proposed Mechanics
 ### 3.1 Data Acquisition
-- The `YFinanceProvider` will fetch two specific points on the volatility surface:
+- The `LegacyProvider` will fetch two specific points on the volatility surface:
     - **Front-Month (Near):** Target ~30 DTE.
     - **Back-Month (Next):** Target ~60 DTE.
 

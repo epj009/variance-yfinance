@@ -4,13 +4,13 @@
 """
 Tastytrade Data Research Script
 
-Explores what data we can get from Tastytrade API to reduce yfinance dependency.
+Explores what data we can get from Tastytrade API to reduce legacy provider dependency.
 
 Tests:
 1. REST API endpoints (quotes, candles, market data)
 2. DXLink/DXFeed streaming (if available)
 3. Account-based data endpoints
-4. Compares Tastytrade vs yfinance capabilities
+4. Compares Tastytrade vs legacy provider capabilities
 
 Usage:
     source .env.tastytrade
@@ -401,7 +401,7 @@ def print_summary(results: dict[str, Any]) -> None:
     if results.get("candles", {}).get("success"):
         print("\n✅ HISTORICAL DATA:")
         print("   • OHLCV candles available")
-        print("   • Can replace yfinance for price history")
+        print("   • Can replace legacy provider for price history")
     else:
         print("\n❌ HISTORICAL DATA:")
         print("   • Candles endpoint not found or requires different auth")
@@ -427,17 +427,17 @@ def print_summary(results: dict[str, Any]) -> None:
 
     print("\n📊 RECOMMENDATION:")
     if results.get("quotes", {}).get("success") and results.get("candles", {}).get("success"):
-        print("   ✅ Tastytrade can replace yfinance for most data")
+        print("   ✅ Tastytrade can replace legacy provider for most data")
         print("   • Implement Tastytrade-first architecture")
-        print("   • Fall back to yfinance only for missing data")
+        print("   • Fall back to legacy provider only for missing data")
     elif results.get("quotes", {}).get("success"):
         print("   ⚠️  Tastytrade can provide real-time prices")
-        print("   • Use for current quotes to reduce yfinance API calls")
-        print("   • Still need yfinance for historical data")
+        print("   • Use for current quotes to reduce legacy provider API calls")
+        print("   • Still need legacy provider for historical data")
     else:
         print("   ❌ Tastytrade data access limited with current credentials")
         print("   • Continue using market-metrics endpoint (IV, HV, liquidity)")
-        print("   • Rely on yfinance for price data")
+        print("   • Rely on legacy provider for price data")
         print("   • Consider upgrading Tastytrade subscription for more data access")
 
 
@@ -468,7 +468,7 @@ def main() -> None:
 
     print("\n╔════════════════════════════════════════════════════════════════╗")
     print("║  TASTYTRADE API DATA RESEARCH                                  ║")
-    print("║  Exploring alternatives to yfinance                            ║")
+    print("║  Exploring alternatives to legacy provider                            ║")
     print("╚════════════════════════════════════════════════════════════════╝")
     print(f"\nTesting with symbols: {', '.join(args.symbols)}")
 

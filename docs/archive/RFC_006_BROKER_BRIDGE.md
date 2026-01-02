@@ -99,7 +99,7 @@ The Analysis Engine will check the `fetched_at` timestamp in the JSON header.
 *   **> 24 Hours:** Error/Reject.
 
 ### 4.3. Market Data Separation
-We will **continue to use yfinance** for market data (IV, HV, Price) in Phase 1.
+We will **continue to use legacy provider** for market data (IV, HV, Price) in Phase 1.
 *   *Reason:* Keeps the "Analysis" layer independent of the "Position" layer. We don't want to rely on the broker for Greeks, as their models might differ from our standardized VRP calculations.
 
 ## 5. Implementation Steps

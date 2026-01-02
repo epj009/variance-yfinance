@@ -42,32 +42,9 @@ class LiquiditySpec(Specification[dict[str, Any]]):
         if self.allow_illiquid:
             return True
 
-        # --- Helper for spread calculation ---
-        def calculate_slippage(metrics_dict: dict[str, Any]) -> tuple[bool, float]:
-            """Returns (has_quote, max_slippage_found)."""
-            call_bid = metrics_dict.get("call_bid")
-            call_ask = metrics_dict.get("call_ask")
-            put_bid = metrics_dict.get("put_bid")
-            put_ask = metrics_dict.get("put_ask")
+        from variance.liquidity import SlippageCalculator
 
-            max_val = 0.0
-            quote_exists = False
-
-            for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
-                if bid is not None and ask is not None:
-                    try:
-                        f_bid, f_ask = float(bid), float(ask)
-                        mid = (f_bid + f_ask) / 2
-                        if mid > 0:
-                            quote_exists = True
-                            slippage = (f_ask - f_bid) / mid
-                            if slippage > max_val:
-                                max_val = slippage
-                    except (ValueError, TypeError):
-                        pass
-            return quote_exists, max_val
-
-        has_quote, max_slippage_found = calculate_slippage(metrics)
+        has_quote, max_slippage_found = SlippageCalculator.calculate_max_slippage(metrics)
 
         # PRIMARY: Check Tastytrade liquidity_rating if present (1-5 scale)
         tt_rating = metrics.get("liquidity_rating")
@@ -165,7 +142,7 @@ class DataIntegritySpec(Specification[dict[str, Any]]):
             "iv_scale_assumed_decimal",
             "after_hours_stale",
             "tastytrade_fallback",
-            "yfinance_unavailable_cached",
+            "market_data_unavailable_cached",
             None,
         ]
         return warning in soft_warnings
@@ -256,12 +233,17 @@ class CorrelationSpec(Specification[dict[str, Any]]):
         return CorrelationResult(corr <= self.max_correlation, corr, used_proxy)
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        """Pure query - no side effects."""
+        result = self.evaluate(metrics)
+        return result.passed
+
+    def enrich(self, metrics: dict[str, Any]) -> None:
+        """Mutation method - adds correlation metadata to metrics dict."""
         result = self.evaluate(metrics)
         if result.correlation is not None:
             metrics["portfolio_rho"] = result.correlation
         if result.used_proxy:
             metrics["correlation_via_proxy"] = True
-        return result.passed
 
 
 class IVPercentileSpec(Specification[dict[str, Any]]):
@@ -380,15 +362,15 @@ class VolatilityMomentumSpec(Specification[dict[str, Any]]):
 
 class RetailEfficiencySpec(Specification[dict[str, Any]]):
     """
-    Ensures an underlying is 'Retail Efficient' for Tastylive mechanics.
+    Ensures an underlying meets minimum price floor for retail trading.
+
     Criteria:
-    1. Price Floor: Minimum underlying price ($25) to ensure manageable Gamma and strike density.
-    2. Slippage Guard: Maximum Bid/Ask spread (5%) to prevent friction tax.
+    - Minimum underlying price ($25) to ensure manageable Gamma and strike density.
+    - Futures symbols are exempt from this check.
     """
 
-    def __init__(self, min_price: float, max_slippage: float):
+    def __init__(self, min_price: float):
         self.min_price = min_price
-        self.max_slippage = max_slippage
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         symbol = str(metrics.get("symbol", ""))
@@ -405,30 +387,33 @@ class RetailEfficiencySpec(Specification[dict[str, Any]]):
         if price < self.min_price:
             return False
 
-        # Slippage Check
-        call_bid = metrics.get("call_bid")
-        call_ask = metrics.get("call_ask")
-        put_bid = metrics.get("put_bid")
-        put_ask = metrics.get("put_ask")
-
-        max_found = 0.0
-        has_quote = False
-
-        for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
-            if bid is not None and ask is not None:
-                try:
-                    f_bid, f_ask = float(bid), float(ask)
-                    mid = (f_bid + f_ask) / 2
-                    if mid > 0:
-                        has_quote = True
-                        max_found = max(max_found, (f_ask - f_bid) / mid)
-                except (ValueError, TypeError):
-                    pass
-
-        if has_quote and max_found > self.max_slippage:
-            return False
-
         return True
+
+
+class SlippageSpec(Specification[dict[str, Any]]):
+    """
+    Filters symbols based on bid/ask spread to prevent excessive slippage.
+
+    High bid/ask spreads indicate illiquidity and result in friction costs
+    that can negate the edge from volatility risk premium strategies.
+
+    Args:
+        max_slippage: Maximum allowed bid/ask spread as percentage (e.g., 0.05 for 5%)
+    """
+
+    def __init__(self, max_slippage: float):
+        self.max_slippage = max_slippage
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        from variance.liquidity import SlippageCalculator
+
+        has_quote, calculated_slippage = SlippageCalculator.calculate_max_slippage(metrics)
+
+        # If no quote data available, pass the check (can't verify)
+        if not has_quote:
+            return True
+
+        return calculated_slippage <= self.max_slippage
 
 
 class YieldSpec(Specification[dict[str, Any]]):

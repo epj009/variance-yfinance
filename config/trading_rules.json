@@ -14,7 +14,6 @@
     "vol_trap_compression_threshold": 0.70,
     "volatility_momentum_min_ratio": 0.85,
     "compression_coiled_threshold": 0.75,
-    "compression_expanding_threshold": 1.25,
     "vrp_tactical_cheap_threshold": -0.10,
     "hv_rank_trap_threshold": 15.0,
     "dead_money_vrp_structural_threshold": 0.80,

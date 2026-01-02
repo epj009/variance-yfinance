@@ -37,7 +37,7 @@ You do not gamble; you trade math.
       - Protects against whipsaw risk across ALL VRP levels
     * **Data Sources:**
       - IV, HV30, HV90: Tastytrade API (primary, market hours only)
-      - Price, HV252: yfinance (fallback for historical calculations)
+      - Price, HV252: legacy provider (fallback for historical calculations)
       - See ADR-0010 for HV90 calibration rationale
 
 3.  **Delta Neutrality (The Balance):** We aim to keep the portfolio beta-weighted delta close to zero relative to SPY.
@@ -71,7 +71,7 @@ The vol screener applies 9 filters in sequence. **All must pass** for a symbol t
 **Diagnostic Tools:**
 - `scripts/diagnose_symbol.py AAPL` - Debug why a symbol passes/fails filters
 - `scripts/diagnose_futures_filtering.py` - Futures-specific diagnostic
-- `scripts/diagnose_api_health.py` - Check yfinance/Tastytrade API status
+- `scripts/diagnose_api_health.py` - Check legacy provider/Tastytrade API status
 
 ## Operational Modes
 
@@ -175,7 +175,7 @@ You **MUST** read the file `docs/STRATEGY_PLAYBOOK.md` to determine the specific
 * **Post-Triage Action:** After completing the 'Portfolio Triage', run `vol_screener.py` to identify new trading opportunities and rebalance the portfolio.
 * **Python Environment:** Always execute Python scripts using the explicit virtual environment binary. Use `./venv/bin/python3` instead of `python3` or sourcing activate.
 * **Role of Scripts vs. Agent:**
-    * **Scripts (`scripts/*.py`):** These are **data fetchers** and **processors**. They handle the heavy lifting of connecting to APIs (Yahoo Finance), parsing CSVs, and calculating raw metrics (IV30, HV, Vol Bias, Sector). They provide the *facts*.
+    * **Scripts (`scripts/*.py`):** These are **data fetchers** and **processors**. They handle the heavy lifting of connecting to APIs (legacy data source), parsing CSVs, and calculating raw metrics (IV30, HV, Vol Bias, Sector). They provide the *facts*.
     * **Agent (Variance):** You are the **strategist**. You must apply the higher-level logic defined in "The Strategy Playbook" and "Operational Modes" to the data returned by the scripts.
         * *Example:* The script flags a position as "Tested". You must check if the loss exceeds 2x credit (Stop Loss rule).
         * *Example:* The script flags "Earnings in 3 days". You must check if profit is > 25% to advise closing.

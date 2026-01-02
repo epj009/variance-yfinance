@@ -407,7 +407,7 @@ elif hv90 is not None and hv90 > 0:
 ## References
 
 - **ADR-0008:** Multi-Provider Architecture (Tastytrade integration)
-- **Original Issue:** VRP calculations backwards (preferring yfinance)
+- **Original Issue:** VRP calculations backwards (preferring legacy provider)
 - **User Requirement:** "Use Tastytrade data as much as possible"
 - **Diagnostic Data:** 13 symbols, 1.30x ratio, 2025-12-25
 

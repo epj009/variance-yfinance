@@ -15,7 +15,6 @@
   "volatility_momentum_min_ratio": 0.85,
   "vol_trap_compression_threshold": 0.70,
   "compression_coiled_threshold": 0.75,
-  "compression_expanding_threshold": 1.25,
 
   "_____SCREENING_IV_PERCENTILE_____": "",
   "min_iv_percentile": 20.0,

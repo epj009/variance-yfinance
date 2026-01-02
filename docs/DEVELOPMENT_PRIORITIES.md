@@ -172,7 +172,7 @@ ResourceWarning: unclosed database in <sqlite3.Connection object at 0x...>
 ### Performance Optimization
 - Cache warming on startup
 - Parallel market data fetching
-- Reduce yfinance API calls further
+- Reduce legacy provider API calls further
 
 ### Features
 - Backtesting framework

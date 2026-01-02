@@ -38,7 +38,7 @@ def diagnose_symbol(
     """Diagnose all filters for a single symbol."""
 
     # Fetch data
-    data_dict = get_market_data([symbol])
+    data_dict = get_market_data([symbol], include_option_quotes=True)
     raw_data_typed = data_dict.get(symbol, {})
 
     # Convert to mutable dict[str, Any] for filter compatibility

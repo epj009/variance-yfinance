@@ -156,12 +156,11 @@ Controls whipsaw protection and volatility momentum filtering.
 ---
 
 ### `compression_coiled_threshold` (default: `0.75`)
-### `compression_expanding_threshold` (default: `1.25`)
-**Purpose**: Signal generation for "coiled" (compressed) vs "expanding" vol states.
+**Purpose**: Long-term compression cutoff used to classify coiled regimes.
 
-**Usage**: Enrichment and scoring, not primary filtering.
+**Usage**: Signal and regime enrichment, not primary filtering. Requires a composite check with HV20/HV60 < 0.85 to avoid false positives.
 
-**Rationale**: Detect when volatility is compressed (potential breakout) or expanding (momentum).
+**Rationale**: Identify sustained compression while avoiding "new normal" low-vol regimes.
 
 ---
 

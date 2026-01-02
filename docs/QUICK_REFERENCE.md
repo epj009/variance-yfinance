@@ -318,7 +318,7 @@ Current: 64% overall
 ## Dependencies
 
 **Production:**
-- yfinance (market data)
+- legacy provider (market data)
 - pandas (data manipulation)
 - numpy (calculations)
 - rich (terminal formatting)
@@ -340,7 +340,7 @@ None - purely local application. No web server, no database (except SQLite cache
 **Tastytrade API** (optional):
 - Location: `config/tastytrade_credentials.json`
 - Format: `{"username": "...", "password": "...", "account_id": "..."}`
-- Fallback: yfinance if missing
+- Fallback: legacy provider if missing
 
 ## Cache Behavior
 
@@ -348,7 +348,7 @@ None - purely local application. No web server, no database (except SQLite cache
 - **TTL:** 24 hours
 - **Size:** ~1-10 MB depending on universe
 - **Clear:** `rm -rf .cache/`
-- **Timezone-aware:** Skips yfinance outside market hours
+- **Timezone-aware:** Skips legacy provider outside market hours
 
 ## Log Levels
 

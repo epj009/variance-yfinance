@@ -71,21 +71,41 @@ def format_screener_output(data: dict[str, Any]) -> None:
 
     # Filter diagnostics
     print("─" * 80)
-    print("FILTER DIAGNOSTICS")
+    print("FILTER DIAGNOSTICS (symbols can fail multiple filters)")
     print("─" * 80)
     filters = [
         ("Low VRP Structural", summary.get("low_vrp_structural_count", 0)),
+        ("Low VRP Tactical", summary.get("tactical_skipped_count", 0)),
         ("Low IV Percentile", summary.get("low_iv_percentile_skipped_count", 0)),
-        ("VRP Tactical < 1.15", summary.get("tactical_skipped_count", 0)),
+        ("Low Vol Momentum", summary.get("vol_momentum_skipped_count", 0)),
         ("Illiquid", summary.get("illiquid_skipped_count", 0)),
         ("Retail Inefficient", summary.get("retail_inefficient_skipped_count", 0)),
+        ("High Slippage", summary.get("slippage_skipped_count", 0)),
+        ("Low Yield", summary.get("low_yield_skipped_count", 0)),
         ("Correlation", summary.get("correlation_skipped_count", 0)),
+        ("Sector Excluded", summary.get("sector_skipped_count", 0)),
     ]
 
+    # Show ALL filters with their counts
     for name, count in filters:
-        if count > 0:
-            print(f"  {name:<25} {count:>4} symbols")
+        print(f"  {name:<25} {count:>4} symbols")
+
+    # Show unique rejection count
+    total_rejections = scanned - found
+    print(f"  {'─' * 35}")
+    print(f"  {'Unique Rejections':<25} {total_rejections:>4} symbols")
+    print(f"  {'Passed All Filters':<25} {found:>4} symbols")
     print()
+
+    # Rejection details (debug mode)
+    rejections = meta.get("filter_rejections", {})
+    if rejections:
+        print("─" * 80)
+        print("REJECTION DETAILS")
+        print("─" * 80)
+        for symbol in sorted(rejections):
+            print(f"  {symbol}: {rejections[symbol]}")
+        print()
 
     # Candidates table
     if candidates:
@@ -170,7 +190,7 @@ def format_screener_output(data: dict[str, Any]) -> None:
         print("\n⚠️  YAHOO FINANCE RATE LIMITING DETECTED")
         print("─" * 80)
         print(f"  {stale}/{total} symbols using cached price data")
-        print("  Yahoo Finance returned 429 (Too Many Requests)")
+        print("  legacy data source returned 429 (Too Many Requests)")
         print()
         print("  Impact:")
         print("    • Price data: cached (from previous fetch)")

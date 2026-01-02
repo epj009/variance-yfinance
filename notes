@@ -116,11 +116,11 @@
 ## 🚨 ISSUE: NVRP Data Quality & Clamping (Dec 19, 2025)
 
 ### Problem Discovered
-VRP-adjusted theta implementation revealed extreme NVRP values from yfinance data quality issues.
+VRP-adjusted theta implementation revealed extreme NVRP values from legacy provider data quality issues.
 
 **Real-World Example (BE - Bloom Energy):**
 ```
-yfinance Reported:
+legacy provider Reported:
   Stock Price: $89.39
   IV30: 1.1%          ← Absurdly low
   HV20: 131.3%        ← Stock is volatile
@@ -135,10 +135,10 @@ Impact on Theta:
 ```
 
 ### Root Cause
-yfinance's `get_current_iv()` is selecting wrong strikes or parsing bad data:
+legacy provider's `get_current_iv()` is selecting wrong strikes or parsing bad data:
 - May target far OTM options instead of ATM
 - Date mismatch with DTE window
-- Yahoo Finance API is unreliable for individual stocks
+- legacy data source API is unreliable for individual stocks
 
 ### Portfolio Impact
 Without clamping:
@@ -199,7 +199,7 @@ Position Display:  Show "NVRP: -99% ⚠️ Data Quality Issue"
 
 ### References
 - VRP-adjusted theta implementation: Dec 19, 2025
-- Data validation: Compared yfinance vs TastyTrade for BE position
+- Data validation: Compared legacy provider vs TastyTrade for BE position
 - Related: Signal Synthesis logic also uses NVRP for opportunity classification
 
 ---

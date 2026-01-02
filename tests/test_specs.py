@@ -189,7 +189,7 @@ def test_data_integrity_spec():
     assert spec.is_satisfied_by({"warning": "iv_scale_assumed_decimal"}) is True
     assert spec.is_satisfied_by({"warning": "after_hours_stale"}) is True
     assert spec.is_satisfied_by({"warning": "tastytrade_fallback"}) is True
-    assert spec.is_satisfied_by({"warning": "yfinance_unavailable_cached"}) is True
+    assert spec.is_satisfied_by({"warning": "market_data_unavailable_cached"}) is True
     assert spec.is_satisfied_by({"warning": None}) is True
     assert spec.is_satisfied_by({}) is True  # No warning key
 

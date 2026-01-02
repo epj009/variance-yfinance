@@ -100,7 +100,7 @@ Rejects symbols with data quality warnings (except soft warnings).
 - `iv_scale_corrected` - IV was rescaled (but corrected)
 - `iv_scale_assumed_decimal` - Assumed decimal format
 - `after_hours_stale` - Data is stale (after hours)
-- `tastytrade_fallback` - Using yfinance fallback
+- `tastytrade_fallback` - Using legacy provider fallback
 
 **Hard Warnings (Rejected):**
 - `iv_unavailable` - No IV data

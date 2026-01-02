@@ -349,7 +349,7 @@ ATM IV:           18%
 
 **VRP Calculation** (`src/variance/get_market_data.py:974-986`):
 ```python
-# Structural VRP: PREFER Tastytrade HV90 -> Fallback yfinance HV252
+# Structural VRP: PREFER Tastytrade HV90 -> Fallback legacy provider HV252
 hv90 = tt_data.get("hv90")
 hv252 = yf_data.get("hv252") if yf_data else None
 hv_floor = HV_FLOOR_PERCENT  # 5.0%
@@ -359,7 +359,7 @@ if hv90 is not None and hv90 > 0:
 elif hv252 is not None and hv252 > 0:
     merged_data["vrp_structural"] = iv / max(hv252, hv_floor)
 
-# Tactical VRP: PREFER Tastytrade HV30 -> Fallback yfinance HV20
+# Tactical VRP: PREFER Tastytrade HV30 -> Fallback legacy provider HV20
 hv30 = tt_data.get("hv30")
 hv20 = yf_data.get("hv20") if yf_data else None
 

@@ -143,12 +143,12 @@ def calculate_hv_metrics(
     hv90 = calculate_hv90(candles)
 
     if hv30 is not None:
-        logger.info(f"HV30: {hv30:.4f} ({hv30 * 100:.2f}%)")
+        logger.debug(f"HV30: {hv30:.4f} ({hv30 * 100:.2f}%)")
     else:
         logger.warning("Could not calculate HV30")
 
     if hv90 is not None:
-        logger.info(f"HV90: {hv90:.4f} ({hv90 * 100:.2f}%)")
+        logger.debug(f"HV90: {hv90:.4f} ({hv90 * 100:.2f}%)")
     else:
         logger.warning("Could not calculate HV90")
 

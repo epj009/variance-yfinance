@@ -64,7 +64,7 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={
@@ -157,7 +157,7 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={
@@ -223,9 +223,10 @@ def test_signal_type_uses_iv_percentile_percent_scale():
         "is_earnings_soon": False,
         "is_cheap": False,
         "is_rich": False,
-        "is_coiled": False,
     }
-    signal = vol_screener._determine_signal_type(flags, None, {}, iv_percentile=85.0)
+    signal = vol_screener._determine_signal_type(
+        flags, None, {}, iv_percentile=85.0, compression_ratio=0.95
+    )
 
     assert signal == "RICH"
 
@@ -322,7 +323,7 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={

@@ -1,5 +1,7 @@
 import argparse
 import json
+import logging
+import os
 import sys
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -9,6 +11,17 @@ from typing import Any, Optional, Union
 from .common import warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
 from .errors import build_error, error_lines
+
+# Re-export extracted functions for backward compatibility with existing code
+from .liquidity.checker import is_illiquid as _is_illiquid  # noqa: F401
+from .logging_config import audit_log, generate_session_id, set_session_id, setup_logging
+from .scoring.calculator import calculate_variance_score as _calculate_variance_score  # noqa: F401
+from .signals.classifier import (  # noqa: F401
+    create_candidate_flags as _create_candidate_flags,
+)
+from .signals.environment import (  # noqa: F401
+    get_recommended_environment as _get_recommended_environment,
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +39,7 @@ class ScreenerConfig:
     exclude_asset_classes: list[str] = field(default_factory=list)
     exclude_symbols: list[str] = field(default_factory=list)
     held_symbols: list[str] = field(default_factory=list)
+    debug: bool = False
 
 
 def load_profile_config(
@@ -86,511 +100,6 @@ def get_days_to_date(date_str: Optional[str]) -> Union[int, str]:
         return "N/A"
 
 
-def _is_illiquid(
-    symbol: str,
-    metrics: dict[str, Any],
-    rules: dict[str, Any],
-    profile_min_rating: Optional[int] = None,
-) -> tuple[bool, bool]:
-    """
-    Checks if a symbol fails the liquidity rules.
-    Returns: (is_illiquid, is_implied_pass)
-
-    Args:
-        symbol: The symbol to check
-        metrics: Market data metrics for the symbol
-        rules: Trading rules from config
-        profile_min_rating: Optional profile-level override for min TT liquidity rating
-    """
-    if _is_futures_symbol(symbol) and not _has_tastytrade_liquidity(metrics):
-        return False, False
-
-    # Check Tastytrade rating first (most reliable)
-    tt_rating = metrics.get("liquidity_rating")
-    if tt_rating is not None:
-        # Use profile override if present, otherwise fall back to rules
-        min_rating = (
-            profile_min_rating
-            if profile_min_rating is not None
-            else int(rules.get("min_tt_liquidity_rating", 4))
-        )
-        if int(tt_rating) >= min_rating:
-            # Trust Tastytrade rating - skip OI/volume checks
-            return False, False
-        else:
-            # TT rating below threshold
-            return True, False
-
-    # No TT rating - use bid/ask and activity checks
-    implied_pass, is_implied = _check_implied_liquidity(metrics, rules)
-    if implied_pass:
-        return False, is_implied
-
-    if _fails_activity_gate(metrics, rules):
-        return True, False
-
-    return False, False
-
-
-def _is_futures_symbol(symbol: str) -> bool:
-    return symbol.startswith("/")
-
-
-def _fails_tt_liquidity_rating(metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
-    tt_rating = metrics.get("liquidity_rating")
-    if tt_rating is None:
-        return False
-    try:
-        min_rating = int(rules.get("min_tt_liquidity_rating", 4))
-        return int(tt_rating) < min_rating
-    except (TypeError, ValueError):
-        return False
-
-
-def _check_implied_liquidity(metrics: dict[str, Any], rules: dict[str, Any]) -> tuple[bool, bool]:
-    legs = [
-        ("call", metrics.get("call_bid"), metrics.get("call_ask")),
-        ("put", metrics.get("put_bid"), metrics.get("put_ask")),
-    ]
-
-    has_valid_quote = False
-    max_slippage_found = 0.0
-
-    for _side, bid, ask in legs:
-        if bid is None or ask is None:
-            continue
-        f_bid, f_ask = float(bid), float(ask)
-        mid = (f_bid + f_ask) / 2
-        if mid > 0:
-            has_valid_quote = True
-            slippage = (f_ask - f_bid) / mid
-            if slippage > max_slippage_found:
-                max_slippage_found = slippage
-
-    max_slippage_pct = float(rules.get("max_slippage_pct", 0.05))
-    if has_valid_quote and max_slippage_found <= max_slippage_pct:
-        vol = metrics.get("atm_volume", 0) or 0
-        is_implied = int(vol) == 0
-        return True, is_implied
-
-    return False, False
-
-
-def _fails_activity_gate(metrics: dict[str, Any], rules: dict[str, Any]) -> bool:
-    mode = rules.get("liquidity_mode", "volume")
-    min_atm_volume = int(rules.get("min_atm_volume", 0))
-    min_atm_open_interest = int(rules.get("min_atm_open_interest", 500))
-    if mode == "open_interest":
-        atm_oi_val = _safe_float(
-            metrics.get("atm_open_interest", metrics.get("atm_oi")), default=-1.0
-        )
-        if atm_oi_val < 0:
-            atm_volume_val = _safe_float(_get_activity_volume(metrics), default=-1.0)
-            return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
-        return atm_oi_val < min_atm_open_interest
-
-    atm_volume_val = _safe_float(_get_activity_volume(metrics), default=-1.0)
-    return atm_volume_val >= 0 and atm_volume_val < min_atm_volume
-
-
-def _get_activity_volume(metrics: dict[str, Any]) -> Any:
-    return metrics.get("option_volume", metrics.get("atm_volume"))
-
-
-def _create_candidate_flags(
-    vrp_structural: Optional[float],
-    days_to_earnings: Union[int, str],
-    compression_ratio: Optional[float],
-    vrp_t_markup: Optional[float],
-    hv20: Optional[float],
-    hv60: Optional[float],
-    rules: dict[str, Any],
-) -> dict[str, bool]:
-    """Creates a dictionary of boolean flags for a candidate."""
-
-    # Coiled Logic: Requires BOTH long-term compression (vs 252) and medium-term compression (vs 60)
-    # to avoid flagging "new normal" low vol regimes as coiled.
-    is_coiled_long = compression_ratio is not None and compression_ratio < rules.get(
-        "compression_coiled_threshold", 0.75
-    )
-    is_coiled_medium = True  # Default to true if missing data
-    if hv60 and hv60 > 0 and hv20:
-        is_coiled_medium = (hv20 / hv60) < 0.85
-
-    return {
-        "is_rich": bool(
-            vrp_structural is not None
-            and vrp_structural > rules.get("vrp_structural_rich_threshold", 1.0)
-        ),
-        "is_fair": bool(
-            vrp_structural is not None
-            and rules["vrp_structural_threshold"]
-            < vrp_structural
-            <= rules.get("vrp_structural_rich_threshold", 1.0)
-        ),
-        "is_earnings_soon": bool(
-            isinstance(days_to_earnings, int)
-            and 0 <= days_to_earnings <= rules["earnings_days_threshold"]
-        ),
-        "is_coiled": bool(is_coiled_long and is_coiled_medium),
-        "is_expanding": bool(
-            compression_ratio is not None
-            and compression_ratio > rules.get("compression_expanding_threshold", 1.25)
-        ),
-        "is_cheap": bool(
-            vrp_t_markup is not None
-            and vrp_t_markup < rules.get("vrp_tactical_cheap_threshold", -0.10)
-        ),
-    }
-
-
-def _determine_signal_type(
-    flags: dict[str, bool],
-    vrp_t_markup: Optional[float],
-    rules: dict[str, Any],
-    iv_percentile: Optional[float] = None,
-) -> str:
-    """
-    Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
-    Hierarchy: EVENT > DISCOUNT > RICH > BOUND > FAIR
-    """
-    if flags["is_earnings_soon"]:
-        return "EVENT"
-
-    # Statistical Extreme Check (The /NG Paradox Fix)
-    # If IV is at statistical extremes (>80% of last year), it is RICH regardless of tactical discount
-    iv_pct_rich = float(rules.get("iv_percentile_rich_threshold", 80.0))
-    if iv_percentile is not None and iv_percentile > iv_pct_rich:
-        return "RICH"
-
-    if flags.get("is_cheap"):  # VRP Tactical Markup < -10%
-        return "DISCOUNT"
-
-    # Rich Logic: High markup takes precedence over Coiled state
-    # Priority 1: Tactical VRP Markup > 20%
-    tactical_rich = float(rules.get("vrp_tactical_rich_threshold", 0.20))
-    if vrp_t_markup is not None and vrp_t_markup > tactical_rich:
-        return "RICH"
-
-    # Priority 2: Structural VRP (Fallback if Tactical is missing/flat)
-    if flags.get("is_rich"):
-        return "RICH"
-
-    if flags["is_coiled"]:  # Ratio < 0.75
-        return "BOUND"
-
-    return "FAIR"
-
-
-def _determine_regime_type(flags: dict[str, bool]) -> str:
-    """
-    Determines the Volatility Regime based on compression flags.
-    """
-    if flags["is_coiled"]:
-        return "COILED"
-    if flags["is_expanding"]:
-        return "EXPANDING"
-    return "NORMAL"
-
-
-def _get_recommended_environment(signal_type: str) -> str:
-    """Maps Signal Type to a recommended market environment for strategy selection."""
-    if signal_type == "BOUND":
-        return "High IV / Neutral (Defined)"
-    if signal_type == "RICH":
-        return "High IV / Neutral (Undefined)"
-    if signal_type == "DISCOUNT":
-        return "Low IV / Vol Expansion"
-    if signal_type == "EVENT":
-        return "Binary Risk"
-    return "Neutral / Fair Value"
-
-
-def _safe_float(val: Any, default: float = 0.0) -> float:
-    try:
-        if val is None:
-            return default
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _calculate_variance_score(
-    metrics: dict[str, Any], rules: dict[str, Any], config: Optional[Any] = None
-) -> float:
-    """
-    Calculates a composite 'Variance Score' (0-100) to rank trading opportunities.
-
-    The score blends hard-gate metrics into a single composite. Each component
-    is normalized to 0-100 and combined using configurable weights.
-    """
-    weights_cfg = rules.get("variance_score_weights", {})
-    default_weights = {
-        "structural_vrp": 0.2,
-        "tactical_vrp": 0.2,
-        "volatility_momentum": 0.1,
-        "hv_rank": 0.1,
-        "iv_percentile": 0.1,
-        "yield": 0.1,
-        "retail_efficiency": 0.1,
-        "liquidity": 0.1,
-    }
-    weights = {
-        key: _safe_float(weights_cfg.get(key, default), default)
-        for key, default in default_weights.items()
-    }
-
-    total_weight = sum(max(0.0, w) for w in weights.values())
-    if total_weight <= 0:
-        return 0.0
-
-    structural_score = _variance_component(_safe_float(metrics.get("vrp_structural"), -1.0), rules)
-    tactical_raw = _safe_float(metrics.get("vrp_tactical"), -1.0)
-    if tactical_raw == -1.0:
-        tactical_score = structural_score
-    else:
-        tactical_score = _variance_component(tactical_raw, rules)
-
-    momentum_score = _score_volatility_momentum(metrics, rules)
-    hv_rank_score = _score_hv_rank(metrics, rules)
-    ivp_score = _score_iv_percentile(metrics, rules, config)
-    yield_score = _score_yield(metrics, rules)
-    retail_score = _score_retail_efficiency(metrics, rules, config)
-    liquidity_score = _score_liquidity(metrics, rules, config)
-
-    weighted_sum = (
-        structural_score * weights["structural_vrp"]
-        + tactical_score * weights["tactical_vrp"]
-        + momentum_score * weights["volatility_momentum"]
-        + hv_rank_score * weights["hv_rank"]
-        + ivp_score * weights["iv_percentile"]
-        + yield_score * weights["yield"]
-        + retail_score * weights["retail_efficiency"]
-        + liquidity_score * weights["liquidity"]
-    )
-
-    score = weighted_sum / total_weight
-    return round(float(max(0.0, min(100.0, score))), 1)
-
-
-def _variance_component(bias: float, rules: dict[str, Any]) -> float:
-    if bias == -1.0:
-        return 0.0
-    multiplier = _safe_float(rules.get("variance_score_dislocation_multiplier", 200))
-    dislocation = abs(bias - 1.0) * multiplier
-    return max(0.0, min(100.0, dislocation))
-
-
-def _normalize_score(value: Optional[float], floor: float, ceiling: float) -> float:
-    if value is None or ceiling <= floor:
-        return 0.0
-    raw = (value - floor) / (ceiling - floor) * 100.0
-    return max(0.0, min(100.0, raw))
-
-
-def _neutral_score() -> float:
-    return 50.0
-
-
-def _score_volatility_momentum(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
-    hv30 = metrics.get("hv30")
-    hv90 = metrics.get("hv90")
-    if hv30 is None or hv90 is None:
-        return _neutral_score()
-    try:
-        hv90_f = float(hv90)
-        if hv90_f <= 0:
-            return _neutral_score()
-        ratio = float(hv30) / hv90_f
-    except (TypeError, ValueError, ZeroDivisionError):
-        return _neutral_score()
-
-    floor = _safe_float(rules.get("volatility_momentum_min_ratio", 0.85), 0.85)
-    ceiling = _safe_float(rules.get("variance_score_momentum_ceiling", 1.20), 1.20)
-    return _normalize_score(ratio, floor, ceiling)
-
-
-def _score_hv_rank(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
-    vrp_structural = _safe_float(metrics.get("vrp_structural"), -1.0)
-    rich_threshold = _safe_float(rules.get("vrp_structural_rich_threshold", 1.30), 1.30)
-    if vrp_structural <= rich_threshold:
-        return _neutral_score()
-
-    hv_rank = metrics.get("hv_rank")
-    if hv_rank is None:
-        return _neutral_score()
-    try:
-        hv_rank_f = float(hv_rank)
-    except (TypeError, ValueError):
-        return _neutral_score()
-
-    floor = _safe_float(rules.get("hv_rank_trap_threshold", 15.0), 15.0)
-    ceiling = _safe_float(rules.get("variance_score_hv_rank_ceiling", 100.0), 100.0)
-    return _normalize_score(hv_rank_f, floor, ceiling)
-
-
-def _score_iv_percentile(
-    metrics: dict[str, Any], rules: dict[str, Any], config: Optional[Any]
-) -> float:
-    min_ivp = rules.get("min_iv_percentile", 0.0)
-    if config is not None and getattr(config, "min_iv_percentile", None) is not None:
-        min_ivp = config.min_iv_percentile
-
-    try:
-        min_ivp_f = float(min_ivp)
-    except (TypeError, ValueError):
-        min_ivp_f = 0.0
-
-    if min_ivp_f <= 0:
-        return _neutral_score()
-
-    ivp = metrics.get("iv_percentile")
-    if ivp is None:
-        return 0.0
-    try:
-        ivp_f = float(ivp)
-    except (TypeError, ValueError):
-        return 0.0
-
-    ceiling = _safe_float(rules.get("variance_score_iv_percentile_ceiling", 100.0), 100.0)
-    return _normalize_score(ivp_f, min_ivp_f, ceiling)
-
-
-def _compute_yield(metrics: dict[str, Any]) -> Optional[float]:
-    price_raw = metrics.get("price")
-    if price_raw is None:
-        return None
-    try:
-        price = float(price_raw)
-    except (TypeError, ValueError):
-        return None
-    if price <= 0:
-        return None
-
-    call_bid = metrics.get("call_bid")
-    call_ask = metrics.get("call_ask")
-    put_bid = metrics.get("put_bid")
-    put_ask = metrics.get("put_ask")
-
-    if all(v is None for v in [call_bid, call_ask, put_bid, put_ask]):
-        bid = _safe_float(metrics.get("atm_bid"), 0.0)
-        ask = _safe_float(metrics.get("atm_ask"), 0.0)
-    else:
-        bid = _safe_float(call_bid, 0.0) + _safe_float(put_bid, 0.0)
-        ask = _safe_float(call_ask, 0.0) + _safe_float(put_ask, 0.0)
-
-    mid = (bid + ask) / 2
-    if mid <= 0:
-        return None
-
-    bpr_est = price * 0.20
-    if bpr_est <= 0:
-        return None
-
-    return (mid / bpr_est) * (30.0 / 45.0) * 100.0
-
-
-def _score_yield(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
-    min_yield = _safe_float(rules.get("min_yield_percent", 0.0), 0.0)
-    if min_yield <= 0:
-        return _neutral_score()
-
-    yield_pct = _compute_yield(metrics)
-    if yield_pct is None:
-        return 0.0
-
-    ceiling = _safe_float(rules.get("variance_score_yield_ceiling", 15.0), 15.0)
-    return _normalize_score(yield_pct, min_yield, ceiling)
-
-
-def _max_leg_slippage(metrics: dict[str, Any]) -> tuple[bool, float]:
-    call_bid = metrics.get("call_bid")
-    call_ask = metrics.get("call_ask")
-    put_bid = metrics.get("put_bid")
-    put_ask = metrics.get("put_ask")
-
-    max_found = 0.0
-    has_quote = False
-    for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
-        if bid is not None and ask is not None:
-            try:
-                f_bid = float(bid)
-                f_ask = float(ask)
-            except (TypeError, ValueError):
-                continue
-            mid = (f_bid + f_ask) / 2
-            if mid > 0:
-                has_quote = True
-                max_found = max(max_found, (f_ask - f_bid) / mid)
-    return has_quote, max_found
-
-
-def _score_retail_efficiency(
-    metrics: dict[str, Any], rules: dict[str, Any], config: Optional[Any]
-) -> float:
-    symbol = str(metrics.get("symbol", ""))
-    if symbol.startswith("/"):
-        return _neutral_score()
-
-    min_price = rules.get("retail_min_price", 25.0)
-    if config is not None and getattr(config, "retail_min_price", None) is not None:
-        min_price = config.retail_min_price
-    min_price_f = _safe_float(min_price, 25.0)
-
-    price = metrics.get("price")
-    price_f = _safe_float(price, 0.0)
-    price_ceiling = _safe_float(rules.get("variance_score_retail_price_ceiling", 100.0), 100.0)
-    price_score = _normalize_score(price_f, min_price_f, price_ceiling)
-
-    max_slippage = _safe_float(rules.get("retail_max_slippage", 0.05), 0.05)
-    has_quote, slip = _max_leg_slippage(metrics)
-    if not has_quote:
-        slippage_score = _neutral_score()
-    elif max_slippage <= 0:
-        slippage_score = 0.0
-    else:
-        slippage_score = max(0.0, min(100.0, (max_slippage - slip) / max_slippage * 100.0))
-
-    return (price_score + slippage_score) / 2
-
-
-def _score_liquidity(
-    metrics: dict[str, Any], rules: dict[str, Any], config: Optional[Any]
-) -> float:
-    if config is not None and getattr(config, "allow_illiquid", False):
-        return _neutral_score()
-
-    tt_rating = metrics.get("liquidity_rating")
-    min_rating = _safe_float(rules.get("min_tt_liquidity_rating", 4), 4.0)
-    if tt_rating is not None:
-        rating_f = _safe_float(tt_rating, 0.0)
-        return _normalize_score(rating_f, min_rating, 5.0)
-
-    max_slippage = _safe_float(rules.get("max_slippage_pct", 0.05), 0.05)
-    has_quote, slip = _max_leg_slippage(metrics)
-    if not has_quote:
-        slippage_score = _neutral_score()
-    elif max_slippage <= 0:
-        slippage_score = 0.0
-    else:
-        slippage_score = max(0.0, min(100.0, (max_slippage - slip) / max_slippage * 100.0))
-
-    vol_raw = metrics.get("option_volume", metrics.get("atm_volume"))
-    if vol_raw is None:
-        volume_score = _neutral_score()
-    else:
-        vol = _safe_float(vol_raw, 0.0)
-        min_vol = _safe_float(rules.get("min_atm_volume", 500), 500.0)
-        mult = _safe_float(rules.get("variance_score_volume_ceiling_multiplier", 5.0), 5.0)
-        ceiling = min_vol * mult if min_vol > 0 else 0.0
-        if ceiling <= min_vol:
-            volume_score = _normalize_score(vol, min_vol, min_vol + 1.0)
-        else:
-            volume_score = _normalize_score(vol, min_vol, ceiling)
-
-    return (slippage_score + volume_score) / 2
-
-
 import numpy as np
 
 
@@ -616,6 +125,21 @@ def screen_volatility(
 
 def main() -> None:
     warn_if_not_venv()
+
+    console_level = os.getenv("VARIANCE_LOG_LEVEL", "INFO")
+    file_level = os.getenv("VARIANCE_FILE_LOG_LEVEL", "DEBUG")
+    enable_debug = os.getenv("VARIANCE_DEBUG", "").lower() in ("1", "true", "yes")
+    json_logs = os.getenv("VARIANCE_JSON_LOGS", "").lower() in ("1", "true", "yes")
+    setup_logging(
+        console_level=console_level,
+        file_level=file_level,
+        enable_debug_file=enable_debug,
+        json_format=json_logs,
+    )
+    session_id = generate_session_id()
+    set_session_id(session_id)
+    logger = logging.getLogger(__name__)
+    logger.info("Vol screener started: session_id=%s", session_id)
 
     parser = argparse.ArgumentParser(description="Screen for high volatility opportunities.")
     parser.add_argument(
@@ -657,6 +181,11 @@ def main() -> None:
         action="store_true",
         help="Bypass all filters and show entire watchlist (useful for debugging)",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Include per-symbol rejection reasons in the output",
+    )
 
     args = parser.parse_args()
     config_bundle = load_config_bundle()
@@ -678,6 +207,8 @@ def main() -> None:
         updates["limit"] = args.limit
     if args.show_all:
         updates["show_all"] = True
+    if args.debug:
+        updates["debug"] = True
 
     exclude_list = None
     if args.exclude_sectors:
@@ -714,20 +245,43 @@ def main() -> None:
     if updates:
         config = replace(config, **updates)
 
-    report_data = screen_volatility(config, config_bundle=config_bundle)
+    audit_log(
+        "Screening started",
+        session_id=session_id,
+        profile=args.profile,
+        limit=args.limit,
+        show_all=args.show_all,
+        debug=args.debug,
+    )
 
-    if "error" in report_data:
-        for line in error_lines(report_data):
-            print(line, file=sys.stderr)
-        print(json.dumps(report_data, indent=2), file=sys.stderr)
+    try:
+        report_data = screen_volatility(config, config_bundle=config_bundle)
+
+        if "error" in report_data:
+            audit_log(
+                "Screening failed",
+                session_id=session_id,
+                error=report_data.get("message", "Unknown error"),
+            )
+            for line in error_lines(report_data):
+                print(line, file=sys.stderr)
+            print(json.dumps(report_data, indent=2), file=sys.stderr)
+            sys.exit(1)
+
+        summary = report_data.get("summary", {})
+        audit_log(
+            "Screening completed",
+            session_id=session_id,
+            scanned=summary.get("scanned_symbols_count"),
+            candidates=summary.get("candidates_count"),
+        )
+
+        print(json.dumps(report_data, indent=2))
+    except Exception as exc:
+        logger.exception("Unhandled exception in vol_screener")
+        audit_log("Screening crashed", session_id=session_id, error=str(exc))
         sys.exit(1)
-
-    print(json.dumps(report_data, indent=2))
 
 
 if __name__ == "__main__":
     main()
-
-
-def _has_tastytrade_liquidity(metrics: dict[str, Any]) -> bool:
-    return metrics.get("option_volume") is not None or metrics.get("liquidity_rating") is not None

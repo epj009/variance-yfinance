@@ -3,10 +3,7 @@ Shared pytest fixtures for test suite.
 """
 
 import importlib
-from datetime import datetime
-from unittest.mock import Mock
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -22,7 +19,13 @@ class MockMarketDataProvider(IMarketDataProvider):
     def __init__(self, data: dict):
         self.data = data
 
-    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
+    def get_market_data(
+        self,
+        symbols: list[str],
+        *,
+        include_returns: bool = False,
+        include_option_quotes: bool = False,
+    ) -> dict[str, MarketData]:
         return {s: self.data[s] for s in symbols if s in self.data}
 
 
@@ -56,11 +59,11 @@ def temp_cache_db(tmp_path, monkeypatch):
 
     fresh_cache = MarketCache(str(db_path))
     cache_mod = importlib.import_module("variance.market_data.cache")
-    providers_mod = importlib.import_module("variance.market_data.providers")
+    pure_mod = importlib.import_module("variance.market_data.pure_tastytrade_provider")
     service_mod = importlib.import_module("variance.market_data.service")
 
     monkeypatch.setattr(cache_mod, "cache", fresh_cache)
-    monkeypatch.setattr(providers_mod, "cache", fresh_cache)
+    monkeypatch.setattr(pure_mod, "cache", fresh_cache)
     monkeypatch.setattr(service_mod, "default_cache", fresh_cache)
 
     yield db_path
@@ -112,75 +115,6 @@ def mock_option_chain():
     )
 
     return calls, puts
-
-
-@pytest.fixture
-def mock_ticker_factory():
-    """
-    Factory fixture that creates mock yfinance Ticker objects with configurable behavior.
-
-    Usage:
-        ticker = mock_ticker_factory(
-            symbol="AAPL",
-            price=150.0,
-            history_data=pd.DataFrame(...),
-            options=["2025-01-17", "2025-02-21"],
-            option_chain_calls=pd.DataFrame(...),
-            option_chain_puts=pd.DataFrame(...),
-            info={"sector": "Technology"},
-            calendar=pd.DataFrame(...),
-        )
-
-    Returns:
-        Mock: Configured yfinance.Ticker mock object
-    """
-
-    def _create_ticker(
-        symbol: str = "TEST",
-        price: float = 100.0,
-        history_data: pd.DataFrame = None,
-        options: list = None,
-        option_chain_calls: pd.DataFrame = None,
-        option_chain_puts: pd.DataFrame = None,
-        info: dict = None,
-        calendar: pd.DataFrame = None,
-    ):
-        mock = Mock()
-
-        # fast_info property
-        mock.fast_info = Mock()
-        mock.fast_info.last_price = price
-
-        # history() method
-        if history_data is None:
-            # Generate 252 days of dummy price data
-            dates = pd.date_range(end=datetime.now(), periods=252, freq="D")
-            history_data = pd.DataFrame(
-                {"Close": np.random.normal(price, price * 0.02, 252)}, index=dates
-            )
-        mock.history.return_value = history_data
-
-        # options property
-        mock.options = options if options is not None else ["2025-02-15"]
-
-        # option_chain() method
-        def _option_chain(exp_date):
-            chain = Mock()
-            chain.calls = option_chain_calls if option_chain_calls is not None else pd.DataFrame()
-            chain.puts = option_chain_puts if option_chain_puts is not None else pd.DataFrame()
-            return chain
-
-        mock.option_chain = _option_chain
-
-        # info property
-        mock.info = info if info is not None else {"sector": "Technology"}
-
-        # calendar property
-        mock.calendar = calendar if calendar is not None else pd.DataFrame()
-
-        return mock
-
-    return _create_ticker
 
 
 @pytest.fixture

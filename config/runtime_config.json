@@ -8,7 +8,8 @@
     "rate_limit_requests_per_second": 5,
     "iv_scale_factor": 100,
     "min_liquidity_rating": 4,
-    "symbols_requiring_proxy": ["/ES", "/NQ", "/CL", "/GC"]
+    "symbols_requiring_proxy": ["/ES", "/NQ", "/CL", "/GC"],
+    "max_concurrent_option_chains": 10
   },
   "system": {
     "watchlist_path": "watchlists/default-watchlist.csv",
@@ -392,8 +393,8 @@
       },
       "/ZT": {
         "type": "etf",
-        "iv_symbol": "IEF",
-        "hv_symbol": "ZT=F"
+        "iv_symbol": "SHY",
+        "hv_symbol": "SHY"
       },
       "/SR3": {
         "type": "etf",
@@ -479,7 +480,7 @@
       "/6C": 100000
     },
     "DATA_FETCHING": {
-      "dte_window_min": 20,
+      "dte_window_min": 25,
       "dte_window_max": 70,
       "target_dte": 45,
       "strike_limit_lower": 0.8,

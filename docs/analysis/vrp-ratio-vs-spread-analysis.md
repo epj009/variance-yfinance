@@ -59,7 +59,7 @@ VRP is compensation for:
 From `src/variance/get_market_data.py:974-986`:
 
 ```python
-# Structural VRP: PREFER Tastytrade HV90 -> Fallback yfinance HV252
+# Structural VRP: PREFER Tastytrade HV90 -> Fallback legacy provider HV252
 hv90 = tt_data.get("hv90")
 hv_floor = HV_FLOOR_PERCENT  # 5.0%
 

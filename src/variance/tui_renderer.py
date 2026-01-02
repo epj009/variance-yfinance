@@ -423,18 +423,32 @@ class TUIRenderer:
         table.add_column("Price", justify="right", width=9)
         table.add_column("VRP(S)", justify="right", width=7)
         table.add_column("VRP(T)", justify="right", width=7)
+        table.add_column("Comp", justify="right", width=5)
         table.add_column("IVP", justify="right", width=5)
         table.add_column("Rho", justify="right", width=5)
         table.add_column("Yield", justify="right", width=7)
         table.add_column("Earn", justify="right", width=5)
-        table.add_column("Signal", width=12)
-        table.add_column("Vote", justify="center", width=7)
+        table.add_column("Signal", width=15)
+        table.add_column("Vote", justify="center", width=14)
+
+        proxy_hv90_symbols: list[tuple[str, Optional[str]]] = []
 
         for c in candidates:
             # ... signal and rho logic ...
+            if c.get("hv90_source") == "proxy_dxlink":
+                sym = str(c.get("symbol", "N/A"))
+                proxy_sym = c.get("proxy")
+                proxy_hv90_symbols.append((sym, proxy_sym))
+
             # Signal Styling & Divergence Indicator
             sig = str(c.get("Signal", "N/A"))
-            sig_style = "profit" if "RICH" in sig else "loss" if "DISCOUNT" in sig else "warning"
+            sig_style = (
+                "profit"
+                if "RICH" in sig or "EXPANDING" in sig
+                else "loss"
+                if "DISCOUNT" in sig or "COILED" in sig
+                else "warning"
+            )
 
             # Calculate Divergence for arrow indicator
             div_icon = ""
@@ -472,6 +486,26 @@ class TUIRenderer:
             ivp = c.get("IV Percentile")
             ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
 
+            comp = c.get("Compression Ratio", 1.0)
+            if isinstance(comp, (int, float)):
+                comp_str = f"{comp:.2f}"
+                # Color coding (CORRECTED FOR SHORT VOL):
+                # - Green: 0.85-1.15 (good momentum for short vol)
+                # - Yellow: 0.60-0.85 or 1.15-1.30 (caution)
+                # - Red < 0.60: AVOID (expansion risk)
+                # - Green > 1.30: STRONG BUY (contraction expected)
+                if comp < 0.60:
+                    comp_style = "loss"  # Red - severe compression (AVOID)
+                elif comp > 1.30:
+                    comp_style = "profit"  # Green - severe expansion (STRONG BUY)
+                elif comp < 0.85 or comp > 1.15:
+                    comp_style = "warning"  # Yellow - caution zone
+                else:
+                    comp_style = "profit"  # Green - normal/good
+                comp_display = f"[{comp_style}]{comp_str}[/]"
+            else:
+                comp_display = "N/A"
+
             # Yield Formatting
             y_val = c.get("Yield", 0.0)
             y_str = f"{y_val:.1f}%" if y_val > 0 else "N/A"
@@ -499,8 +533,12 @@ class TUIRenderer:
                 vote_display = f"[{vote_style}]SCALE[/]"
             elif vote == "LEAN":
                 vote_display = f"[{vote_style}]LEAN[/]"
+            elif vote == "STRONG BUY":
+                vote_display = "[bold green]STRONG BUY[/]"
             elif vote == "AVOID":
                 vote_display = "[bold red]AVOID[/]"
+            elif vote == "AVOID (COILED)":
+                vote_display = "[bold red]AVOID (COILED)[/]"
             else:
                 vote_display = f"[{vote_style}]{vote}[/]"
 
@@ -509,6 +547,7 @@ class TUIRenderer:
                 fmt_currency(c.get("price", 0)),
                 vsm_str,
                 vtm_str,
+                comp_display,
                 ivp_str,
                 f"[{rho_style}]{rho_str}[/]",
                 f"[{y_style}]{y_str}[/]",
@@ -518,6 +557,19 @@ class TUIRenderer:
             )
 
         self.console.print(table)
+
+        if proxy_hv90_symbols:
+            proxy_parts = []
+            for sym, proxy_sym in proxy_hv90_symbols:
+                if proxy_sym:
+                    proxy_parts.append(f"{sym} via {proxy_sym}")
+                else:
+                    proxy_parts.append(sym)
+            proxy_list = ", ".join(proxy_parts)
+            attrs_note = "HV90, HV252, VRP Structural, Compression Ratio"
+            self.console.print(
+                f"[warning]Proxy HV90 used for: {proxy_list}. Affects: {attrs_note}.[/warning]"
+            )
 
     def render_diagnostics(self) -> None:
         """Renders diagnostics panels for pipeline visibility."""

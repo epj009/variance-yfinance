@@ -9,7 +9,7 @@
 #   ./screen --json             # Raw JSON output (for scripting)
 #   ./screen --help             # Show help
 #
-# NOTE: Yahoo Finance may rate-limit large watchlists (>100 symbols).
+# NOTE: legacy data source may rate-limit large watchlists (>100 symbols).
 #       Use a limit (e.g., ./screen 50) to scan fewer symbols and avoid 429 errors.
 
 # Auto-load Tastytrade credentials if available

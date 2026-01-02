@@ -54,7 +54,7 @@ variance-screener  # Will fetch fresh data
 
 ### Issue: "Market closed, no cache available" outside market hours
 
-**Cause:** No cached data exists, yfinance rate limited
+**Cause:** No cached data exists, legacy provider rate limited
 
 **Solution:**
 - Run during market hours (9:30 AM - 4:00 PM EST) OR
@@ -293,11 +293,11 @@ cat config/trading_rules.reorganized.json
 **Error Types:**
 1. **401 Unauthorized:** Check credentials in `.env.tastytrade`
 2. **429 Too Many Requests:** Rate limit hit, wait and retry
-3. **500 Server Error:** Tastytrade API issue, use fallback (yfinance)
+3. **500 Server Error:** Tastytrade API issue, use fallback (legacy provider)
 
 **Fallback Mode:**
 ```bash
-# Remove credentials to force yfinance-only mode
+# Remove credentials to force legacy provider-only mode
 mv .env.tastytrade .env.tastytrade.bak
 
 # Run without Tastytrade

@@ -323,7 +323,7 @@ done < my_symbols.txt
 ### Error: "ModuleNotFoundError"
 **Solution**: Run from project root:
 ```bash
-cd /path/to/variance-yfinance
+cd /path/to/variance-legacy provider
 ./venv/bin/python3 scripts/diagnose_symbol.py AAPL
 ```
 

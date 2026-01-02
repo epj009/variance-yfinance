@@ -17,8 +17,7 @@
       "hv_rank_trap_threshold": 15.0,
       "volatility_momentum_min_ratio": 0.85,
       "vol_trap_compression_threshold": 0.70,
-      "compression_coiled_threshold": 0.75,
-      "compression_expanding_threshold": 1.25
+      "compression_coiled_threshold": 0.75
     },
 
     "iv_percentile": {

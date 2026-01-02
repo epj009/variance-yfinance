@@ -62,7 +62,7 @@ def analyze_portfolio(
         unique_roots.append(beta_sym)
 
     provider = MarketDataFactory.get_provider()
-    market_data = provider.get_market_data(unique_roots)
+    market_data = provider.get_market_data(unique_roots, include_returns=True)
     market_data_diagnostics = MarketDataDiagnostics.from_payload(market_data).to_dict()
 
     # Step 3b: Beta Data Hard Gate

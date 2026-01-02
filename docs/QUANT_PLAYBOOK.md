@@ -189,7 +189,7 @@ In retail trading, users often subtract volatility (e.g., $IV - HV = 5\%$). Vari
 
 ## 1. The Challenge: Data Fragmentaton
 In retail quantitative trading, many assets (especially Futures and small ETFs) suffer from **Data Blackouts**:
-*   **Futures Options:** Yahoo Finance and other free APIs do not provide options chains for futures tickers.
+*   **Futures Options:** legacy data source and other free APIs do not provide options chains for futures tickers.
 *   **Thin ETFs:** Tickers like `FXC` (CAD) or `SHY` (2Y Bond) often have "dead" options markets with 0.0 bids and near-zero open interest, making their Implied Volatility (IV) unreadable.
 
 ## 2. The Solution: Idiosyncratic Hybrid Signals

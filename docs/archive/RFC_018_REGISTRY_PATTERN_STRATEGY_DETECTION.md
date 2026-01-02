@@ -11,7 +11,7 @@
 
 ### 1.1 `identify_strategy()` Analysis
 
-The `identify_strategy()` function in `/Users/eric.johnson@verinext.com/Projects/variance-yfinance/src/variance/strategy_detector.py` (lines 98-351) is a classification "mega-function":
+The `identify_strategy()` function in `/Users/eric.johnson@verinext.com/Projects/variance-legacy provider/src/variance/strategy_detector.py` (lines 98-351) is a classification "mega-function":
 
 | Metric | Current Value | Target |
 |--------|--------------|--------|

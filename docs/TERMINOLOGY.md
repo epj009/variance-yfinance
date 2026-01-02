@@ -200,10 +200,10 @@
 | Term | Usage |
 |------|-------|
 | **Tastytrade** | Primary data provider (volatility metrics) |
-| **yfinance** | Fallback provider (price data) |
+| **legacy provider** | Fallback provider (price data) |
 | **Provider** | Generic term for data source |
 
-**❌ Avoid**: "Tastyworks" (old brand), "Yahoo Finance" (use yfinance)
+**❌ Avoid**: "Tastyworks" (old brand), "legacy data source" (use legacy provider)
 
 ---
 

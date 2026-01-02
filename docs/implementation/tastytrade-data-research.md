@@ -2,7 +2,7 @@
 
 **Original Date:** December 26, 2025
 **Updated:** December 30, 2025 (Verification Testing)
-**Objective:** Explore using Tastytrade API to reduce yfinance dependency
+**Objective:** Explore using Tastytrade API to reduce legacy provider dependency
 **Result:** **UPDATED** - OAuth credentials CAN access positions, but NOT streaming Greeks
 
 ## ⚠️ Update Notice (December 30, 2025)
@@ -224,9 +224,9 @@ POST /sessions
 - ✅ **Streamer symbols** (for subscribing to data feeds) **[NEW]**
 - ❌ Greeks (delta, gamma, theta, vega) - requires streaming subscription
 - ❌ Real-time quotes - requires streaming subscription
-- ❌ Price data (need separate endpoints or yfinance)
+- ❌ Price data (need separate endpoints or legacy provider)
 
-**yfinance provides:**
+**legacy provider provides:**
 - ✅ Current prices
 - ✅ Historical OHLCV
 - ✅ Options chains
@@ -257,7 +257,7 @@ POST /sessions
 
 **What's missing:**
 - Greeks (need for TOXIC THETA handler)
-- Current prices (can fetch from yfinance as fallback)
+- Current prices (can fetch from legacy provider as fallback)
 
 **Triage accuracy:** ~70-80% (all handlers except TOXIC THETA work)
 
@@ -274,7 +274,7 @@ POST /sessions
 
 ---
 
-#### Continue: Improve yfinance rate limit handling
+#### Continue: Improve legacy provider rate limit handling
 
 For price data and Greeks (until streaming access obtained):
 
@@ -290,11 +290,11 @@ For price data and Greeks (until streaming access obtained):
 
 **Current Tastytrade usage:**
 - Market metrics for IV/HV/liquidity ✅
-- Fallback to yfinance for prices ✅
+- Fallback to legacy provider for prices ✅
 - Cache with 24h TTL ✅
 
 **What needs improvement:**
-- yfinance rate limit handling
+- legacy provider rate limit handling
 - Request throttling
 - Better cache fallback logic
 
@@ -318,7 +318,7 @@ For price data and Greeks (until streaming access obtained):
 **Pros:** No rate limits, full control
 **Cons:** Stale data, maintenance overhead
 
-### Option 3: Better yfinance Usage
+### Option 3: Better legacy provider Usage
 - **Request throttling** (500ms delays)
 - **IP rotation** (VPN/proxy)
 - **Retry logic** (exponential backoff)
@@ -332,7 +332,7 @@ For price data and Greeks (until streaming access obtained):
 ## Next Steps
 
 1. ✅ Document research findings (this file)
-2. ⬜ Implement better yfinance rate limit handling:
+2. ⬜ Implement better legacy provider rate limit handling:
    - Add request delays (0.5-1s between symbols)
    - Exponential backoff on 429 errors
    - Respect Retry-After headers
@@ -357,8 +357,8 @@ For price data and Greeks (until streaming access obtained):
 - Returns HV30/HV90 from Tastytrade
 
 **Market Data Service:** `src/variance/get_market_data.py`
-- Line 751-904: TastytradeProvider (merges TT + yfinance)
-- Line 495-657: YFinanceProvider (fallback)
+- Line 751-904: TastytradeProvider (merges TT + legacy provider)
+- Line 495-657: LegacyProvider (fallback)
 - Line 18-91: market hours detection + holiday calendar
 
 **Rate Limit Handling:** Currently minimal
@@ -411,14 +411,14 @@ python3 scripts/verify_positions_greeks_access.py --all
 
 ## Final Conclusion **UPDATED**
 
-**Original conclusion (December 26):** "Stick with current architecture (Tastytrade for vol metrics, yfinance for prices)."
+**Original conclusion (December 26):** "Stick with current architecture (Tastytrade for vol metrics, legacy provider for prices)."
 
 **Updated conclusion (December 30):**
 1. ✅ **Implement RFC-006 Phase 1** - Position sync is now feasible
 2. ✅ **Keep Tastytrade for vol metrics** - Working as designed
-3. ✅ **Keep yfinance for prices** - Still needed for market data
+3. ✅ **Keep legacy provider for prices** - Still needed for market data
 4. ❌ **Greeks via streaming BLOCKED** - Requires premium subscription
-5. ✅ **Improve yfinance rate limits** - Still valuable optimization
+5. ✅ **Improve legacy provider rate limits** - Still valuable optimization
 
 **Next steps:**
 1. Implement `--sync` command for automated position retrieval

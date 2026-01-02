@@ -3,15 +3,62 @@ Report Construction Step
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from variance.vol_screener import ScreenerConfig
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val) if val is not None else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _determine_vote(candidate: dict[str, Any], is_held: bool) -> str:
+    score = _safe_float(candidate.get("score"))
+    rho = _safe_float(candidate.get("portfolio_rho"))
+    compression_raw = candidate.get("Compression Ratio")
+    compression = _safe_float(compression_raw, default=1.0) if compression_raw is not None else 1.0
+
+    vote = "WATCH"
+    if is_held:
+        return "SCALE" if candidate.get("is_scalable_surge") else "HOLD"
+    if compression < 0.60:
+        return "AVOID (COILED)"
+    if compression < 0.75:
+        if score >= 70 and rho <= 0.50:
+            return "LEAN"
+        return "WATCH"
+    if compression > 1.30:
+        if score >= 60 and rho <= 0.60:
+            return "STRONG BUY"
+        return "BUY"
+    if compression > 1.15:
+        if score >= 70 and rho <= 0.50:
+            return "BUY"
+        if score >= 60 and rho <= 0.65:
+            return "LEAN"
+        if rho > 0.70:
+            return "AVOID"
+        return "WATCH"
+    if score >= 70 and rho <= 0.50:
+        return "BUY"
+    if score >= 60 and rho <= 0.65:
+        return "LEAN"
+    if rho > 0.70:
+        return "AVOID"
+    return vote
 
 
 def build_report(
     candidates: list[dict[str, Any]],
     counters: dict[str, int],
-    config: Any,
+    config: "ScreenerConfig",
     rules: dict[str, Any],
     market_data_diagnostics: dict[str, int],
+    debug_rejections: dict[str, str],
 ) -> dict[str, Any]:
     """Constructs the final serialized report."""
     from variance.common import map_sector_to_asset_class
@@ -32,8 +79,7 @@ def build_report(
         liquidity_note = f"Illiquid filtered ({liq_mode} check)"
 
     summary = {
-        "scanned_symbols_count": len(candidates)
-        + sum(v for k, v in counters.items() if "skipped" in k),
+        "scanned_symbols_count": market_data_diagnostics.get("symbols_total", 0),
         "candidates_count": len(candidates),
         "filter_note": f"{bias_note}; {liquidity_note}",
         "correlation_max": float(rules.get("max_portfolio_correlation", 0.95)),
@@ -44,17 +90,23 @@ def build_report(
     held_symbols = set(s.upper() for s in config.held_symbols)
     display_candidates = []
 
-    def _safe_f(val: Any, default: float = 0.0) -> float:
-        try:
-            return float(val) if val is not None else default
-        except (ValueError, TypeError):
-            return default
-
     for candidate in candidates:
         display = dict(candidate)
         display["Symbol"] = candidate.get("symbol")
 
-        display["Price"] = _safe_f(candidate.get("price"))
+        display["Price"] = _safe_float(candidate.get("price"))
+        if candidate.get("hv90_source") == "proxy_dxlink":
+            proxy_symbol = candidate.get("proxy")
+            proxy_note = f" via {proxy_symbol}" if proxy_symbol else ""
+            display["warning_message"] = (
+                f"HV90 proxy{proxy_note} affects HV90, HV252, VRP Structural, Compression Ratio."
+            )
+            display["warning_detail"] = {
+                "type": "proxy_hv90",
+                "source": "proxy_dxlink",
+                "proxy_symbol": proxy_symbol,
+                "attributes": ["hv90", "hv252", "vrp_structural", "compression_ratio"],
+            }
 
         asset_class = candidate.get("asset_class") or map_sector_to_asset_class(
             str(candidate.get("sector", "Unknown"))
@@ -64,14 +116,14 @@ def build_report(
         display["is_held"] = is_held
 
         # 1. Capacity (Liquidity Value in USD)
-        display["Capacity"] = _safe_f(candidate.get("liquidity_value"))
+        display["Capacity"] = _safe_float(candidate.get("liquidity_value"))
 
         # 2. Yield (%) - Normalized to 30 days
         # Formula: (Straddle Mid / (Price * 0.20)) * (30 / 45)
         # We use 45 as the DTE denominator for normalization.
-        price = _safe_f(candidate.get("price"))
-        bid = _safe_f(candidate.get("atm_bid"))
-        ask = _safe_f(candidate.get("atm_ask"))
+        price = _safe_float(candidate.get("price"))
+        bid = _safe_float(candidate.get("atm_bid"))
+        ask = _safe_float(candidate.get("atm_ask"))
         mid = (bid + ask) / 2 if (bid + ask) > 0 else 0.0
 
         yield_pct = 0.0
@@ -88,41 +140,40 @@ def build_report(
         display["Earnings"] = get_days_to_date(candidate.get("earnings_date"))
 
         # 2. Allocation Vote Logic
-        score = _safe_f(candidate.get("score"))
-        rho = _safe_f(candidate.get("portfolio_rho"))
-
-        vote = "WATCH"
-        if is_held:
-            # Scale if setup passed the Standalone Scalable Gate
-            vote = "SCALE" if candidate.get("is_scalable_surge") else "HOLD"
-        elif score >= 70 and rho <= 0.50:
-            vote = "BUY"
-        elif score >= 60 and rho <= 0.65:
-            vote = "LEAN"
-        elif rho > 0.70:
-            vote = "AVOID"
-
-        display["Vote"] = vote
+        display["Vote"] = _determine_vote(candidate, is_held)
 
         # Ensure IV Percentile is visible in the final report
         ivp_raw = candidate.get("iv_percentile")
         if ivp_raw is not None:
             # Tastytrade client already normalizes to 0-100 range
             try:
-                display["IV Percentile"] = _safe_f(ivp_raw)
+                display["IV Percentile"] = _safe_float(ivp_raw)
             except (ValueError, TypeError):
                 display["IV Percentile"] = None
         else:
             display["IV Percentile"] = None
 
+        compression = candidate.get("Compression Ratio")
+        if compression is not None:
+            try:
+                display["Compression"] = _safe_float(compression)
+            except (ValueError, TypeError):
+                display["Compression"] = None
+        else:
+            display["Compression"] = None
+
         display_candidates.append(display)
+
+    meta = {
+        "scan_timestamp": datetime.now().isoformat(),
+        "profile": getattr(config, "profile", "default"),
+        "market_data_diagnostics": market_data_diagnostics,
+    }
+    if debug_rejections:
+        meta["filter_rejections"] = debug_rejections
 
     return {
         "candidates": display_candidates,
         "summary": summary,
-        "meta": {
-            "scan_timestamp": datetime.now().isoformat(),
-            "profile": getattr(config, "profile", "default"),
-            "market_data_diagnostics": market_data_diagnostics,
-        },
+        "meta": meta,
     }

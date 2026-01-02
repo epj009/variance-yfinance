@@ -133,7 +133,7 @@ A definitive clinical recommendation for every candidate:
 
 ```bash
 # 1. Clone and Enter
-git clone https://github.com/epj009/variance-yfinance.git variance
+git clone https://github.com/epj009/variance.git variance
 cd variance
 
 # 2. Setup Environment

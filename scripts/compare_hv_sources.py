@@ -4,6 +4,8 @@ Compare HV90 vs HV252 for VRP calculations.
 
 This script helps you decide which volatility window is better for your strategy
 by comparing candidate lists and VRP distributions.
+
+Note: With PureTastytradeProvider, HV252 is synthesized from HV90.
 """
 
 import sys
@@ -13,7 +15,7 @@ from typing import TypedDict
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
-from variance.market_data.providers import TastytradeProvider
+from variance.market_data.pure_tastytrade_provider import PureTastytradeProvider
 
 
 class VrpComparison(TypedDict):
@@ -36,7 +38,7 @@ def analyze_vrp_sources(symbols: list[str]) -> None:
     Args:
         symbols: List of tickers to analyze
     """
-    provider = TastytradeProvider()
+    provider = PureTastytradeProvider()
 
     print("=" * 80)
     print("VRP SOURCE COMPARISON: HV90 vs HV252")

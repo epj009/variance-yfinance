@@ -4,7 +4,7 @@
 Identify relative value volatility dislocations between correlated pairs of assets to capture "Spread Alpha" while remaining directional-neutral.
 
 ## 2. Quantitative Context (Consensus)
-The debate on technical feasibility concluded that tick-level arbitrage is impossible with current retail data sources (yfinance). The scanner will focus on **Strategic Spread Dislocation** over a daily/weekly time horizon.
+The debate on technical feasibility concluded that tick-level arbitrage is impossible with current retail data sources (legacy provider). The scanner will focus on **Strategic Spread Dislocation** over a daily/weekly time horizon.
 
 ## 3. Implementation Path
 ### 3.1 Dynamic Pair Discovery

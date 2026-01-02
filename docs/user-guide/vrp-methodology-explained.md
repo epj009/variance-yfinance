@@ -111,6 +111,23 @@ The strategy is:
 
 ---
 
+## Compression Ratio (Volatility Momentum)
+
+**Formula:** HV30 / HV90
+
+This ratio tells us whether realized volatility is **compressed** (coiling) or **expanded** relative to its longer-term baseline. This matters because Variance is a **short volatility** strategy.
+
+**Interpretation (short vol):**
+- **< 0.60:** Severe compression → avoid (expansion risk)
+- **0.60-0.75:** Mild compression → caution, downgrade conviction
+- **0.75-1.15:** Normal regime → standard entries
+- **1.15-1.30:** Mild expansion → favorable for short vol
+- **> 1.30:** Severe expansion → strongest short vol edge (contraction expected)
+
+**Why it flips vs long vol:** If volatility is already compressed, the odds favor expansion, which is bad for short gamma. Elevated volatility tends to mean-revert down, which is ideal for short premium.
+
+---
+
 ## Common Concerns Addressed
 
 ### "But academic VRP is IV - HV!"

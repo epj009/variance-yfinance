@@ -11,7 +11,7 @@
 
 ### 1.1 Current State Analysis
 
-The `determine_cluster_action()` function in `/Users/eric.johnson@verinext.com/Projects/variance-yfinance/src/variance/triage_engine.py` (lines 349-548) exhibits the following complexity demons:
+The `determine_cluster_action()` function in `/Users/eric.johnson@verinext.com/Projects/variance-legacy provider/src/variance/triage_engine.py` (lines 349-548) exhibits the following complexity demons:
 
 | Metric | Current Value | Target |
 |--------|--------------|--------|
