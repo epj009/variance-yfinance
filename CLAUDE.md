@@ -19,6 +19,12 @@ Before suggesting a commit, you MUST run:
 4. **Complexity:** `radon cc src/variance -min B` (Max complexity: 10)
 5. **Tests:** `pytest`
 
+## 🔄 Git Workflow
+- **Push After Feature Completion:** After every completed feature or significant change, you MUST:
+  1. Commit the changes with a descriptive message
+  2. Immediately push to the remote repository with `git push`
+  3. Never leave unpushed commits at the end of a feature implementation
+
 ## 📜 Documentation
 - **ADRs:** Any significant architectural change requires a new Architecture Decision Record in `docs/adr/`.
 - **Docstrings:** Use Google-style docstrings for all new functions/classes.
