@@ -44,6 +44,7 @@ class PortfolioParser:
         "Ask": ["Ask", "Ask Price"],
         "Mark": ["Mark", "Mark Price", "Mid"],
         "Open Date": ["Open Date", "D's Opn", "Days Open"],
+        "Sector": ["Sector", "Industry", "Asset Class"],
     }
 
     @staticmethod

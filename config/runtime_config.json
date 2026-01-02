@@ -313,7 +313,11 @@
       "XLC": "Communication Services",
       "XLRE": "Real Estate",
       "XLI": "Industrials",
-      "XLB": "Materials"
+      "XLB": "Materials",
+      "ETH-USD": "Crypto",
+      "BTC-USD": "Crypto",
+      "ETH/USD": "Crypto",
+      "BTC/USD": "Crypto"
     },
     "FUTURES_PROXY": {
       "/ES": {
@@ -492,13 +496,16 @@
         "Technology",
         "Healthcare",
         "Financial Services",
+        "Financial",
         "Consumer Cyclical",
         "Consumer Defensive",
         "Communication Services",
         "Real Estate",
         "Industrials",
+        "Capital Goods",
         "Utilities",
-        "International"
+        "International",
+        "Materials"
       ],
       "Commodity": [
         "Energy",
@@ -513,6 +520,9 @@
       ],
       "Index": [
         "Index"
+      ],
+      "Crypto": [
+        "Crypto"
       ]
     }
   },

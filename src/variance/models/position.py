@@ -37,6 +37,7 @@ class Position:
     ask: float = 0.1
     mark: float = 0.05
     open_date: Optional[str] = None
+    sector: Optional[str] = None
     raw_data: Optional[dict[str, Any]] = None
 
     @property
@@ -62,6 +63,10 @@ class Position:
     @classmethod
     def from_row(cls, row: dict[str, str]) -> "Position":
         """Factory method to create a Position from a normalized CSV row."""
+        # Parse sector from CSV, strip whitespace and treat empty as None
+        sector_raw = row.get("Sector", "").strip()
+        sector = sector_raw if sector_raw else None
+
         return cls(
             symbol=row.get("Symbol", "UNKNOWN"),
             asset_type=row.get("Type", "Option"),
@@ -87,5 +92,6 @@ class Position:
             ask=parse_currency(row.get("Ask", "0")),
             mark=parse_currency(row.get("Mark") or row.get("Mid", "0")),
             open_date=row.get("Open Date"),
+            sector=sector,
             raw_data=row,
         )

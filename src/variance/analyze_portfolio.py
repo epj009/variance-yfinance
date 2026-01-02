@@ -65,6 +65,25 @@ def analyze_portfolio(
     market_data = provider.get_market_data(unique_roots, include_returns=True)
     market_data_diagnostics = MarketDataDiagnostics.from_payload(market_data).to_dict()
 
+    # Step 3a: Enrich market_data with sectors from Tastytrade CSV
+    # Use Tastytrade sector when available, fall back to SECTOR_OVERRIDES for futures/crypto/ETFs
+    sector_overrides = market_config.get("SECTOR_OVERRIDES", {})
+    for pos in positions:
+        root = pos.root_symbol
+        if not root or root not in market_data:
+            continue
+
+        # Priority: Use Tastytrade sector from CSV, then SECTOR_OVERRIDES, then Unknown
+        if pos.sector:
+            # Tastytrade provided sector (for equities)
+            market_data[root]["sector"] = pos.sector
+        elif root in sector_overrides:
+            # Manual override (for futures, crypto, some ETFs)
+            market_data[root]["sector"] = sector_overrides[root]
+        elif "sector" not in market_data[root]:
+            # Fallback
+            market_data[root]["sector"] = "Unknown"
+
     # Step 3b: Beta Data Hard Gate
     beta_entry = market_data.get(beta_sym, {})
     beta_price_raw = beta_entry.get("price", 0.0)
