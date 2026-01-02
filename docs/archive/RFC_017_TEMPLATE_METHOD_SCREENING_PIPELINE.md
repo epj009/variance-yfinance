@@ -11,7 +11,7 @@
 
 ### 1.1 `screen_volatility()` Analysis
 
-The `screen_volatility()` function in `/Users/eric.johnson@verinext.com/Projects/variance-legacy provider/src/variance/vol_screener.py` (lines 306-656) is a "God Function":
+The `screen_volatility()` function in `src/variance/vol_screener.py` (lines 306-656) is a "God Function":
 
 | Metric | Current Value | Target |
 |--------|--------------|--------|
@@ -35,7 +35,7 @@ The `screen_volatility()` function in `/Users/eric.johnson@verinext.com/Projects
 
 ### 1.2 `_cluster_same_open_date()` Analysis
 
-The `_cluster_same_open_date()` function in `/Users/eric.johnson@verinext.com/Projects/variance-legacy provider/src/variance/strategy_detector.py` (lines 596-760) exhibits:
+The `_cluster_same_open_date()` function in `src/variance/strategy_detector.py` (lines 596-760) exhibits:
 
 | Metric | Current Value | Target |
 |--------|--------------|--------|
