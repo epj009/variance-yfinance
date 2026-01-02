@@ -43,7 +43,7 @@ This document provides a comprehensive technical overview of the **Variance Syst
 Variance has evolved beyond a traditional MVC pattern into a **Unidirectional Data Pipeline**. This architecture ensures data consistency, simplifies debugging, and allows for asynchronous processing steps.
 
 **The Pipeline Flow:**
-1.  **Ingest (Source of Truth):** `get_market_data.py` pulls raw data from external APIs (legacy provider).
+1.  **Ingest (Source of Truth):** `market_data/service.py` pulls raw data from Tastytrade API (REST + DXLink streaming).
 2.  **Process (Transformation):** `analyze_portfolio.py`, `triage_engine.py`, and `vol_screener.py` apply business logic, calculating Greeks, VRP, and risk metrics.
 3.  **Store (State Persistence):** The processed state is serialized to JSON artifacts (`reports/variance_analysis.json`, `reports/screener_output.json`). This file system acts as the "Database."
 4.  **View (Presentation):** `tui_renderer.py` reads the JSON artifacts and renders the Terminal User Interface. It is a "dumb" viewer with no internal logic.
@@ -65,9 +65,9 @@ The data pipeline is designed for **Resilience** and **Speed**. It does not rely
     *   *Market Hours (09:30-16:00):* Short TTL (10-15 mins) for freshness.
     *   *After Hours (16:00-09:30):* TTL extends automatically to **10:00 AM next day**. This bridges the overnight gap where Option Chains are unavailable.
 2.  **Partial Data Mode:**
-    *   If `legacy provider` returns `Price` and `History` (HV) but fails to return `Option Chain` (IV).
-    *   **Action:** Returns a "Partial" record (`vrp_structural` = 0.0).
-    *   **Impact:** Position P/L/Delta are valid; Volatility metrics suppressed; Screener filters reject symbol.
+    *   If Tastytrade REST API returns data but is missing HV30/HV90 metrics.
+    *   **Action:** DXLink fallback calculates HV from daily OHLC candles.
+    *   **Impact:** 99%+ coverage of HV metrics across all equities and futures.
 
 ---
 
@@ -105,11 +105,12 @@ Logic is encapsulated in robust, typed **Domain Objects** rather than raw dictio
 
 Synthesizes raw metrics into actionable "Signals" using **Smart Gate** technology.
 
-### 5.1. Smart Gate: Implied Liquidity
-To overcome data gaps in retail providers (like `legacy provider`), Variance uses an **Implied Liquidity** model.
-- **The Gap:** legacy data source often reports `0` volume for liquid equities during polling cycles.
-- **The Fix:** If Volume is `0`, the engine analyzes the **Bid/Ask Spread (Slippage)**. 
-- **The Rule:** If Slippage < 5%, the symbol is accepted as "Implied Liquid" and admitted to the screener. This recovers ~20% of the high-quality equity universe.
+### 5.1. Liquidity Filtering
+Variance uses multi-dimensional liquidity analysis to ensure tradeable opportunities.
+- **Bid/Ask Spread (Slippage):** Rejects symbols with > 5% spread to prevent excessive transaction costs.
+- **Price Floor:** Minimum $25 stock price for retail position sizing.
+- **Tastytrade Liquidity Rating:** Uses institutional liquidity data when available.
+- **Impact:** Filters out 78 high-slippage symbols while preserving liquid opportunities.
 
 ### 5.2. Log-Normalization (IV Scaling)
 The engine automatically detects and fixes decimal-scaling errors from data providers using logarithmic distance comparison.

@@ -300,4 +300,17 @@ VERDICT: ✅ CANDLE EVENTS WORK!
 
 ---
 
+## References
+
+**Official Documentation:**
+- Tastytrade API Docs: https://developer.tastytrade.com
+- DXLink Protocol: https://demo-api.tastytrade.com/doc/dxfeed-spec.html
+
+**Related Variance Research:**
+- `tastytrade-actual-api-fields.md` - Field reference (actual vs OpenAPI spec)
+- `tastytrade-futures-options-research.md` - Futures-specific implementation notes
+- `tastytrade-options-quotes-api-comparison.md` - Equity options pricing comparison
+
+---
+
 **Next Step:** Run `scripts/test_dxlink_candles.py` to verify Candle events work as documented.

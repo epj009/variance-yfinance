@@ -73,6 +73,8 @@ variance-yfinance/
 
 ## Core Architecture Patterns
 
+> **Deep Dive:** For detailed technical architecture (data layers, caching strategies, pipeline internals), see `docs/BLUEPRINT.md`.
+
 ### 1. **Specification Pattern** (Filtering)
 All market filters inherit from `Specification[T]` and support composition:
 

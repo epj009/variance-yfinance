@@ -9,7 +9,7 @@
 
 Built on the Tastylive philosophy, Variance rejects market narratives in favor of statistical edge, specifically exploiting the **Volatility Risk Premium (VRP)** through net-premium selling strategies.
 
-Variance uses institution-grade **Logarithmic Distance** for all volatility calculations, ensuring mathematical objectivity across different asset scales and price regimes.
+Variance uses **ratio-based VRP calculation** (IV/HV) for mathematical objectivity across different asset scales and volatility regimes, aligning with institutional market-making conventions.
 
 ---
 
@@ -30,12 +30,21 @@ Variance uses institution-grade **Logarithmic Distance** for all volatility calc
 3. Check [DEVELOPMENT_PRIORITIES.md](docs/DEVELOPMENT_PRIORITIES.md) for next tasks
 4. Refer to [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) when stuck
 
-**Current Status (Dec 25, 2024):**
+**Documentation Structure:**
+- **`docs/`** - Core onboarding and reference documentation
+- **`docs/adr/`** - Architecture Decision Records (ADRs)
+- **`docs/archive/`** - Implemented RFCs (core patterns: 008, 016, 017, 018, 021)
+- **`docs/research/`** - Quantitative analysis and API research
+- **`docs/user-guide/`** - End-user guides (filtering, config, diagnostics)
+- **`docs/implementation/`** - Technical implementation specs
+- **`docs/BLUEPRINT.md`** - Deep architectural dive (data layers, caching, pipeline)
+
+**Current Status (January 2026):**
 - **Version:** 0.1.0 (Active Development)
 - **Test Coverage:** 64% (Target: 75%)
-- **Passing Tests:** 411/418 (7 integration tests failing - market data dependencies)
+- **Data Provider:** Tastytrade REST API + DXLink streaming (99%+ HV coverage)
 - **Quality Gates:** All passing (ruff, mypy, radon-cc)
-- **Next Priority:** Fix failing tests, improve Tastytrade client coverage (14% → 70%)
+- **Recent Work:** Parallel option chain fetching (12.9x speedup), filter diagnostics, documentation cleanup
 
 ---
 
@@ -50,10 +59,11 @@ Variance has been refactored into a modular, pattern-driven quantitative engine:
 - **`src/variance/get_market_data.py`**: Resilient data layer with a thread-safe SQLite (WAL) cache.
 
 ### 📐 The Quantitative Standard
-Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance operates in **Logarithmic Space**.
-- **Scale Symmetry**: A 1-point move in a low-vol asset has the same mathematical weight as a relative move in a high-vol asset.
-- **Z-Score Foundational**: All signals are derived from how many units of historical movement the current price covers.
-- **Stoic Logic**: "Subtraction is noise; Division is signal."
+Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance uses **ratio-based normalization**.
+- **VRP Calculation**: Linear ratios ($IV / HV$) ensure proportional scaling - doubling IV doubles premium.
+- **Market Convention**: Professionals quote "IV trading at 1.2x realized" - we speak the same language.
+- **Credit Scaling**: Options premium scales linearly with IV, making ratios mathematically correct for option selling.
+- **Empirically Calibrated**: VRP thresholds adjusted via backtesting to maintain 30-40% pass rates.
 
 ---
 
