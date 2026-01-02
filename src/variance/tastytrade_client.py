@@ -9,9 +9,10 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Optional, TypedDict, TypeVar
 from urllib.parse import quote
 
 try:
@@ -81,6 +82,11 @@ class TastytradeCredentials:
             raise TastytradeAuthError(
                 f"Missing required environment variables: {', '.join(missing_vars)}"
             )
+
+        # mypy: After error check, these are guaranteed to be str
+        assert client_id is not None
+        assert client_secret is not None
+        assert refresh_token is not None
 
         api_base_url = os.getenv("API_BASE_URL", "https://api.tastytrade.com")
         if not api_base_url.startswith("http"):
@@ -386,7 +392,7 @@ class TastytradeClient:
         return val * 100.0 if val <= 1.0 else val
 
     def _fetch_api_data(
-        self, url: str, headers: dict[str, str], params: dict[str, str]
+        self, url: str, headers: dict[str, str], params: Mapping[str, str | list[str]]
     ) -> Optional[Any]:
         """
         Fetch data from Tastytrade API with error handling.
@@ -394,7 +400,7 @@ class TastytradeClient:
         Args:
             url: API endpoint URL
             headers: HTTP headers including auth token
-            params: Query parameters
+            params: Query parameters (values can be strings or lists of strings)
 
         Returns:
             JSON response as dict, or None if error
@@ -579,7 +585,9 @@ class TastytradeClient:
             "Accept": "application/json",
         }
 
-        def chunked(items: list[str], size: int) -> list[list[str]]:
+        T = TypeVar("T")
+
+        def chunked(items: list[T], size: int) -> list[list[T]]:
             return [items[i : i + size] for i in range(0, len(items), size)]
 
         # Split symbols by type for the API (assumes equities for now)
@@ -590,7 +598,7 @@ class TastytradeClient:
 
         results: dict[str, dict[str, Any]] = {}
         for batch in chunked(typed_symbols, 100):
-            params = {}
+            params: dict[str, list[str]] = {}
             for symbol_type, sym in batch:
                 params.setdefault(symbol_type, []).append(sym)
 
@@ -1000,7 +1008,9 @@ class TastytradeClient:
             "Accept": "application/json",
         }
 
-        def chunked(items: list[str], size: int) -> list[list[str]]:
+        T = TypeVar("T")
+
+        def chunked(items: list[T], size: int) -> list[list[T]]:
             return [items[i : i + size] for i in range(0, len(items), size)]
 
         equity_options = [str(s) for s in equity_options if s]
@@ -1149,7 +1159,7 @@ class TastytradeClient:
         }
 
     def _normalize_grouped_expirations(
-        self, symbol: str, items: list[dict], data: dict
+        self, symbol: str, items: list[dict[str, Any]], data: dict[str, Any]
     ) -> dict[str, Any]:
         """Normalize pre-grouped expirations from compact endpoint (legacy)."""
         underlying_symbol = (
@@ -1327,6 +1337,8 @@ class TastytradeClient:
             strike_val = (
                 option.get("strike") or option.get("strike-price") or option.get("strike_price")
             )
+            if strike_val is None:
+                continue
             try:
                 strike_float = float(strike_val)
             except (TypeError, ValueError):
@@ -1460,6 +1472,8 @@ class TastytradeClient:
     @staticmethod
     def _extract_strike(item: dict[str, Any]) -> Optional[float]:
         strike = item.get("strike-price") or item.get("strike_price") or item.get("strike")
+        if strike is None:
+            return None
         try:
             return float(strike)
         except (TypeError, ValueError):

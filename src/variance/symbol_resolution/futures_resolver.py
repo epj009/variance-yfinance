@@ -168,7 +168,9 @@ class FuturesSymbolResolver:
             return None
 
         if isinstance(data, list) and data:
-            return data[0]
+            from typing import cast
+
+            return cast(dict[str, Any], data[0])
 
         if not isinstance(data, dict):
             return None
