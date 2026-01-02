@@ -11,6 +11,9 @@ import os
 import sys
 
 from anthropic import Anthropic
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
 
 
 def load_file_safely(filepath: str) -> str:
@@ -76,21 +79,32 @@ Then remain interactive for follow-up questions.
 
 
 def run_interactive_session(client: Anthropic, initial_message: str, model: str) -> None:
-    """Run an interactive Claude session."""
+    """Run an interactive Claude session with Rich formatting."""
+    console = Console()
     conversation_history = []
 
-    # Send initial message
-    print("\n" + "━" * 80)
-    print("CLAUDE (Strategic Analysis)")
-    print("━" * 80 + "\n")
+    # Header panel
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold cyan]STRATEGIC ANALYSIS[/bold cyan]",
+            title="[bold white]CLAUDE[/bold white]",
+            border_style="cyan",
+        )
+    )
+    console.print()
 
+    # Send initial message
     response = client.messages.create(
         model=model, max_tokens=4096, messages=[{"role": "user", "content": initial_message}]
     )
 
     assistant_message = response.content[0].text
-    print(assistant_message)
-    print("\n" + "━" * 80 + "\n")
+
+    # Render response with Rich Markdown
+    markdown = Markdown(assistant_message)
+    console.print(markdown)
+    console.print()
 
     # Store in history
     conversation_history.append({"role": "user", "content": initial_message})
@@ -103,7 +117,7 @@ def run_interactive_session(client: Anthropic, initial_message: str, model: str)
             if not user_input:
                 continue
             if user_input.lower() in ["exit", "quit", "bye"]:
-                print("Ending session.")
+                console.print("\n[dim]Ending session.[/dim]")
                 break
 
             conversation_history.append({"role": "user", "content": user_input})
@@ -115,13 +129,17 @@ def run_interactive_session(client: Anthropic, initial_message: str, model: str)
             assistant_message = response.content[0].text
             conversation_history.append({"role": "assistant", "content": assistant_message})
 
-            print(f"\nClaude: {assistant_message}\n")
+            # Render follow-up response
+            console.print()
+            markdown = Markdown(assistant_message)
+            console.print(markdown)
+            console.print()
 
         except KeyboardInterrupt:
-            print("\nSession interrupted.")
+            console.print("\n[dim]Session interrupted.[/dim]")
             break
         except Exception as e:
-            print(f"Error: {e}")
+            console.print(f"[red]Error: {e}[/red]")
             break
 
 
