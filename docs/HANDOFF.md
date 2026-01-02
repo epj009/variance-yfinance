@@ -18,7 +18,7 @@
 ```bash
 # 1. Clone and setup
 git clone <repo-url>
-cd variance-legacy provider
+cd variance-yfinance
 python3 -m venv venv
 source venv/bin/activate
 pip install -e ".[dev]"
@@ -39,7 +39,7 @@ variance-analyze
 ## Project Structure
 
 ```
-variance-legacy provider/
+variance-yfinance/
 ├── src/variance/              # Main application code
 │   ├── models/                # Domain models (Position, Portfolio, Specs)
 │   ├── strategies/            # Strategy detection (Strangle, IronCondor, etc.)
