@@ -12,6 +12,11 @@ if [ -f .env.tastytrade ]; then
     source .env.tastytrade
 fi
 
+# Auto-load Anthropic API key if available
+if [ -f .env.anthropic ]; then
+    source .env.anthropic
+fi
+
 MODE="hybrid"
 SHOW_DIAGNOSTICS=0
 

@@ -37,3 +37,4 @@ reports/
 logs/
 .coverage
 .env.tastytrade
+.env.anthropic
