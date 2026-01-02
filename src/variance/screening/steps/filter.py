@@ -347,7 +347,9 @@ def _vol_momentum_reason(metrics: dict[str, Any], min_ratio: float) -> str:
     hv30 = metrics.get("hv30")
     hv90 = metrics.get("hv90")
     try:
-        ratio = float(hv30) / float(hv90)
+        hv30_f = float(hv30) if hv30 is not None else 0.0
+        hv90_f = float(hv90) if hv90 is not None else 0.0
+        ratio = hv30_f / hv90_f if hv90_f != 0 else 0.0
     except (TypeError, ValueError, ZeroDivisionError):
         ratio = 0.0
     return f"Vol Momentum: {ratio:.2f} < {min_ratio:.2f}"
@@ -520,7 +522,7 @@ def _update_counters(
         diagnostics.incr("sector_skipped_count")
 
     # Re-import locally to avoid cycle
-    from variance.vol_screener import _is_illiquid
+    from variance.liquidity.checker import is_illiquid as _is_illiquid
 
     is_illiquid, _ = _is_illiquid(sym, metrics, rules, config.min_tt_liquidity_rating)
     if is_illiquid and not config.allow_illiquid:

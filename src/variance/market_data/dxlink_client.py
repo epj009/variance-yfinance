@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import websockets
-from websockets.client import WebSocketClientProtocol
+from websockets.client import ClientConnection as WebSocketClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,8 @@ class DXLinkClient:
 
             # Wait for initial AUTH_STATE (UNAUTHORIZED)
             auth_state_response = await asyncio.wait_for(
-                self.websocket.recv(), timeout=self.timeout
+                self.websocket.recv(),
+                timeout=self.timeout,
             )
             auth_state_data = json.loads(auth_state_response)
 
@@ -169,7 +170,8 @@ class DXLinkClient:
 
             # Wait for AUTH_STATE response (should be AUTHORIZED)
             final_auth_response = await asyncio.wait_for(
-                self.websocket.recv(), timeout=self.timeout
+                self.websocket.recv(),
+                timeout=self.timeout,
             )
             final_auth_data = json.loads(final_auth_response)
 
@@ -450,11 +452,11 @@ class DXLinkClient:
             logger.error(f"Error fetching candles: {e}")
             raise
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "DXLinkClient":
         """Async context manager entry."""
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.disconnect()

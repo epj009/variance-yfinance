@@ -102,10 +102,7 @@ def get_dxlink_credentials(access_token):
     if response.ok:
         data = response.json()
         # Handle both possible response formats
-        if "data" in data:
-            dxlink_data = data["data"]
-        else:
-            dxlink_data = data
+        dxlink_data = data.get("data", data)
 
         print("✅ DXLink credentials obtained")
         print(f"   URL: {dxlink_data.get('dxlink-url', 'N/A')}")

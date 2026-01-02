@@ -85,7 +85,7 @@ async def test_nq_direct():
 
                 print(f"Listening for candles (timeout: {timeout_seconds}s)...")
 
-                async def collect():
+                async def collect(candles_list=candles):
                     count = 0
                     async for candle in streamer.listen(Candle):
                         count += 1
@@ -93,8 +93,8 @@ async def test_nq_direct():
                             print(
                                 f"  Candle {count}: {candle.event_symbol} - close={candle.close}, time={candle.time}"
                             )
-                        candles.append(candle)
-                        if len(candles) >= 100:
+                        candles_list.append(candle)
+                        if len(candles_list) >= 100:
                             break
 
                 try:

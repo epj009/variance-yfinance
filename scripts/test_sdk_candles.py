@@ -95,13 +95,13 @@ async def test_candles_sdk():
 
                 print(f"Collecting candles for {timeout} seconds...")
 
-                async def collect_candles():
+                async def collect_candles(sym=symbol, candles_list=candles):
                     async for candle in streamer.listen(Candle):
                         # Check if this is for our symbol
-                        if candle.event_symbol.startswith(symbol):
-                            candles.append(
+                        if candle.event_symbol.startswith(sym):
+                            candles_list.append(
                                 CandleData(
-                                    symbol=symbol,
+                                    symbol=sym,
                                     time=candle.time,
                                     open=candle.open,
                                     high=candle.high,
@@ -111,11 +111,11 @@ async def test_candles_sdk():
                                 )
                             )
 
-                            if len(candles) <= 3:
+                            if len(candles_list) <= 3:
                                 print(f"  Candle: time={candle.time} close={candle.close:.2f}")
 
                             # Stop after getting reasonable amount
-                            if len(candles) >= 100:
+                            if len(candles_list) >= 100:
                                 break
 
                 try:

@@ -33,8 +33,8 @@ try:
 
     DXLINK_AVAILABLE = True
 except ImportError:
-    DXLinkHVProvider = None  # type: ignore[assignment]
-    Session = None  # type: ignore[assignment]
+    Session: Any = None  # type: ignore[no-redef]
+    DXLinkHVProvider: Any = None  # type: ignore[no-redef]
     DXLINK_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ class PureTastytradeProvider(IMarketDataProvider):
             if symbol in members:
                 for member in members:
                     if not member.startswith("/"):
-                        return member
+                        return str(member)
 
         return None
 
@@ -218,7 +218,7 @@ class PureTastytradeProvider(IMarketDataProvider):
             # Step 2: Fetch prices (bid, ask, last, mark, etc.)
             logger.debug(f"Fetching prices for {len(unique_symbols)} symbols")
             t0 = time.time()
-            tt_prices = self.tt_client.get_market_data(unique_symbols)  # type: ignore[attr-defined]
+            tt_prices = self.tt_client.get_market_data(unique_symbols)
             timings["TT Prices API"] = (time.time() - t0) * 1000
 
             dxlink_prefetch: dict[str, dict[str, Any]] = {}
@@ -239,9 +239,7 @@ class PureTastytradeProvider(IMarketDataProvider):
             if dxlink_needed and hasattr(self.dxlink_provider, "get_market_data_batch_sync"):
                 try:
                     t0 = time.time()
-                    dxlink_prefetch = self.dxlink_provider.get_market_data_batch_sync(  # type: ignore[attr-defined]
-                        dxlink_needed
-                    )
+                    dxlink_prefetch = self.dxlink_provider.get_market_data_batch_sync(dxlink_needed)
                     timings[f"DXLink Batch ({len(dxlink_needed)} symbols)"] = (
                         time.time() - t0
                     ) * 1000

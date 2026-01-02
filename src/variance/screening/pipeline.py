@@ -116,7 +116,7 @@ class ScreeningPipeline:
             )
             raise
 
-    def _measure(self, name: str, items: int = 0):
+    def _measure(self, name: str, items: int = 0) -> Any:
         """Helper to conditionally measure if benchmarking is enabled."""
         if self.ctx.benchmark:
             return self.ctx.benchmark.measure(name, items)
