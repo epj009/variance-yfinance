@@ -1,24 +1,64 @@
 # Contributing to Variance
 
-## The Philosophy
-Variance is a systematic volatility engine. We value **Occurrences**, **Probabilities**, and **Mechanics**.
+## Pre-Commit Quality Gates
 
-### Core Mandates
-1. **Trade Small:** Keep functions under 10 complexity points (Radon).
-2. **Trade Math:** Use logarithmic space for volatility comparisons.
-3. **No Side Effects:** Domain objects MUST be frozen dataclasses.
-4. **Read-Only Engine:** This application is for analysis and decision support only. It MUST NEVER implement trade execution or order transmission logic.
+Before committing, all code must pass:
 
-## Adding a New Strategy
-1. Create a new class in `src/variance/strategies/`.
-2. Inherit from `BaseStrategy` or `ShortThetaStrategy`.
-3. Define the `detect()` method to identify the strategy from position legs.
-4. Add the strategy to the `StrategyFactory`.
-5. Update `config/strategies.json` with the relevant profit targets.
+1. **Ruff** (linting & formatting)
+2. **Mypy** (type checking)
+3. **Radon** (complexity analysis)
 
-## Quality Gates
-Before submitting a PR, ensure:
-- `ruff check .` passes.
-- `mypy .` passes (no type errors).
-- All tests in `tests/` are green.
-- You have documented the change in an ADR if it alters core logic.
+### Quick Fix Commands
+
+**Automatic fixes:**
+```bash
+ruff check . --fix      # Auto-fix linting issues
+ruff format .           # Format code
+```
+
+**Manual fixes needed:**
+```bash
+mypy .                  # Check types (must fix manually)
+radon cc src/variance -min B  # Check complexity
+```
+
+### Common Mypy Errors
+
+**Missing type annotations:**
+```python
+# ❌ Bad
+def calculate(x):
+    return x * 2
+
+# ✓ Good
+def calculate(x: float) -> float:
+    return x * 2
+```
+
+**Any type issues:**
+```python
+# ❌ Bad  
+def get_data() -> dict[str, Any]:
+    ...
+
+# ✓ Good
+def get_data() -> dict[str, float | None]:
+    ...
+```
+
+### Bypass Hook (Last Resort)
+
+If existing mypy errors are in unrelated files:
+```bash
+git commit --no-verify -m "your message"
+```
+
+**⚠️ Use sparingly** - Fix mypy errors you introduce.
+
+## Testing
+
+Always run tests before committing:
+```bash
+pytest
+```
+
