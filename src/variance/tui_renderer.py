@@ -389,27 +389,19 @@ class TUIRenderer:
 
         # Check for Data Integrity Skips (Strict Mode)
         integrity_skips = summary.get("data_integrity_skipped_count", 0)
-        lean_skips = summary.get("lean_data_skipped_count", 0)
-        anomalous_skips = summary.get("anomalous_data_skipped_count", 0)
 
-        total_hidden = (
-            integrity_skips + lean_skips + anomalous_skips + correlation_skips + tactical_skips
-        )
+        total_hidden = integrity_skips + correlation_skips + tactical_skips
         if total_hidden > 0:
             filter_reasons: list[str] = []
             if integrity_skips:
                 filter_reasons.append(f"{integrity_skips} bad data")
-            if lean_skips:
-                filter_reasons.append(f"{lean_skips} lean data")
-            if anomalous_skips:
-                filter_reasons.append(f"{anomalous_skips} anomalies")
             if correlation_skips:
                 filter_reasons.append(f"{correlation_skips} high correlation")
             if tactical_skips:
                 filter_reasons.append(f"{tactical_skips} missing tactical VRP")
 
             self.console.print(
-                f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(filter_reasons)}[/dim]"
+                f"   [dim]🚫 {total_hidden} symbols hidden: {', '.join(filter_reasons)}[/dim]"
             )
 
         table = Table(
@@ -616,17 +608,19 @@ class TUIRenderer:
             items = [
                 ("Scanned", summary.get("scanned_symbols_count", 0)),
                 ("Candidates", summary.get("candidates_count", 0)),
-                ("Sector Skips", summary.get("sector_skipped_count", 0)),
-                ("Asset Class", summary.get("asset_class_skipped_count", 0)),
+                ("Data Integrity", summary.get("data_integrity_skipped_count", 0)),
                 ("Low VRP", summary.get("low_vrp_structural_count", 0)),
                 ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
-                ("Illiquid", summary.get("illiquid_skipped_count", 0)),
-                ("HV Rank Trap", summary.get("hv_rank_trap_skipped_count", 0)),
-                ("Retail Inefficient", summary.get("retail_inefficient_skipped_count", 0)),
                 ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),
+                ("HV Rank Trap", summary.get("hv_rank_trap_skipped_count", 0)),
+                ("Low Yield", summary.get("low_yield_skipped_count", 0)),
+                ("Price Floor", summary.get("retail_inefficient_skipped_count", 0)),
+                ("High Slippage", summary.get("slippage_skipped_count", 0)),
+                ("Illiquid", summary.get("illiquid_skipped_count", 0)),
+                ("Sector Skips", summary.get("sector_skipped_count", 0)),
+                ("Asset Class", summary.get("asset_class_skipped_count", 0)),
                 ("High Corr", summary.get("correlation_skipped_count", 0)),
-                ("Data Errors", summary.get("market_data_error_count", 0)),
             ]
 
             fetch_diag = opportunities.get("meta", {}).get("market_data_diagnostics", {})

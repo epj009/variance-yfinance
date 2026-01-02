@@ -17,7 +17,7 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 LOG_DIR = Path(os.getenv("VARIANCE_LOG_DIR", "logs"))
 LOG_DIR.mkdir(exist_ok=True)
@@ -78,8 +78,9 @@ class JSONFormatter(logging.Formatter):
         }
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
-        if getattr(record, "duration_ms", None) is not None:
-            log_data["duration_ms"] = record.duration_ms
+        duration_ms = getattr(record, "duration_ms", None)
+        if duration_ms is not None:
+            log_data["duration_ms"] = duration_ms
         return json.dumps(log_data)
 
 
@@ -236,7 +237,7 @@ def set_session_id(session_id: str) -> None:
     _session_context.session_id = session_id
 
 
-def get_session_id() -> Optional[str]:
+def get_session_id() -> str | None:
     """Get session ID for current thread."""
     return getattr(_session_context, "session_id", None)
 
