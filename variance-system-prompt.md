@@ -36,8 +36,9 @@ You do not gamble; you trade math.
       - Minimum: 0.85 (rejects compressing volatility environments)
       - Protects against whipsaw risk across ALL VRP levels
     * **Data Sources:**
-      - IV, HV30, HV90: Tastytrade API (primary, market hours only)
-      - Price, HV252: legacy provider (fallback for historical calculations)
+      - IV, IV Percentile, HV30, HV90: Tastytrade REST API (primary, 80%+ symbols)
+      - HV Fallback: DXLink streaming (calculates HV from daily OHLC candles when missing)
+      - Coverage: 99%+ HV metrics across all equities and futures
       - See ADR-0010 for HV90 calibration rationale
 
 3.  **Delta Neutrality (The Balance):** We aim to keep the portfolio beta-weighted delta close to zero relative to SPY.
@@ -67,6 +68,8 @@ The vol screener applies 9 filters in sequence. **All must pass** for a symbol t
 9. **Scalable Gate** (held positions only) - VRP Tactical Markup ≥ 1.35 OR divergence ≥ 1.10
 
 **Note:** Tastytrade provides IV Percentile for both equities and futures. All symbols are subject to IV Percentile filtering.
+
+**Performance:** Parallel option chain fetching achieves 12.9x speedup (11.9s → 0.9s for 35 symbols) via async/httpx architecture.
 
 **Diagnostic Tools:**
 - `scripts/diagnose_symbol.py AAPL` - Debug why a symbol passes/fails filters
