@@ -42,6 +42,10 @@ class TriageResult(TypedDict, total=False):
     gamma: float  # NEW
     is_hedge: bool  # NEW: True if position is a structural hedge
     futures_multiplier_warning: Optional[str]
+    # IV-HV Spread Metrics (for P/L expectations)
+    iv_hv_spread_points: Optional[float]
+    expected_daily_swing_pct: Optional[float]
+    theta_decay_quality: Optional[str]
 
 
 class TriageContext(TypedDict, total=False):
@@ -267,6 +271,38 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
     except (TypeError, ValueError):
         beta_iv = None
 
+    # Calculate IV-HV spread metrics (must be done before TriageRequest creation)
+    iv_raw = m_data.get("iv")
+    hv30 = m_data.get("hv30")
+
+    iv_hv_spread_points = None
+    expected_daily_swing_pct = None
+    theta_decay_quality = None
+
+    try:
+        if iv_raw is not None and hv30 is not None:
+            import math
+
+            iv_val = float(iv_raw)
+            hv30_val = float(hv30)
+
+            # Absolute spread in percentage points
+            iv_hv_spread_points = iv_val - hv30_val
+
+            # Expected daily swing: (IV / sqrt(252))
+            if price > 0 and iv_val > 0:
+                expected_daily_swing_pct = (iv_val / 100.0) / math.sqrt(252)
+
+            # Theta decay quality categorization
+            if iv_hv_spread_points < 5.0:
+                theta_decay_quality = "SLOW"
+            elif iv_hv_spread_points > 15.0:
+                theta_decay_quality = "FAST"
+            else:
+                theta_decay_quality = "MODERATE"
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+
     # Build Immutable Request
     request = TriageRequest(
         root=root,
@@ -296,6 +332,9 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         beta_symbol=beta_symbol,
         beta_price=beta_price,
         beta_iv=beta_iv,
+        iv_hv_spread_points=iv_hv_spread_points,
+        expected_daily_swing_pct=expected_daily_swing_pct,
+        theta_decay_quality=theta_decay_quality,
     )
 
     # Execute deterministic chain
@@ -356,6 +395,10 @@ def determine_cluster_action(metrics: dict[str, Any], context: TriageContext) ->
         "futures_multiplier_warning": (
             metrics["futures_delta_warnings"][0] if metrics.get("futures_delta_warnings") else None
         ),
+        # IV-HV Spread Metrics for P/L Expectations
+        "iv_hv_spread_points": iv_hv_spread_points,
+        "expected_daily_swing_pct": expected_daily_swing_pct,
+        "theta_decay_quality": theta_decay_quality,
     }
 
 

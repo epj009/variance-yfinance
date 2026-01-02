@@ -61,6 +61,11 @@ class TriageRequest:
     beta_price: Optional[float] = None
     beta_iv: Optional[float] = None
 
+    # IV-HV Spread Metrics (for P/L expectations)
+    iv_hv_spread_points: Optional[float] = None
+    expected_daily_swing_pct: Optional[float] = None
+    theta_decay_quality: Optional[str] = None
+
     # Multi-Tag System (collector pattern)
     tags: tuple[TriageTag, ...] = ()
 

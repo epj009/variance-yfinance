@@ -11,7 +11,9 @@ from .gamma import GammaHandler
 from .harvest import HarvestHandler
 from .hedge import HedgeHandler
 from .size_threat import SizeThreatHandler
+from .slow_theta import SlowThetaHandler
 from .toxic_theta import ToxicThetaHandler
+from .wild_pl import WildPlHandler
 
 __all__ = [
     "DefenseHandler",
@@ -21,5 +23,7 @@ __all__ = [
     "HarvestHandler",
     "HedgeHandler",
     "SizeThreatHandler",
+    "SlowThetaHandler",
     "ToxicThetaHandler",
+    "WildPlHandler",
 ]

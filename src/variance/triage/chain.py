@@ -14,7 +14,9 @@ from variance.triage.handlers.gamma import GammaHandler
 from variance.triage.handlers.harvest import HarvestHandler
 from variance.triage.handlers.hedge import HedgeHandler
 from variance.triage.handlers.size_threat import SizeThreatHandler
+from variance.triage.handlers.slow_theta import SlowThetaHandler
 from variance.triage.handlers.toxic_theta import ToxicThetaHandler
+from variance.triage.handlers.wild_pl import WildPlHandler
 from variance.triage.request import TriageRequest
 
 
@@ -39,6 +41,9 @@ class TriageChain:
             HedgeHandler(self.rules),
             ToxicThetaHandler(self.rules),
             EarningsHandler(self.rules),
+            # Informational warnings (low priority)
+            SlowThetaHandler(self.rules),
+            WildPlHandler(self.rules),
         ]
 
         if not handlers:
