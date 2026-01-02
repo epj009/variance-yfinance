@@ -5,3 +5,4 @@ requests
 rich
 tastytrade
 httpx
+anthropic>=0.34.0
