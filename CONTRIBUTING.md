@@ -82,16 +82,6 @@ To check ONLY the files you modified:
 git diff --name-only | grep '\.py$' | xargs mypy
 ```
 
-### Known Issues
-
-**Files with pre-existing mypy errors** (safe to ignore with --no-verify):
-- `src/variance/market_data/dxlink_client.py`
-- `src/variance/market_data/pure_tastytrade_provider.py`
-- `src/variance/screening/steps/filter.py`
-- `src/variance/screening/pipeline.py`
-
-If you touch these files, you may need `--no-verify` for unrelated errors.
-
 ## Testing
 
 Always run tests before committing:
