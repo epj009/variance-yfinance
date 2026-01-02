@@ -3,11 +3,28 @@ from typing import Any, Optional, cast
 
 from ..variance_logger import logger
 from .cache import MarketCache
-from .settings import TTL
+from .clock import is_market_open
+from .settings import AFTER_HOURS_TTL, TTL
 
 
 def get_dynamic_ttl(data_type: str, default: int) -> int:
-    return int(TTL.get(data_type, default))
+    """
+    Returns appropriate TTL based on market hours.
+
+    During market hours: Uses DEFAULT_TTL values (shorter TTLs for fresh data).
+    After hours: Uses AFTER_HOURS_TTL values (extended TTLs since data is static).
+
+    Args:
+        data_type: Type of data being cached (e.g., "iv", "market_data", "option_chain")
+        default: Fallback TTL if data_type not found in configuration
+
+    Returns:
+        TTL in seconds appropriate for current market state
+    """
+    if is_market_open():
+        return int(TTL.get(data_type, default))
+    else:
+        return int(AFTER_HOURS_TTL.get(data_type, TTL.get(data_type, default)))
 
 
 def make_cache_key(prefix: str, symbol: str) -> str:

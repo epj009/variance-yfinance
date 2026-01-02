@@ -27,6 +27,9 @@ except ModuleNotFoundError:
 if TYPE_CHECKING:
     from .symbol_resolution.futures_resolver import FuturesSymbolResolver
 
+from .market_data.cache import MarketCache
+from .market_data.helpers import get_dynamic_ttl, make_cache_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -169,6 +172,9 @@ class TastytradeClient:
 
         # Lazy-initialize futures symbol resolver
         self._futures_resolver: Optional[FuturesSymbolResolver] = None
+
+        # Market data cache
+        self._cache = MarketCache()
 
     @property
     def futures_resolver(self) -> "FuturesSymbolResolver":
@@ -429,10 +435,11 @@ class TastytradeClient:
         Fetch market metrics for a list of symbols from Tastytrade API.
 
         This method:
-        1. Ensures valid OAuth token
-        2. Queries /market-metrics endpoint with comma-separated symbols
-        3. Converts IV from decimal to percent (*100)
-        4. Maps Tastytrade response fields to TastytradeMetrics format
+        1. Checks cache for each symbol first
+        2. Partitions symbols into cached vs uncached
+        3. Fetches only uncached symbols from API
+        4. Merges cached + fresh results
+        5. Caches fresh results with dynamic TTL (15min market / 8hr after-hours)
 
         Args:
             symbols: List of ticker symbols (e.g., ['AAPL', 'SPY', 'QQQ'])
@@ -455,12 +462,35 @@ class TastytradeClient:
             return {}
 
         start_time = time.time()
-        logger.debug("API call: /market-metrics symbols=%s", len(symbols))
 
+        # Check cache and partition symbols
+        cached_results: dict[str, TastytradeMetrics] = {}
+        uncached_symbols: list[str] = []
+
+        for symbol in symbols:
+            cache_key = make_cache_key("market_metrics", symbol)
+            cached = self._cache.get(cache_key)
+            if cached:
+                cached_results[symbol] = cached
+            else:
+                uncached_symbols.append(symbol)
+
+        # If all symbols are cached, return early
+        if not uncached_symbols:
+            logger.debug("Cache hit: all %s symbols cached", len(symbols))
+            return cached_results
+
+        logger.debug(
+            "Cache partial: %s cached, %s uncached of %s total",
+            len(cached_results),
+            len(uncached_symbols),
+            len(symbols),
+        )
+
+        # Fetch uncached symbols from API
         token = self._ensure_valid_token()
 
-        # Build request
-        symbols_str = ",".join(symbols)
+        symbols_str = ",".join(uncached_symbols)
         url = f"{self._credentials.api_base_url}/market-metrics"
         headers = {
             "Authorization": f"Bearer {token}",
@@ -476,27 +506,39 @@ class TastytradeClient:
                 "API /market-metrics returned no data in %.0fms",
                 elapsed_ms,
             )
-            return {}
+            return cached_results  # Return whatever we have cached
 
         # Extract items from response
         items = data.get("data", {}).get("items", []) if isinstance(data, dict) else []
         if not items and isinstance(data, list):
             items = data
 
-        # Parse each item
-        results: dict[str, TastytradeMetrics] = {}
+        # Parse each item and cache it
+        fresh_results: dict[str, TastytradeMetrics] = {}
+        ttl = get_dynamic_ttl("market_metrics", 900)
+
         for item in items:
             metrics = self._parse_metric_item(item)
             if metrics and "symbol" in metrics:
-                results[metrics["symbol"]] = metrics
+                symbol = metrics["symbol"]
+                fresh_results[symbol] = metrics
+
+                # Cache the result
+                cache_key = make_cache_key("market_metrics", symbol)
+                self._cache.set(cache_key, metrics, ttl_seconds=ttl)
+
+        # Merge cached and fresh results
+        all_results = {**cached_results, **fresh_results}
 
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(
-            "API /market-metrics completed: %s symbols in %.0fms",
+            "API /market-metrics completed: %s total (%s cached, %s fetched) in %.0fms",
             len(symbols),
+            len(cached_results),
+            len(fresh_results),
             elapsed_ms,
         )
-        return results
+        return all_results
 
     def get_market_data(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
         """
@@ -723,12 +765,15 @@ class TastytradeClient:
         """
         Fetch equity option chains for multiple symbols.
 
+        This method:
+        1. Checks cache for each symbol first (24-hour TTL)
+        2. Fetches only uncached symbols from API
+        3. Uses parallel async fetching for multiple symbols
+        4. Caches fresh results
+
         Note: Despite the name, this uses the FULL endpoint (not /compact) because
         the compact endpoint omits intermediate monthly expirations needed for
         Tastylive 30-45 DTE methodology.
-
-        This method automatically uses parallel async fetching when multiple symbols
-        are provided for improved performance.
 
         Args:
             symbols: List of underlying symbols (e.g., ['AAPL', 'SPY'])
@@ -744,8 +789,35 @@ class TastytradeClient:
         if not equity_symbols:
             return {}
 
+        # Check cache and partition symbols
+        cached_results: dict[str, dict[str, Any]] = {}
+        uncached_symbols: list[str] = []
+
+        for symbol in equity_symbols:
+            cache_key = make_cache_key("option_chain", symbol)
+            cached = self._cache.get(cache_key)
+            if cached:
+                cached_results[symbol] = cached
+            else:
+                uncached_symbols.append(symbol)
+
+        # If all symbols are cached, return early
+        if not uncached_symbols:
+            logger.debug("Cache hit: all %s option chains cached", len(equity_symbols))
+            return cached_results
+
+        logger.debug(
+            "Cache partial: %s cached, %s uncached of %s total option chains",
+            len(cached_results),
+            len(uncached_symbols),
+            len(equity_symbols),
+        )
+
+        # Fetch uncached symbols
+        fresh_results: dict[str, dict[str, Any]] = {}
+
         # Use parallel async fetching for multiple symbols
-        if len(equity_symbols) > 1:
+        if len(uncached_symbols) > 1:
             # Load max_concurrent from config or default to 10
             max_concurrent = 10
             try:
@@ -763,35 +835,52 @@ class TastytradeClient:
                 pass  # Use default if config loading fails
 
             # Run async version
-            return asyncio.run(self._get_option_chains_async(equity_symbols, max_concurrent))
+            fresh_results = asyncio.run(
+                self._get_option_chains_async(uncached_symbols, max_concurrent)
+            )
+        else:
+            # Single symbol: use synchronous version (no async overhead)
+            start_time = time.time()
+            symbol = uncached_symbols[0]
+            logger.debug("API call: /option-chains (full) symbol=%s", symbol)
+            token = self._ensure_valid_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            }
 
-        # Single symbol: use synchronous version (no async overhead)
-        start_time = time.time()
-        symbol = equity_symbols[0]
-        logger.debug("API call: /option-chains (full) symbol=%s", symbol)
-        token = self._ensure_valid_token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        }
+            symbol_path = quote(str(symbol), safe="")
+            endpoint = f"/option-chains/{symbol_path}"  # FULL endpoint, not /compact
+            url = f"{self._credentials.api_base_url}{endpoint}"
+            payload = self._fetch_api_data(url, headers, params={})
+            normalized = self._normalize_option_chain_payload(symbol, payload)
 
-        symbol_path = quote(str(symbol), safe="")
-        endpoint = f"/option-chains/{symbol_path}"  # FULL endpoint, not /compact
-        url = f"{self._credentials.api_base_url}{endpoint}"
-        payload = self._fetch_api_data(url, headers, params={})
-        normalized = self._normalize_option_chain_payload(symbol, payload)
+            if normalized:
+                fresh_results[symbol] = normalized
 
-        results: dict[str, dict[str, Any]] = {}
-        if normalized:
-            results[symbol] = normalized
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.info(
+                "API /option-chains (full) completed: %s in %.0fms",
+                symbol,
+                elapsed_ms,
+            )
 
-        elapsed_ms = (time.time() - start_time) * 1000
+        # Cache fresh results
+        ttl = get_dynamic_ttl("option_chain", 86400)  # 24 hours (chain structure is stable)
+        for symbol, chain in fresh_results.items():
+            cache_key = make_cache_key("option_chain", symbol)
+            self._cache.set(cache_key, chain, ttl_seconds=ttl)
+
+        # Merge cached and fresh results
+        all_results = {**cached_results, **fresh_results}
+
         logger.info(
-            "API /option-chains (full) completed: %s in %.0fms",
-            symbol,
-            elapsed_ms,
+            "Option chains completed: %s total (%s cached, %s fetched)",
+            len(all_results),
+            len(cached_results),
+            len(fresh_results),
         )
-        return results
+        return all_results
 
     def get_futures_option_chain(self, symbol: str) -> list[dict[str, Any]]:
         """
