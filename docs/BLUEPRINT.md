@@ -80,13 +80,13 @@ Variance uses a **Strategy Pattern** to decouple trade management logic from the
 - **ShortThetaStrategy:** Specialized for premium sellers (Strangles, Condors). Implements the **Institutional Toxic Theta** filter.
 - **DefaultStrategy:** Fallback for unmapped or generic "Custom/Combo" positions.
 
-### 3.2. Quantitative Standard: Logarithmic Space
-Variance operates in **Logarithmic Space** to ensure mathematical objectivity across different asset scales.
+### 3.2. Quantitative Standard: Ratio-Based VRP
+Variance uses **ratio-based VRP calculation** to ensure mathematical objectivity across different asset scales.
 
-- **VRP Normalization:** Instead of subtraction ($IV - HV$), we use logarithmic ratios: $ln(IV / HV)$.
-- **Scale Symmetry:** Ensures a 1-point move in a low-vol asset (SPY) has the same mathematical weight as a relative move in a high-vol asset.
+- **VRP Normalization:** Instead of subtraction ($IV - HV$), we use linear ratios: $IV / HV$.
+- **Scale Symmetry:** Ratios naturally normalize across volatility regimes - a 20% markup is comparable whether IV is 12% or 52%.
 - **Alpha-Theta:** Quality-adjusted income calculation:
-  $$ \text{AlphaTheta} = \text{Theta}_{\text{Raw}} \times \left( \frac{\text{IV}_{\text{30}}}{\text{HV}_{\text{252}}} \right) $$
+  $$ \text{AlphaTheta} = \text{Theta}_{\text{Raw}} \times \left( \frac{\text{IV}_{\text{30}}}{\text{HV}_{\text{90}}} \right) $$
 
 ---
 

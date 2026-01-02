@@ -178,7 +178,7 @@ for handler in handlers:
 ### VRP (Volatility Risk Premium)
 ```
 VRP Structural = IV / HV90
-VRP Tactical   = IV / HV20 (for held positions)
+VRP Tactical   = IV / HV30 (monthly pulse)
 VRP Tactical Markup = VRP Tactical - VRP Structural
 ```
 

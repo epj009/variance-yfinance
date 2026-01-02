@@ -60,7 +60,7 @@
 |------|------------|---------|
 | **VRP** | Volatility Risk Premium | `IV / HV` |
 | **VRP Structural** | Long-term VRP | `IV / HV90` |
-| **VRP Tactical** | Short-term VRP | `IV / HV20` |
+| **VRP Tactical** | Short-term VRP | `IV / HV30` |
 | **VRP Markup** | Tactical vs Structural difference | `VRP Tactical - VRP Structural` |
 
 **❌ Avoid**: "Vol premium", "implied premium", "IV edge" (use VRP consistently)
