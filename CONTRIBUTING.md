@@ -55,6 +55,43 @@ git commit --no-verify -m "your message"
 
 **⚠️ Use sparingly** - Fix mypy errors you introduce.
 
+## Pre-Commit Checklist
+
+**Run BEFORE attempting `git commit`:**
+
+```bash
+# 1. Auto-fix what you can
+ruff check . --fix
+ruff format .
+
+# 2. Check types (this will fail the commit hook if errors exist)
+mypy src/variance/analyze_portfolio.py  # Just check files you modified
+# OR check all:
+mypy .
+
+# 3. If mypy shows errors in files you DIDN'T touch:
+#    Use --no-verify (those are pre-existing issues)
+# 4. If mypy shows errors in files you DID touch:
+#    Fix them before committing
+```
+
+### Quick Mypy Check
+
+To check ONLY the files you modified:
+```bash
+git diff --name-only | grep '\.py$' | xargs mypy
+```
+
+### Known Issues
+
+**Files with pre-existing mypy errors** (safe to ignore with --no-verify):
+- `src/variance/market_data/dxlink_client.py`
+- `src/variance/market_data/pure_tastytrade_provider.py`
+- `src/variance/screening/steps/filter.py`
+- `src/variance/screening/pipeline.py`
+
+If you touch these files, you may need `--no-verify` for unrelated errors.
+
 ## Testing
 
 Always run tests before committing:
