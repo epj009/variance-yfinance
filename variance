@@ -269,7 +269,26 @@ case "$MODE" in
         if [ "$AGENT" = "claude" ]; then
             echo " STRATEGIC ANALYSIS (Claude)" >&2
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-            exec ./venv/bin/python3 scripts/claude_agent.py --tui "$TUI_FILE" --json "$JSON_FILE"
+
+            # Load persona and build context
+            PERSONA=$(cat config/claude_persona.md 2>/dev/null || echo "You are Variance, a quantitative trading strategist.")
+            TUI_CONTENT=$(cat "$TUI_FILE" 2>/dev/null || echo "[TUI output not available]")
+
+            # Launch Claude CLI with system prompt
+            exec claude --system-prompt "$PERSONA" "# Portfolio Dashboard
+
+$TUI_CONTENT
+
+# Analysis Data
+Full analysis JSON: $JSON_FILE
+
+# Your Task
+Analyze the dashboard and provide strategic commentary on:
+1. Triage priorities (harvest, defense, gamma risks)
+2. Portfolio balance (delta/theta, concentration)
+3. Opportunities from the screener
+
+Then remain interactive for follow-up questions."
         else
             echo " STRATEGIC ANALYSIS (Gemini)" >&2
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
@@ -289,7 +308,8 @@ Then stay interactive for follow-up questions about the portfolio."
     chat)
         if [ "$AGENT" = "claude" ]; then
             echo "Starting Claude Chat..." >&2
-            exec ./venv/bin/python3 scripts/claude_agent.py --prompt "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+            PERSONA=$(cat config/claude_persona.md 2>/dev/null || echo "You are Variance, a quantitative trading strategist.")
+            exec claude --system-prompt "$PERSONA" "Analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
         else
             echo "Starting Gemini Chat..." >&2
             exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
