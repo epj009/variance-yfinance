@@ -14,7 +14,7 @@ def fetch_market_data(
     """Fetches real-time volatility and price data in parallel."""
     provider = MarketDataFactory.get_provider()
     data = provider.get_market_data(
-        symbols, include_returns=False, include_option_quotes=include_option_quotes
+        symbols, include_returns=True, include_option_quotes=include_option_quotes
     )
     diagnostics = MarketDataDiagnostics.from_payload(data)
     return data, diagnostics.to_dict()
