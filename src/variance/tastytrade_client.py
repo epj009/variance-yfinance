@@ -420,9 +420,23 @@ class TastytradeClient:
                 return None
 
             if response.status_code == 429:
-                raise requests.exceptions.RequestException(
-                    "Rate limit exceeded. Retry after delay."
-                )
+                # Rate limit hit - implement exponential backoff
+                retry_after = int(response.headers.get("Retry-After", 5))
+                retry_after = min(retry_after, 60)  # Cap at 60 seconds
+                logger.warning(f"Rate limit hit (429), retrying after {retry_after}s")
+                import time
+
+                time.sleep(retry_after)
+
+                # Retry once
+                token = self._ensure_valid_token()
+                headers["Authorization"] = f"Bearer {token}"
+                response = requests.get(url, headers=headers, params=params, timeout=15)
+
+                if response.status_code == 429:
+                    raise requests.exceptions.RequestException(
+                        f"Rate limit exceeded after retry. Waited {retry_after}s."
+                    )
 
             if response.status_code >= 500:
                 raise requests.exceptions.RequestException(

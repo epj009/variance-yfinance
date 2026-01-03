@@ -38,13 +38,13 @@ def determine_signal_type(
     vrp_t_markup: Optional[float],
     rules: dict[str, Any],
     iv_percentile: Optional[float] = None,
-    compression_ratio: Optional[float] = None,
+    vol_trend_ratio: Optional[float] = None,
     hv20: Optional[float] = None,
     hv60: Optional[float] = None,
 ) -> str:
     """
     Synthesizes multiple metrics into a single 'Signal Type' for the TUI.
-    Hierarchy: EVENT > RICH > COMPRESSION > DISCOUNT > FAIR
+    Hierarchy: EVENT > RICH > VTR > DISCOUNT > FAIR
     """
     if flags["is_earnings_soon"]:
         return "EVENT"
@@ -65,21 +65,25 @@ def determine_signal_type(
     if flags.get("is_rich"):
         return "RICH"
 
-    if compression_ratio is not None:
-        coiled_threshold = float(rules.get("compression_coiled_threshold", 0.75))
-        is_coiled_long = compression_ratio < coiled_threshold
+    if vol_trend_ratio is not None:
+        from variance.config_migration import get_config_value
+
+        coiled_threshold = float(
+            get_config_value(rules, "vtr_coiled_threshold", "compression_coiled_threshold", 0.75)
+        )
+        is_coiled_long = vol_trend_ratio < coiled_threshold
         is_coiled_medium = True
         if hv60 and hv60 > 0 and hv20:
             is_coiled_medium = (hv20 / hv60) < 0.85
 
         if is_coiled_long and is_coiled_medium:
-            if compression_ratio < 0.60:
+            if vol_trend_ratio < 0.60:
                 return "COILED-SEVERE"
             return "COILED-MILD"
 
-        if compression_ratio > 1.30:
+        if vol_trend_ratio > 1.30:
             return "EXPANDING-SEVERE"
-        if compression_ratio > 1.15:
+        if vol_trend_ratio > 1.15:
             return "EXPANDING-MILD"
 
     if flags.get("is_cheap"):  # VRP Tactical Markup < -10%

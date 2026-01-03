@@ -528,13 +528,13 @@
   },
   "screener_profiles": {
     "balanced": {
-      "min_vrp_structural": 1.0,
+      "min_vrp_structural": 1.10,
       "allow_illiquid": false,
       "min_iv_percentile": 50,
       "min_tt_liquidity_rating": 4
     },
     "broad": {
-      "min_vrp_structural": 0.85,
+      "min_vrp_structural": 1.0,
       "allow_illiquid": true,
       "min_iv_percentile": 30
     },
@@ -545,7 +545,7 @@
       "min_tt_liquidity_rating": 4
     },
     "aggressive": {
-      "min_vrp_structural": 1.0,
+      "min_vrp_structural": 0.90,
       "allow_illiquid": false,
       "min_iv_percentile": 40,
       "retail_min_price": 10.0,

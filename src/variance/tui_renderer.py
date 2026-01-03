@@ -415,7 +415,7 @@ class TUIRenderer:
         table.add_column("Price", justify="right", width=9)
         table.add_column("VRP(S)", justify="right", width=7)
         table.add_column("VRP(T)", justify="right", width=7)
-        table.add_column("Comp", justify="right", width=5)
+        table.add_column("VTR", justify="right", width=5)
         table.add_column("IVP", justify="right", width=5)
         table.add_column("Rho", justify="right", width=5)
         table.add_column("Yield", justify="right", width=7)
@@ -478,25 +478,26 @@ class TUIRenderer:
             ivp = c.get("IV Percentile")
             ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
 
-            comp = c.get("Compression Ratio", 1.0)
-            if isinstance(comp, (int, float)):
-                comp_str = f"{comp:.2f}"
+            # Prefer new key, fall back to old key
+            vtr = c.get("Volatility Trend Ratio") or c.get("VTR") or c.get("Compression Ratio", 1.0)
+            if isinstance(vtr, (int, float)):
+                vtr_str = f"{vtr:.2f}"
                 # Color coding (CORRECTED FOR SHORT VOL):
                 # - Green: 0.85-1.15 (good momentum for short vol)
                 # - Yellow: 0.60-0.85 or 1.15-1.30 (caution)
                 # - Red < 0.60: AVOID (expansion risk)
                 # - Green > 1.30: STRONG BUY (contraction expected)
-                if comp < 0.60:
-                    comp_style = "loss"  # Red - severe compression (AVOID)
-                elif comp > 1.30:
-                    comp_style = "profit"  # Green - severe expansion (STRONG BUY)
-                elif comp < 0.85 or comp > 1.15:
-                    comp_style = "warning"  # Yellow - caution zone
+                if vtr < 0.60:
+                    vtr_style = "loss"  # Red - severe compression (AVOID)
+                elif vtr > 1.30:
+                    vtr_style = "profit"  # Green - severe expansion (STRONG BUY)
+                elif vtr < 0.85 or vtr > 1.15:
+                    vtr_style = "warning"  # Yellow - caution zone
                 else:
-                    comp_style = "profit"  # Green - normal/good
-                comp_display = f"[{comp_style}]{comp_str}[/]"
+                    vtr_style = "profit"  # Green - normal/good
+                vtr_display = f"[{vtr_style}]{vtr_str}[/]"
             else:
-                comp_display = "N/A"
+                vtr_display = "N/A"
 
             # Yield Formatting
             y_val = c.get("Yield", 0.0)
@@ -539,7 +540,7 @@ class TUIRenderer:
                 fmt_currency(c.get("price", 0)),
                 vsm_str,
                 vtm_str,
-                comp_display,
+                vtr_display,
                 ivp_str,
                 f"[{rho_style}]{rho_str}[/]",
                 f"[{y_style}]{y_str}[/]",

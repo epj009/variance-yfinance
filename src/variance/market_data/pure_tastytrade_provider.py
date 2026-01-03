@@ -287,6 +287,22 @@ class PureTastytradeProvider(IMarketDataProvider):
             for symbol in unique_symbols:
                 results[symbol] = cast(MarketData, {"error": "api_error", "symbol": symbol})
 
+        # Data quality validation - fail fast if too many errors
+        failed_symbols = [sym for sym, data in results.items() if "error" in data]
+        error_rate = len(failed_symbols) / len(unique_symbols) if unique_symbols else 0
+
+        if error_rate > 0.20:  # >20% failure threshold
+            error_msg = f"Market data quality too low: {error_rate:.1%} failures ({len(failed_symbols)}/{len(unique_symbols)} symbols)"
+            logger.error(error_msg)
+            logger.error(f"Failed symbols: {failed_symbols[:10]}...")  # Show first 10
+            raise RuntimeError(error_msg)
+
+        # Add data quality metadata to results (for diagnostics)
+        if failed_symbols:
+            logger.warning(
+                f"Partial market data failures: {len(failed_symbols)}/{len(unique_symbols)} symbols ({error_rate:.1%})"
+            )
+
         # Print benchmark if enabled
         if enable_benchmark and timings:
             self._print_market_data_benchmark(timings, len(unique_symbols))
@@ -447,7 +463,18 @@ class PureTastytradeProvider(IMarketDataProvider):
             merged["vrp_tactical"] = iv / max(hv30, md_settings.HV_FLOOR_PERCENT)
 
         if iv and hv90:
-            merged["vrp_structural"] = iv / hv90
+            merged["vrp_structural"] = iv / max(hv90, md_settings.HV_FLOOR_PERCENT)
+
+            # Warn about cross-asset VRP when using proxy HV90
+            if merged.get("hv90_source") == "proxy_dxlink":
+                proxy = merged.get("proxy", "unknown")
+                symbol = merged.get("symbol", "unknown")
+                merged["cross_asset_vrp"] = True
+                merged["warning"] = f"cross_asset_vrp: {symbol} IV vs {proxy} HV90"
+                logger.info(
+                    f"Cross-asset VRP for {symbol}: IV/{proxy} HV90 = {merged['vrp_structural']:.2f} "
+                    f"(tracking error risk during futures rolls)"
+                )
 
     def _add_default_fields(self, merged: dict[str, Any]) -> None:
         """Add default fields to complete the MarketData structure."""

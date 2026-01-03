@@ -20,15 +20,22 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
         iv30 = candidate.get("iv")
         hv_floor_abs = float(rules.get("hv_floor_percent", 5.0))
 
-        # 2. Compression (Use HV30/HV90, fallback to HV20/HV252)
-        candidate["Compression Ratio"] = 1.0
+        # 2. Volatility Trend Ratio (Use HV30/HV90, fallback to HV20/HV252)
+        candidate["Volatility Trend Ratio"] = 1.0
         try:
             if hv30 is not None and hv90 is not None:
                 hv90_f = float(hv90)
                 if hv90_f > 0:
-                    candidate["Compression Ratio"] = float(hv30) / hv90_f
+                    vtr = float(hv30) / hv90_f
+                    # Clamp to reasonable range to prevent data errors
+                    # 0.50 = severe contraction (HV30 half of HV90)
+                    # 2.0 = severe expansion (HV30 double HV90)
+                    candidate["Volatility Trend Ratio"] = max(0.50, min(vtr, 2.0))
         except (ValueError, TypeError):
             pass
+
+        # Backward compatibility: alias old field key
+        candidate["Compression Ratio"] = candidate["Volatility Trend Ratio"]
 
         # 3. Tactical Markup (Use HV30, fallback to HV20)
         candidate["vrp_tactical_markup"] = None
@@ -69,7 +76,7 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
             candidate["vrp_tactical_markup"],
             rules,
             iv_pct_val,
-            candidate["Compression Ratio"],
+            candidate["Volatility Trend Ratio"],
             hv20_f,
             hv60_f,
         )

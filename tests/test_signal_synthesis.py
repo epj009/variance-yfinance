@@ -6,6 +6,7 @@ Ensures that metrics (NVRP, VRP, Earnings) are correctly synthesized into Action
 import pytest
 
 from variance import vol_screener
+from variance.signals.classifier import determine_signal_type
 
 
 class TestSignalSynthesis:
@@ -18,18 +19,18 @@ class TestSignalSynthesis:
             "vrp_structural_threshold": 0.85,
             "earnings_days_threshold": 5,
             "vrp_tactical_cheap_threshold": -0.10,
-            "compression_coiled_threshold": 0.75,
+            "vtr_coiled_threshold": 0.75,
             "hv_rank_trap_threshold": 15.0,
         }
 
     def test_signal_event_dominates(self, mock_rules):
         """Earnings Event should override all other signals."""
         flags = {"is_earnings_soon": True, "is_cheap": True, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=-0.20,
             rules=mock_rules,
-            compression_ratio=0.52,
+            vol_trend_ratio=0.52,
             hv20=15.0,
             hv60=20.0,
         )
@@ -38,11 +39,11 @@ class TestSignalSynthesis:
     def test_signal_discount(self, mock_rules):
         """Cheap Tactical VRP triggers DISCOUNT."""
         flags = {"is_earnings_soon": False, "is_cheap": True, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=-0.15,
             rules=mock_rules,
-            compression_ratio=0.95,
+            vol_trend_ratio=0.95,
             hv20=20.0,
             hv60=20.0,
         )
@@ -51,11 +52,11 @@ class TestSignalSynthesis:
     def test_signal_coiled_severe(self, mock_rules):
         """Severe compression (< 0.60) should return COILED-SEVERE."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.10,
             rules=mock_rules,
-            compression_ratio=0.52,
+            vol_trend_ratio=0.52,
             hv20=15.0,
             hv60=20.0,
         )
@@ -64,11 +65,11 @@ class TestSignalSynthesis:
     def test_signal_coiled_mild(self, mock_rules):
         """Mild compression (0.60-0.75) should return COILED-MILD."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.10,
             rules=mock_rules,
-            compression_ratio=0.72,
+            vol_trend_ratio=0.72,
             hv20=18.0,
             hv60=22.0,
         )
@@ -77,23 +78,23 @@ class TestSignalSynthesis:
     def test_signal_expanding_severe(self, mock_rules):
         """Expanding volatility (> 1.30) should return EXPANDING-SEVERE."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.10,
             rules=mock_rules,
-            compression_ratio=1.45,
+            vol_trend_ratio=1.45,
         )
         assert signal == "EXPANDING-SEVERE"
 
     def test_signal_rich(self, mock_rules):
         """High Tactical Markup (>0.20) triggers RICH if not coiled."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        # Markup > 0.20 is hardcoded in _determine_signal_type
-        signal = vol_screener._determine_signal_type(
+        # Markup > 0.20 is hardcoded in determine_signal_type
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.25,
             rules=mock_rules,
-            compression_ratio=0.95,
+            vol_trend_ratio=0.95,
             hv20=20.0,
             hv60=20.0,
         )
@@ -102,11 +103,11 @@ class TestSignalSynthesis:
     def test_signal_fair(self, mock_rules):
         """No flags triggered results in FAIR."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.10,
             rules=mock_rules,
-            compression_ratio=0.95,
+            vol_trend_ratio=0.95,
             hv20=20.0,
             hv60=20.0,
         )
@@ -115,11 +116,11 @@ class TestSignalSynthesis:
     def test_signal_composite_check(self, mock_rules):
         """Long-term compressed but medium-term normal should not coil."""
         flags = {"is_earnings_soon": False, "is_cheap": False, "is_rich": False}
-        signal = vol_screener._determine_signal_type(
+        signal = determine_signal_type(
             flags,
             vrp_t_markup=0.10,
             rules=mock_rules,
-            compression_ratio=0.70,
+            vol_trend_ratio=0.70,
             hv20=25.0,
             hv60=23.0,
         )

@@ -19,23 +19,24 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
 def _determine_vote(candidate: dict[str, Any], is_held: bool) -> str:
     score = _safe_float(candidate.get("score"))
     rho = _safe_float(candidate.get("portfolio_rho"))
-    compression_raw = candidate.get("Compression Ratio")
-    compression = _safe_float(compression_raw, default=1.0) if compression_raw is not None else 1.0
+    # Prefer new key, fall back to old key
+    vtr_raw = candidate.get("Volatility Trend Ratio") or candidate.get("Compression Ratio")
+    vtr = _safe_float(vtr_raw, default=1.0) if vtr_raw is not None else 1.0
 
     vote = "WATCH"
     if is_held:
         return "SCALE" if candidate.get("is_scalable_surge") else "HOLD"
-    if compression < 0.60:
+    if vtr < 0.60:
         return "AVOID (COILED)"
-    if compression < 0.75:
+    if vtr < 0.75:
         if score >= 70 and rho <= 0.50:
             return "LEAN"
         return "WATCH"
-    if compression > 1.30:
+    if vtr > 1.30:
         if score >= 60 and rho <= 0.60:
             return "STRONG BUY"
         return "BUY"
-    if compression > 1.15:
+    if vtr > 1.15:
         if score >= 70 and rho <= 0.50:
             return "BUY"
         if score >= 60 and rho <= 0.65:
@@ -153,14 +154,15 @@ def build_report(
         else:
             display["IV Percentile"] = None
 
-        compression = candidate.get("Compression Ratio")
-        if compression is not None:
+        # Prefer new key, fall back to old key for backward compatibility
+        vtr = candidate.get("Volatility Trend Ratio") or candidate.get("Compression Ratio")
+        if vtr is not None:
             try:
-                display["Compression"] = _safe_float(compression)
+                display["VTR"] = _safe_float(vtr)
             except (ValueError, TypeError):
-                display["Compression"] = None
+                display["VTR"] = None
         else:
-            display["Compression"] = None
+            display["VTR"] = None
 
         display_candidates.append(display)
 

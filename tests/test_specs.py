@@ -147,9 +147,12 @@ def test_iv_percentile_spec():
 def test_volatility_trap_spec():
     spec = VolatilityTrapSpec(rank_threshold=15.0, vrp_rich_threshold=1.3)
 
+    # VRP gate removed (HIGH-9 fix) - HV Rank now checked universally
     assert spec.is_satisfied_by({"vrp_structural": 1.4, "hv_rank": 10.0}) is False
     assert spec.is_satisfied_by({"vrp_structural": 1.4, "hv_rank": 20.0}) is True
-    assert spec.is_satisfied_by({"vrp_structural": 1.0, "hv_rank": 5.0}) is True
+    assert (
+        spec.is_satisfied_by({"vrp_structural": 1.0, "hv_rank": 5.0}) is False
+    )  # Now rejects low HV Rank universally
 
 
 def test_volatility_momentum_spec():
@@ -161,14 +164,15 @@ def test_volatility_momentum_spec():
 
 
 def test_retail_efficiency_spec():
-    spec = RetailEfficiencySpec(min_price=25.0, max_slippage=0.05)
+    spec = RetailEfficiencySpec(min_price=25.0)
 
+    # Futures exempt from price check
     assert spec.is_satisfied_by({"symbol": "/CL"}) is True
+
+    # Price below minimum rejected
     assert spec.is_satisfied_by({"symbol": "AAPL", "price": 10.0}) is False
-    assert (
-        spec.is_satisfied_by({"symbol": "AAPL", "price": 150.0, "call_bid": 1.0, "call_ask": 1.2})
-        is False
-    )
+
+    # Price above minimum passes (slippage is checked by SlippageSpec/LiquiditySpec, not here)
     assert spec.is_satisfied_by({"symbol": "AAPL", "price": 150.0}) is True
 
 

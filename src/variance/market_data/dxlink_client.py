@@ -445,6 +445,14 @@ class DXLinkClient:
             # Sort by time (oldest first)
             candles.sort(key=lambda c: c.time)
 
+            # Validate data quality - need minimum candles for HV calculation
+            min_candles = 50  # Minimum for HV90 (90 trading days ≈ 60 calendar days ≈ 50 viable)
+            if len(candles) < min_candles:
+                raise ConnectionError(
+                    f"Incomplete candle data for {symbol}: received {len(candles)}, need {min_candles} minimum. "
+                    f"Possible causes: timeout ({self.timeout}s), symbol not found, or insufficient history."
+                )
+
             logger.info(f"✅ Collected {len(candles)} candles for {symbol}")
             return candles
 

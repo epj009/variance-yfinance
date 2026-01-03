@@ -283,31 +283,30 @@ class VolatilityTrapSpec(Specification[dict[str, Any]]):
     Hard gate against Volatility Traps (Positional).
 
     Rejects symbols where HV Rank < 15 (extreme low of 1-year range).
-    Only applies when VRP > rich_threshold (1.30) to focus on "rich IV" setups.
+    Applies universally across all VRP ranges to prevent vol compression exposure.
 
-    Rationale: If IV is rich (>1.30) but HV is at yearly lows (<15 percentile),
-    you're likely catching a falling knife (vol compression mid-trade risk).
+    Rationale: If HV is at yearly lows (<15 percentile), vol may be coiled to expand,
+    creating whipsaw risk (falling knife) regardless of current VRP level.
 
     Args:
         rank_threshold: Minimum HV Rank (default 15)
-        vrp_rich_threshold: VRP level to trigger check (default 1.30)
+        vrp_rich_threshold: Deprecated parameter (kept for backwards compatibility)
 
     Note: This spec was refactored in ADR-0011 to remove compression logic.
+    VRP gate removed per QA audit 2026-01-02 to apply HV Rank check universally.
     See VolatilityMomentumSpec for universal compression detection.
     """
 
     def __init__(self, rank_threshold: float, vrp_rich_threshold: float):
         self.rank_threshold = rank_threshold
-        self.vrp_rich_threshold = vrp_rich_threshold
+        self.vrp_rich_threshold = vrp_rich_threshold  # Deprecated, kept for compatibility
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         hv_rank = metrics.get("hv_rank")
-        vrp_s = metrics.get("vrp_structural")
 
-        # Only apply if the symbol looks "Rich"
-        if vrp_s is not None and float(vrp_s) > self.vrp_rich_threshold:
-            if hv_rank is not None and float(hv_rank) < self.rank_threshold:
-                return False
+        # Universal HV Rank check (VRP gate removed per QA audit 2026-01-02)
+        if hv_rank is not None and float(hv_rank) < self.rank_threshold:
+            return False
 
         return True
 

@@ -1,5 +1,6 @@
 from variance import vol_screener
 from variance.market_data.service import MarketDataFactory
+from variance.signals.classifier import determine_signal_type
 
 
 def make_config_bundle(trading_rules, system_config, market_config=None):
@@ -224,9 +225,7 @@ def test_signal_type_uses_iv_percentile_percent_scale():
         "is_cheap": False,
         "is_rich": False,
     }
-    signal = vol_screener._determine_signal_type(
-        flags, None, {}, iv_percentile=85.0, compression_ratio=0.95
-    )
+    signal = determine_signal_type(flags, None, {}, iv_percentile=85.0, vol_trend_ratio=0.95)
 
     assert signal == "RICH"
 
