@@ -65,6 +65,8 @@ Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance uses *
 - **Credit Scaling**: Options premium scales linearly with IV, making ratios mathematically correct for option selling.
 - **Empirically Calibrated**: VRP thresholds adjusted via backtesting to maintain 30-40% pass rates.
 
+📖 **[VRP Methodology Explained](docs/user-guide/vrp-methodology-explained.md)** - Understand the two-stage screening funnel: Structural (historical edge) + Tactical (current edge), and what these metrics prove vs assume.
+
 ---
 
 ## 📊 The Dashboard

@@ -111,6 +111,116 @@ The strategy is:
 
 ---
 
+## The Two-Stage Screening Funnel
+
+**This is the core philosophy of Variance screening.**
+
+Variance uses a two-stage filter to find trade candidates:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 1: VRP STRUCTURAL (Historical Edge)                     │
+│  ──────────────────────────────────────────                     │
+│  Formula: IV / HV90                                             │
+│  Threshold: > 1.10                                              │
+│                                                                 │
+│  Question: "Has there been a persistent premium in this name?"  │
+│                                                                 │
+│  Looks at 90 days of realized volatility. If IV has exceeded   │
+│  what actually happened over the quarter, there's been edge    │
+│  to collect.                                                    │
+│                                                                 │
+│  Pass = "Options have been priced rich vs quarterly realized"  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 2: VRP TACTICAL (Current Edge)                          │
+│  ─────────────────────────────────────                          │
+│  Formula: IV / HV30                                             │
+│  Threshold: > 1.15                                              │
+│                                                                 │
+│  Question: "Does that edge still exist TODAY?"                  │
+│                                                                 │
+│  Looks at 30 days of realized volatility. If recent movement   │
+│  has caught up to IV, the edge may have evaporated.            │
+│                                                                 │
+│  Pass = "Current IV still exceeds recent realized movement"    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                      [Trade Candidate]
+```
+
+### Why Two Stages?
+
+**Tactical catches when reality catches up to pricing.**
+
+| HV90 | HV30 | IV | Structural | Tactical | What's Happening |
+|------|------|-----|-----------|----------|------------------|
+| 20% | 18% | 28% | 1.40 ✅ | 1.56 ✅ | Options rich, vol stable → **Edge exists** |
+| 20% | 35% | 30% | 1.50 ✅ | 0.86 ❌ | Options looked rich, but stock got volatile → **Edge gone** |
+| 20% | 25% | 28% | 1.40 ✅ | 1.12 ⚠️ | Vol rising, edge shrinking → **Caution** |
+| 25% | 20% | 22% | 0.88 ❌ | 1.10 ⚠️ | No historical edge, slight current edge → **Skip** |
+
+**Row 2 is the key insight:**
+
+Structural says "historically, options were priced rich." But Tactical says "the stock is NOW moving enough to justify that pricing." The 30-day realized vol caught up to IV—the edge evaporated.
+
+**Row 4 is the trap to avoid:**
+
+IV looks slightly elevated vs recent vol, but historically there's been no persistent premium. Chasing this signal is less reliable.
+
+### What Each Stage Actually Proves
+
+| Stage | What It Proves | What It Does NOT Prove |
+|-------|---------------|------------------------|
+| **Structural** | Options have been priced above quarterly realized vol | That IV will compress (mean reversion) |
+| **Tactical** | Current IV exceeds recent realized movement | That the edge will persist |
+| **Both passing** | There was edge AND it still exists today | Future profitability (requires backtesting) |
+
+**Important:** These metrics identify statistical edge based on IV > HV. They do NOT guarantee mean reversion or profitability. The approach is grounded in academic research (Carr & Wu, AQR, Tastytrade) but should be validated with your own backtesting.
+
+### The Mental Model
+
+Think of it like a job candidate:
+
+| Stage | Analogy | VRP Equivalent |
+|-------|---------|----------------|
+| **Structural** | "Has this person performed well historically?" | "Have options been priced rich over the quarter?" |
+| **Tactical** | "Are they still performing well now?" | "Does that edge still exist today?" |
+
+You want BOTH: historical track record AND current availability of edge.
+
+### Threshold Tuning
+
+You can adjust thresholds in `config/trading_rules.json`:
+
+```json
+{
+  "vrp_structural_threshold": 1.10,   // Baseline: 10% markup minimum
+  "vrp_tactical_threshold": 1.15      // Current: 15% markup minimum
+}
+```
+
+**More selective (spike hunting):**
+```json
+{
+  "vrp_structural_threshold": 1.15,
+  "vrp_tactical_threshold": 1.30      // Only trade vol spikes
+}
+```
+
+**Wider net (more candidates):**
+```json
+{
+  "vrp_structural_threshold": 1.10,
+  "vrp_tactical_threshold": 1.10      // Accept thinner edge
+}
+```
+
+---
+
 ## Compression Ratio (Volatility Momentum)
 
 **Formula:** HV30 / HV90
@@ -212,17 +322,27 @@ This ratio tells us whether realized volatility is **compressed** (coiling) or *
 
 ## Quick Reference
 
-**VRP Structural:**
+**VRP Structural (Stage 1 - Historical Edge):**
 ```
 VRP = IV / HV90 (quarterly baseline)
+Question: "Has there been a persistent premium in this name?"
 Threshold: 1.10 (10% markup minimum)
-Rich: 1.30 (30% markup)
+Rich: 1.30+ (high conviction)
 ```
 
-**VRP Tactical:**
+**VRP Tactical (Stage 2 - Current Edge):**
 ```
 VRP = IV / HV30 (monthly pulse)
-For held positions only
+Question: "Does that edge still exist TODAY?"
+Threshold: 1.15 (15% markup minimum)
+Also used for position management (harvest timing, defense triggers)
+```
+
+**What These Metrics Prove:**
+```
+✅ IV has exceeded realized vol (statistical edge exists)
+❌ IV will compress in the future (mean reversion)
+❌ The trade will be profitable (requires backtesting)
 ```
 
 **IV Measurement:**
@@ -240,5 +360,5 @@ Prevents ratio explosion on dead vol stocks
 
 ---
 
-**Last Updated:** 2025-12-26
+**Last Updated:** 2026-01-02
 **Maintained By:** Variance Development Team
