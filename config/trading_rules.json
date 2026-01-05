@@ -11,7 +11,6 @@
     "retail_min_price": 25.0,
     "retail_max_slippage": 0.05,
     "vtr_coiled_threshold": 0.75,
-    "vol_trap_vtr_threshold": 0.70,
     "volatility_momentum_min_ratio": 0.85,
     "vrp_tactical_cheap_threshold": -0.10,
     "hv_rank_trap_threshold": 15.0,

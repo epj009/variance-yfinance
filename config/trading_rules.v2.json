@@ -16,8 +16,7 @@
     "volatility_checks": {
       "hv_rank_trap_threshold": 15.0,
       "volatility_momentum_min_ratio": 0.85,
-      "vtr_coiled_threshold": 0.75,
-      "vol_trap_vtr_threshold": 0.70
+      "vtr_coiled_threshold": 0.75
     },
 
     "iv_percentile": {
