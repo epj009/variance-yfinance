@@ -19,8 +19,7 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
 def _determine_vote(candidate: dict[str, Any], is_held: bool) -> str:
     score = _safe_float(candidate.get("score"))
     rho = _safe_float(candidate.get("portfolio_rho"))
-    # Prefer new key, fall back to old key
-    vtr_raw = candidate.get("Volatility Trend Ratio") or candidate.get("Compression Ratio")
+    vtr_raw = candidate.get("Volatility Trend Ratio")
     vtr = _safe_float(vtr_raw, default=1.0) if vtr_raw is not None else 1.0
 
     vote = "WATCH"

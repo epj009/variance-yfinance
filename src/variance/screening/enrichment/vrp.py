@@ -34,9 +34,6 @@ class VrpEnrichmentStrategy(EnrichmentStrategy):
         except (ValueError, TypeError):
             pass
 
-        # Backward compatibility: alias old field key
-        candidate["Compression Ratio"] = candidate["Volatility Trend Ratio"]
-
         # 3. Tactical Markup (Use HV30, fallback to HV20)
         candidate["vrp_tactical_markup"] = None
         try:

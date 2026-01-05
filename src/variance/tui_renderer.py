@@ -478,8 +478,7 @@ class TUIRenderer:
             ivp = c.get("IV Percentile")
             ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
 
-            # Prefer new key, fall back to old key
-            vtr = c.get("Volatility Trend Ratio") or c.get("VTR") or c.get("Compression Ratio", 1.0)
+            vtr = c.get("Volatility Trend Ratio") or c.get("VTR", 1.0)
             if isinstance(vtr, (int, float)):
                 vtr_str = f"{vtr:.2f}"
                 # Color coding (CORRECTED FOR SHORT VOL):
@@ -559,7 +558,7 @@ class TUIRenderer:
                 else:
                     proxy_parts.append(sym)
             proxy_list = ", ".join(proxy_parts)
-            attrs_note = "HV90, HV252, VRP Structural, Compression Ratio"
+            attrs_note = "HV90, HV252, VRP Structural, VTR"
             self.console.print(
                 f"[warning]Proxy HV90 used for: {proxy_list}. Affects: {attrs_note}.[/warning]"
             )

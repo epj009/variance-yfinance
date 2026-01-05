@@ -22,11 +22,7 @@ def determine_regime_type(
         Regime classification: "COILED", "EXPANDING", or "NORMAL"
     """
     if vol_trend_ratio is not None:
-        from variance.config_migration import get_config_value
-
-        coiled_threshold = float(
-            get_config_value(rules, "vtr_coiled_threshold", "compression_coiled_threshold", 0.75)
-        )
+        coiled_threshold = float(rules.get("vtr_coiled_threshold", 0.75))
         is_coiled_long = vol_trend_ratio < coiled_threshold
         is_coiled_medium = True
         if hv60 and hv60 > 0 and hv20:

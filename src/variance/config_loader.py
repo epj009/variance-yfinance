@@ -119,16 +119,6 @@ def load_trading_rules(
     payload = _load_json(config_path, strict=_resolve_strict(strict))
     rules = _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
 
-    # Deprecation warning for redundant parameter
-    if "tastytrade_iv_percentile_floor" in rules:
-        warnings.warn(
-            "Config parameter 'tastytrade_iv_percentile_floor' is deprecated and will be "
-            "removed in Variance v2.0. Use 'min_iv_percentile' instead. "
-            "The two parameters are functionally identical.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
     return rules
 
 
