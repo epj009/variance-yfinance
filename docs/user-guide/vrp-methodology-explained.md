@@ -355,6 +355,34 @@ This ratio tells us whether realized volatility is **compressed** (coiling) or *
 
 **To revisit:** After 3-6 months of live trading, analyze rejected candidates and trade outcomes.
 
+### What Does Published Research Say?
+
+**On VRP (Variance Risk Premium):**
+
+| Paper | Finding |
+|-------|---------|
+| [Bollerslev, Tauchen, & Zhou (SSRN)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=948309) | "The variance risk premium is able to explain a non-trivial fraction of stock market returns" |
+| [Carr & Wu (NYU)](https://engineering.nyu.edu/sites/default/files/2019-01/CarrReviewofFinStudiesMarch2009-a.pdf) | "The average risk premia on return variances are strongly negative for the S&P 500" |
+| [Macrosynergy](https://www.sr-sv.com/realistic-volatility-risk-premia/) | "The choice of the lookback horizon is critical... A very short lookback produces excessive noise. A long lookback causes severe time inconsistencies." |
+
+**On Optimal HV Lookback Period:**
+
+| Source | Finding |
+|--------|---------|
+| [Qytrees Backtest](https://qytrees.com/blog/simple-option-trading-strategy-with-realized-volatility/) | "The 90-day lookback providing the best PnL profile" for straddle selling (vs 15, 30, 60 days) |
+| [CAIA Study](https://caia.org/blog/2024/11/02/laymans-guide-volatility-forecasting-predicting-future-one-day-time) | "The 10-day lookback clearly outperformed" for next-day volatility forecasting |
+
+**On Dual HV Lookback (HV30 + HV90 together):**
+
+| Question | Research Status |
+|----------|----------------|
+| Does VRP exist and is it exploitable? | ✅ Well documented |
+| What's the optimal single HV lookback? | ⚠️ Depends on use case (90-day for selling, 10-day for forecasting) |
+| Is dual HV filter better than single? | ❌ No research found |
+| Does HV30/HV90 divergence predict vol spikes? | ❌ No research found |
+
+**Bottom Line:** VRP is real and exploitable. The 90-day lookback has empirical support for options selling. Our dual filter (Structural + Tactical) is *reasonable defensive logic* but not academically validated. We'll evaluate empirically through live trading.
+
 ---
 
 ## Quick Reference
