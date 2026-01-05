@@ -87,13 +87,12 @@ VRP: 12 / 15 = 0.80 ❌ (fails 1.10 threshold)
 
 ---
 
-### 3. **VolatilityTrapSpec** (Positional Check)
-**Purpose**: Reject symbols where realized volatility is at extreme lows of its 1-year range.
+### 3. **VolatilityTrapSpec** (HV Rank Check)
+**Purpose**: Reject symbols where realized volatility is at extreme lows of its 1-year range (universally applied).
 
 **Logic**:
 ```
-IF vrp_structural > 1.30 (rich IV):
-  THEN hv_rank must be >= 15 (not at yearly lows)
+hv_rank >= 15.0 (not at yearly lows)
 ```
 
 **HV Rank**: Where current HV sits in its 1-year range:
@@ -101,43 +100,47 @@ IF vrp_structural > 1.30 (rich IV):
 - **50** = Middle of range
 - **100** = Highest HV in past year
 
-**Rationale**: If IV is rich (>1.30) but HV is at yearly lows (<15), you're likely catching a **falling knife**. Realized vol may keep compressing, causing whipsaw.
+**Rationale**: If HV is at yearly lows (< 15), you're likely catching a **falling knife**—realized vol may keep compressing or spike suddenly, causing whipsaw. This check now applies universally to all candidates, regardless of VRP level.
 
 **Example**:
 ```
 Symbol: NFLX
-VRP: 1.45 (rich)
+VRP: 1.25
 HV Rank: 8 (near yearly lows)
-Result: ❌ REJECT - Volatility trap! IV rich but HV collapsing
+Result: ❌ REJECT - Volatility trap! HV at floor
 
 Symbol: NVDA
-VRP: 1.35 (rich)
+VRP: 1.15
 HV Rank: 55 (mid-range)
 Result: ✅ PASS - Healthy vol environment
 ```
 
 **Config**:
-- `vrp_structural_rich_threshold: 1.30` (when to apply check)
 - `hv_rank_trap_threshold: 15.0` (minimum HV Rank)
 
-**Note**: Only applies when VRP > 1.30. Stocks with VRP 1.10-1.30 skip this check.
+**Note**: As of ADR-0011 (2025-12-25), this filter applies to ALL symbols passing VRP threshold, not just those with VRP > 1.30. The VRP gate was removed to provide consistent protection against volatility traps.
 
 ---
 
-### 4. **VolatilityMomentumSpec** (Universal Compression Check)
+### 4. **VolatilityMomentumSpec** (Universal VTR Check)
 **Purpose**: Reject symbols where volatility is actively collapsing, regardless of VRP level.
 
 **Formula**:
 ```
-HV30 / HV90 >= 0.85
+VTR = HV30 / HV90 >= 0.85
 
 Where:
+  VTR = Volatility Trend Ratio
   HV30 = Recent 30-day volatility
   HV90 = Medium-term 90-day volatility
-  0.85 = Allows 15% contraction
+  0.85 = Minimum threshold (allows 15% contraction)
 ```
 
-**Rationale**: Complements VolatilityTrapSpec by checking compression across ALL VRP ranges (not just >1.30).
+**Rationale**: This is a **hard filter** using VTR. It complements VolatilityTrapSpec by checking volatility momentum across ALL VRP ranges (not just rich IV).
+
+**Note**: VTR is used in two places with different thresholds:
+- `volatility_momentum_min_ratio: 0.85` → **Filter gate** (rejects candidates)
+- `vtr_coiled_threshold: 0.75` → **Signal classification** (labels only, doesn't filter)
 
 **Example**:
 ```
@@ -375,8 +378,8 @@ Why: Edge hasn't surged enough to justify adding
 |--------|--------|-----------|------------|-------------|
 | **DataIntegrity** | Data errors | N/A | Soft warnings | None |
 | **VrpStructural** | IV / HV90 | > 1.10 | None | `--min-vrp 0` |
-| **VolatilityTrap** | HV Rank (if VRP>1.30) | >= 15 | Low VRP (<1.30) | None |
-| **VolatilityMomentum** | HV30 / HV90 | >= 0.85 | Missing data | None |
+| **VolatilityTrap** | HV Rank | >= 15 | None | None |
+| **VolatilityMomentum** | HV30 / HV90 (VTR) | >= 0.85 | Missing data | None |
 | **RetailEfficiency** | Price + Slippage | >= $25, <= 5% | None | None |
 | **IVPercentile** | IV Percentile | >= 20 | None | None |
 | **Liquidity** | TT Rating or Volume | >= 4 or 500 | None | `--allow-illiquid` |

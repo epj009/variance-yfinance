@@ -47,20 +47,18 @@ Controls the core volatility risk premium (VRP) filtering logic.
 ---
 
 ### `vrp_structural_rich_threshold` (default: `1.30`)
-**Purpose**: VRP level considered "rich" - triggers additional safety checks.
+**Purpose**: VRP level considered "rich" - used for classification and scoring.
 
-**Usage**: When VRP > 1.30, `VolatilityTrapSpec` checks if HV Rank is too low.
+**Usage**: Marks candidates as "RICH" when VRP Structural >= 1.30 for signal enrichment and variance score calculation.
 
 **Values**:
 - `1.30` = IV is 30% higher than HV90 (balanced)
 - `1.50` = Very elevated (only extreme situations)
-- `1.10` = Same as base threshold (no special handling)
+- `1.10` = Same as base threshold (no special "rich" designation)
 
-**Impact**: Controls when positional HV Rank check is applied.
+**Impact**: Controls classification of rich IV environments for scoring and display purposes.
 
-**Related**:
-- Filter: `VolatilityTrapSpec`
-- See: `docs/user-guide/filtering-rules.md#4-volatilitytrapspec`
+**Note**: As of ADR-0011 (2025-12-25), this threshold no longer gates the HV Rank check. `VolatilityTrapSpec` now applies to all candidates universally.
 
 ---
 
@@ -100,9 +98,9 @@ Controls the core volatility risk premium (VRP) filtering logic.
 Controls whipsaw protection and volatility momentum filtering.
 
 ### `hv_rank_trap_threshold` (default: `15.0`)
-**Purpose**: Minimum HV Rank (percentile of 1-year range) when VRP is rich.
+**Purpose**: Minimum HV Rank (percentile of 1-year range) required for all candidates.
 
-**Formula**: When `VRP > 1.30`, require `HV Rank >= 15`
+**Formula**: Require `HV Rank >= 15` (applied universally)
 
 **HV Rank Scale**:
 - `0` = Lowest HV in past year
@@ -112,6 +110,8 @@ Controls whipsaw protection and volatility momentum filtering.
 **Values**:
 - `15.0` = Reject bottom 15% (current - balanced)
 - `25.0` = Reject bottom 25% (more conservative)
+
+**Note**: As of ADR-0011 (2025-12-25), this check applies to ALL candidates passing VRP threshold, not just those with VRP > 1.30.
 - `5.0` = Reject bottom 5% only (permissive)
 
 **Rationale**: Prevents trading when IV is rich but HV is at yearly lows (falling knife).
@@ -155,12 +155,21 @@ Controls whipsaw protection and volatility momentum filtering.
 
 ---
 
-### `compression_coiled_threshold` (default: `0.75`)
-**Purpose**: Long-term compression cutoff used to classify coiled regimes.
+### `vtr_coiled_threshold` (default: `0.75`)
+**Purpose**: Volatility Trend Ratio threshold used to classify "coiled" regimes.
 
-**Usage**: Signal and regime enrichment, not primary filtering. Requires a composite check with HV20/HV60 < 0.85 to avoid false positives.
+**Formula**: VTR = HV30 / HV90
 
-**Rationale**: Identify sustained compression while avoiding "new normal" low-vol regimes.
+**Usage**: Signal and regime enrichment, not primary filtering. When VTR < 0.75, the regime is classified as "COILED" (volatility compressed).
+
+**Values**:
+- `0.75` = Standard (allow 25% compression)
+- `0.60` = More permissive (allow 40% compression)
+- `0.85` = More conservative (allow only 15% compression)
+
+**Rationale**: Identify compressed volatility environments while avoiding false positives during stable low-vol regimes.
+
+**Related**: See `volatility_momentum_min_ratio` (0.85) for the hard filter gate that rejects candidates with collapsing volatility.
 
 ---
 

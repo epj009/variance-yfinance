@@ -200,8 +200,8 @@ The diagnostic tests these filters in order:
 |---|--------|----------------|
 | 1 | **DataIntegrity** | Data errors/warnings |
 | 2 | **VrpStructural** | VRP > 1.10 |
-| 3 | **VolatilityTrap** | HV Rank >= 15 (if VRP > 1.30) |
-| 4 | **VolatilityMomentum** | HV30/HV90 >= 0.85 |
+| 3 | **VolatilityTrap** | HV Rank >= 15 (universal) |
+| 4 | **VolatilityMomentum** | HV30/HV90 (VTR) >= 0.85 |
 | 5 | **RetailEfficiency** | Price >= $25, Slippage <= 5% |
 | 6 | **IVPercentile** | IV Percentile >= 20 |
 | 7 | **Liquidity** | Tastytrade rating >= 4 |

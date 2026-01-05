@@ -221,20 +221,20 @@ You can adjust thresholds in `config/trading_rules.json`:
 
 ---
 
-## Compression Ratio (Volatility Momentum)
+## Volatility Trend Ratio (VTR)
 
 **Formula:** HV30 / HV90
 
-This ratio tells us whether realized volatility is **compressed** (coiling) or **expanded** relative to its longer-term baseline. This matters because Variance is a **short volatility** strategy.
+This ratio (formerly called "Compression Ratio") tells us the directional momentum of realized volatility. It measures whether recent volatility (HV30) is higher or lower than the medium-term baseline (HV90). This matters because Variance is a **short volatility** strategy.
 
 **Interpretation (short vol):**
-- **< 0.60:** Severe compression → avoid (expansion risk)
-- **0.60-0.75:** Mild compression → caution, downgrade conviction
+- **< 0.60:** Severe coiling (low VTR) → avoid (expansion risk imminent)
+- **0.60-0.75:** Mild coiling → caution, downgrade conviction
 - **0.75-1.15:** Normal regime → standard entries
-- **1.15-1.30:** Mild expansion → favorable for short vol
-- **> 1.30:** Severe expansion → strongest short vol edge (contraction expected)
+- **1.15-1.30:** Mild expansion (high VTR) → favorable for short vol
+- **> 1.30:** Severe expansion → strongest short vol edge (mean reversion expected)
 
-**Why it flips vs long vol:** If volatility is already compressed, the odds favor expansion, which is bad for short gamma. Elevated volatility tends to mean-revert down, which is ideal for short premium.
+**Why high VTR is favorable for short vol:** When VTR is high (> 1.15), recent volatility has already expanded above the baseline. This creates favorable conditions for mean reversion downward, which benefits short premium strategies. Conversely, low VTR (< 0.75) indicates compressed volatility that may expand suddenly, posing risk to short gamma positions.
 
 ---
 

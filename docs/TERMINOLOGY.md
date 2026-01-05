@@ -110,9 +110,10 @@
 | Term | Definition | Calculated By | Usage |
 |------|------------|---------------|-------|
 | **HV Rank** | Percentile ranking of HV20 vs rolling 20-day HVs over 1 year | Variance (local) | VolatilityTrapSpec filter |
-| **Compression** | HV declining (HV30 < HV90) | Formula | Momentum context |
-| **Expansion** | HV rising (HV30 > HV90) | Formula | Momentum context |
-| **Volatility Trap** | Rich IV (VRP > 1.30) + Low HV Rank (< 15) | Combined check | Risk scenario |
+| **VTR (Volatility Trend Ratio)** | HV30 / HV90 momentum indicator | Formula: HV30/HV90 | Signal classification, filtering |
+| **VTR Coiled** | Low VTR (< 0.75) - volatility compressed | VTR < 0.75 | Regime detection |
+| **VTR Expanding** | High VTR (> 1.15) - volatility elevated | VTR > 1.15 | Favorable for short vol |
+| **Volatility Trap** | Low HV Rank (< 15) despite elevated IV | Combined check | Risk scenario |
 
 **HV Rank Detail**:
 - Formula: `COUNT(HV20_rolling_past_year < HV20_current) / num_days × 100`
