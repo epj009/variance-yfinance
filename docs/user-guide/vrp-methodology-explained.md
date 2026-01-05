@@ -320,6 +320,43 @@ This ratio tells us whether realized volatility is **compressed** (coiling) or *
 
 ---
 
+## Open Questions (Revisit After Live Trading)
+
+### Is the Dual VRP Filter Necessary?
+
+**Current Design:** Candidates must pass BOTH VRP Structural AND VRP Tactical.
+
+**The Question:** If VRP Tactical (IV/HV30) shows edge exists today, and IV Percentile confirms IV is elevated, do we actually need VRP Structural (IV/HV90)?
+
+**Arguments for keeping both:**
+
+| Scenario | HV90 | HV30 | IV | Structural | Tactical | Risk |
+|----------|------|------|-----|-----------|----------|------|
+| Recent vol spike | 20% | 28% | 30% | 1.50 ✅ | 1.07 ❌ | Tactical catches edge erosion |
+| Temporary calm | 28% | 18% | 30% | 1.07 ❌ | 1.67 ✅ | Structural catches temporary lull |
+
+- Structural provides "regression to mean" protection
+- If HV30 is temporarily low, Structural asks "is this normal for this stock?"
+- Requiring both ensures edge existed AND still exists
+
+**Arguments for simplifying to Tactical + IVP only:**
+
+- Both filters use CURRENT IV (only HV lookback differs)
+- If edge exists now (Tactical), historical persistence may not matter
+- IVP partially covers the "is IV elevated?" question
+- Simpler filter = easier to understand and tune
+
+**Decision (January 2026):** Keep dual filter, trade with it, evaluate empirically.
+
+**Evaluation Criteria:**
+- Are good candidates being rejected by Structural that pass Tactical + IVP?
+- When Structural and Tactical diverge, which signal is more predictive?
+- Does win rate differ for Structural-only vs Tactical-only passes?
+
+**To revisit:** After 3-6 months of live trading, analyze rejected candidates and trade outcomes.
+
+---
+
 ## Quick Reference
 
 **VRP Structural (Stage 1 - Historical Edge):**
@@ -360,5 +397,5 @@ Prevents ratio explosion on dead vol stocks
 
 ---
 
-**Last Updated:** 2026-01-02
+**Last Updated:** 2026-01-04
 **Maintained By:** Variance Development Team
