@@ -13,7 +13,6 @@ from variance.models.market_specs import (
     ScalableGateSpec,
     SectorExclusionSpec,
     VolatilityMomentumSpec,
-    VolatilityTrapSpec,
     VrpStructuralSpec,
     VrpTacticalSpec,
 )
@@ -142,17 +141,6 @@ def test_iv_percentile_spec():
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": None}) is False
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": "bad"}) is False
     assert spec.is_satisfied_by({"symbol": "AAPL", "iv_percentile": 40.0}) is True
-
-
-def test_volatility_trap_spec():
-    spec = VolatilityTrapSpec(rank_threshold=15.0, vrp_rich_threshold=1.3)
-
-    # DEPRECATED (2026-01-04): VolatilityTrapSpec is now a no-op filter (always passes)
-    # Rationale: Tastytrade provides IV Rank (not HV Rank), field doesn't exist in data
-    assert spec.is_satisfied_by({"vrp_structural": 1.4, "hv_rank": 10.0}) is True
-    assert spec.is_satisfied_by({"vrp_structural": 1.4, "hv_rank": 20.0}) is True
-    assert spec.is_satisfied_by({"vrp_structural": 1.0, "hv_rank": 5.0}) is True
-    # All cases now pass - filter is deprecated
 
 
 def test_volatility_momentum_spec():

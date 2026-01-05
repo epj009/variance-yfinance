@@ -378,7 +378,6 @@ def render_detail_view(symbol: str, data: dict[str, Any]) -> None:
                     "vrp_tactical": c.get("vrp_tactical"),
                     "vtr": c.get("VTR") or c.get("Volatility Trend Ratio"),
                     "iv_percentile": c.get("IV Percentile"),
-                    "hv_rank": c.get("HV Rank"),
                     "score": c.get("score"),
                     "signal": c.get("Signal"),
                     "vote": c.get("Vote"),

@@ -112,21 +112,6 @@ def score_volatility_momentum(metrics: dict[str, Any], rules: dict[str, Any]) ->
     return _normalize_score(ratio, floor, ceiling)
 
 
-def score_hv_rank(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
-    """
-    DEPRECATED: Score based on HV rank for rich VRP positions.
-
-    Rationale for deprecation (2026-01-04):
-    - Tastytrade provides IV Rank (not HV Rank)
-    - The field 'hv_rank' doesn't exist in our data (always returns None)
-    - Conceptually wrong for short vol strategies
-    - Redundant with IV Percentile and VTR checks
-
-    Always returns neutral score (50.0) for backward compatibility.
-    """
-    return _neutral_score()  # Always neutral (50.0)
-
-
 def score_iv_percentile(
     metrics: dict[str, Any], rules: dict[str, Any], config: Optional[Any]
 ) -> float:

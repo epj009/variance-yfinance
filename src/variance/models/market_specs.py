@@ -278,33 +278,6 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
             return False
 
 
-class VolatilityTrapSpec(Specification[dict[str, Any]]):
-    """
-    DEPRECATED: This spec is no longer active.
-
-    Rationale for deprecation (2026-01-04):
-    - Tastytrade provides IV Rank (not HV Rank)
-    - The field 'hv_rank' doesn't exist in our data (always returns None → 0)
-    - Conceptually wrong for short vol: we WANT low HV + high IV (max VRP)
-    - Redundant with IV Percentile check and VolatilityMomentumSpec (VTR check)
-
-    Kept for backward compatibility with existing config files.
-    This filter always passes (no-op).
-
-    Args:
-        rank_threshold: Deprecated parameter (kept for backwards compatibility)
-        vrp_rich_threshold: Deprecated parameter (kept for backwards compatibility)
-    """
-
-    def __init__(self, rank_threshold: float, vrp_rich_threshold: float):
-        self.rank_threshold = rank_threshold
-        self.vrp_rich_threshold = vrp_rich_threshold
-
-    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        # DEPRECATED: Always pass (no-op filter)
-        return True
-
-
 class VolatilityMomentumSpec(Specification[dict[str, Any]]):
     """
     Universal compression detection (not VRP-gated).

@@ -18,7 +18,6 @@ from variance.models.market_specs import (
     SectorExclusionSpec,
     SlippageSpec,
     VolatilityMomentumSpec,
-    VolatilityTrapSpec,
     VrpStructuralSpec,
     VrpTacticalSpec,
     YieldSpec,
@@ -61,8 +60,6 @@ def apply_specifications(
         else config.min_vrp_structural
     )
     hv_floor_absolute = float(rules.get("hv_floor_percent", 5.0))
-    hv_rank_trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
-    vrp_rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.30))
     vrp_tactical_threshold = float(rules.get("vrp_tactical_threshold", 1.15))
     volatility_momentum_min_ratio = float(rules.get("volatility_momentum_min_ratio", 0.85))
 
@@ -81,7 +78,6 @@ def apply_specifications(
 
     data_integrity_spec = DataIntegritySpec()
     vrp_structural_spec = VrpStructuralSpec(structural_threshold)
-    vol_trap_spec = VolatilityTrapSpec(hv_rank_trap_threshold, vrp_rich_threshold)
     vol_momentum_spec = VolatilityMomentumSpec(volatility_momentum_min_ratio)
     retail_spec = RetailEfficiencySpec(retail_min_price)
     slippage_spec = SlippageSpec(retail_max_slippage)
@@ -101,7 +97,6 @@ def apply_specifications(
     )
     if not show_all:
         main_spec &= vrp_structural_spec
-        main_spec &= vol_trap_spec
         main_spec &= vol_momentum_spec
         main_spec &= retail_spec
         main_spec &= slippage_spec
@@ -216,7 +211,6 @@ def apply_specifications(
                     metrics_dict,
                     data_integrity_spec,
                     vrp_structural_spec,
-                    vol_trap_spec,
                     vol_momentum_spec,
                     retail_spec,
                     slippage_spec,
@@ -296,7 +290,6 @@ def _first_failure_reason(
     metrics: dict[str, Any],
     data_integrity_spec: DataIntegritySpec,
     vrp_structural_spec: VrpStructuralSpec,
-    vol_trap_spec: VolatilityTrapSpec,
     vol_momentum_spec: VolatilityMomentumSpec,
     retail_spec: RetailEfficiencySpec,
     slippage_spec: SlippageSpec,
@@ -308,12 +301,6 @@ def _first_failure_reason(
     checks: list[tuple[Specification[dict[str, Any]], str]] = [
         (data_integrity_spec, _data_integrity_reason(metrics)),
         (vrp_structural_spec, _vrp_structural_reason(metrics, vrp_structural_spec.threshold)),
-        (
-            vol_trap_spec,
-            _vol_trap_reason(
-                metrics, vol_trap_spec.rank_threshold, vol_trap_spec.vrp_rich_threshold
-            ),
-        ),
         (
             vol_momentum_spec,
             _vol_momentum_reason(metrics, vol_momentum_spec.min_momentum_ratio),
@@ -363,13 +350,6 @@ def _vrp_structural_reason(metrics: dict[str, Any], threshold: float) -> str:
     if vrp is None:
         return "VRP Structural: missing"
     return f"VRP Structural: {float(vrp):.2f} <= {threshold:.2f}"
-
-
-def _vol_trap_reason(
-    metrics: dict[str, Any], rank_threshold: float, vrp_rich_threshold: float
-) -> str:
-    # DEPRECATED: VolatilityTrapSpec is no-op, this should never be called
-    return "Volatility Trap: DEPRECATED (filter disabled)"
 
 
 def _vol_momentum_reason(metrics: dict[str, Any], min_ratio: float) -> str:
@@ -561,9 +541,6 @@ def _update_counters(
         diagnostics.incr("missing_vrp_structural_count")
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
         diagnostics.incr("low_vrp_structural_count")
-
-    # DEPRECATED: HV Rank trap counter removed (VolatilityTrapSpec is no-op)
-    # hv_rank field doesn't exist in Tastytrade data (provides iv_rank instead)
 
     # Retail Efficiency Skip
     from variance.liquidity import SlippageCalculator

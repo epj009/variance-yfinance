@@ -20,7 +20,6 @@ class TestSignalSynthesis:
             "earnings_days_threshold": 5,
             "vrp_tactical_cheap_threshold": -0.10,
             "vtr_coiled_threshold": 0.75,
-            "hv_rank_trap_threshold": 15.0,
         }
 
     def test_signal_event_dominates(self, mock_rules):
@@ -134,13 +133,11 @@ class TestVarianceScore:
     def mock_rules(self):
         return {
             "vrp_structural_rich_threshold": 1.0,
-            "hv_rank_trap_threshold": 15.0,
             "variance_score_dislocation_multiplier": 200,
             "variance_score_weights": {
                 "structural_vrp": 0.5,
                 "tactical_vrp": 0.5,
                 "volatility_momentum": 0.0,
-                "hv_rank": 0.0,
                 "iv_percentile": 0.0,
                 "yield": 0.0,
                 "retail_efficiency": 0.0,
@@ -153,7 +150,6 @@ class TestVarianceScore:
         metrics = {
             "vrp_structural": 1.5,  # |1.5 - 1.0|*200 = 100 -> * 0.5 = 50
             "vrp_tactical": 1.5,  # |1.5 - 1.0|*200 = 100 -> * 0.5 = 50
-            "hv_rank": 50,
         }
         score = vol_screener._calculate_variance_score(metrics, mock_rules)
         assert score == 100.0
@@ -163,38 +159,15 @@ class TestVarianceScore:
         metrics = {
             "vrp_structural": 0.5,  # |0.5 - 1.0|*200 = 100
             "vrp_tactical": 0.5,  # |0.5 - 1.0|*200 = 100
-            "hv_rank": 50,
         }
         score = vol_screener._calculate_variance_score(metrics, mock_rules)
         assert score == 100.0
-
-    def test_score_penalty_trap(self, mock_rules):
-        """DEPRECATED (2026-01-04): HV rank component now always returns neutral (50.0)."""
-        rules = dict(mock_rules)
-        rules["variance_score_weights"] = {
-            "structural_vrp": 0.0,
-            "tactical_vrp": 0.0,
-            "volatility_momentum": 0.0,
-            "hv_rank": 1.0,
-            "iv_percentile": 0.0,
-            "yield": 0.0,
-            "retail_efficiency": 0.0,
-            "liquidity": 0.0,
-        }
-        metrics = {
-            "vrp_structural": 1.5,  # Rich: activates HV rank score
-            "hv_rank": 15,  # At threshold -> neutral score (deprecated)
-        }
-        score = vol_screener._calculate_variance_score(metrics, rules)
-        # HV rank now always returns 50.0 (neutral) since it's deprecated
-        assert score == 50.0
 
     def test_score_fallback_tactical(self, mock_rules):
         """If tactical missing, fallback to structural."""
         metrics = {
             "vrp_structural": 1.5,  # 100 pts
             "vrp_tactical": None,  # Missing
-            "hv_rank": 50,
         }
         # Should use structural for both components (50 + 50)
         score = vol_screener._calculate_variance_score(metrics, mock_rules)
@@ -206,7 +179,6 @@ class TestVarianceScore:
             "structural_vrp": 0.0,
             "tactical_vrp": 0.0,
             "volatility_momentum": 1.0,
-            "hv_rank": 0.0,
             "iv_percentile": 0.0,
             "yield": 0.0,
             "retail_efficiency": 0.0,
@@ -224,7 +196,6 @@ class TestVarianceScore:
             "structural_vrp": 0.0,
             "tactical_vrp": 0.0,
             "volatility_momentum": 0.0,
-            "hv_rank": 0.0,
             "iv_percentile": 1.0,
             "yield": 0.0,
             "retail_efficiency": 0.0,
@@ -241,7 +212,6 @@ class TestVarianceScore:
             "structural_vrp": 0.0,
             "tactical_vrp": 0.0,
             "volatility_momentum": 0.0,
-            "hv_rank": 0.0,
             "iv_percentile": 0.0,
             "yield": 1.0,
             "retail_efficiency": 0.0,
@@ -259,7 +229,6 @@ class TestVarianceScore:
             "structural_vrp": 0.0,
             "tactical_vrp": 0.0,
             "volatility_momentum": 0.0,
-            "hv_rank": 0.0,
             "iv_percentile": 0.0,
             "yield": 0.0,
             "retail_efficiency": 1.0,
@@ -278,7 +247,6 @@ class TestVarianceScore:
             "structural_vrp": 0.0,
             "tactical_vrp": 0.0,
             "volatility_momentum": 0.0,
-            "hv_rank": 0.0,
             "iv_percentile": 0.0,
             "yield": 0.0,
             "retail_efficiency": 0.0,

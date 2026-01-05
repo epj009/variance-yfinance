@@ -197,7 +197,6 @@ def build_report(
             "vrp_structural": _safe_float(symbol_data.get("vrp_structural")),
             "vrp_tactical": _safe_float(symbol_data.get("vrp_tactical")),
             "iv_percentile": _safe_float(symbol_data.get("iv_percentile")),
-            "hv_rank": _safe_float(symbol_data.get("hv_rank")),
             "vtr": vtr,  # Can be None if data missing
             "score": _safe_float(symbol_data.get("score")),
             "sector": symbol_data.get("sector"),

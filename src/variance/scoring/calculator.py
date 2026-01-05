@@ -5,7 +5,6 @@ from typing import Any, Optional
 from .components import (
     _safe_float,
     _variance_component,
-    score_hv_rank,
     score_iv_percentile,
     score_liquidity,
     score_retail_efficiency,
@@ -36,7 +35,6 @@ def calculate_variance_score(
         "structural_vrp": 0.2,
         "tactical_vrp": 0.2,
         "volatility_momentum": 0.1,
-        "hv_rank": 0.0,  # DEPRECATED (2026-01-04): Tastytrade provides IV Rank not HV Rank
         "iv_percentile": 0.1,
         "yield": 0.1,
         "retail_efficiency": 0.1,
@@ -59,7 +57,6 @@ def calculate_variance_score(
         tactical_score = _variance_component(tactical_raw, rules)
 
     momentum_score = score_volatility_momentum(metrics, rules)
-    hv_rank_score = score_hv_rank(metrics, rules)
     ivp_score = score_iv_percentile(metrics, rules, config)
     yield_score = score_yield(metrics, rules)
     retail_score = score_retail_efficiency(metrics, rules, config)
@@ -69,7 +66,6 @@ def calculate_variance_score(
         structural_score * weights["structural_vrp"]
         + tactical_score * weights["tactical_vrp"]
         + momentum_score * weights["volatility_momentum"]
-        + hv_rank_score * weights["hv_rank"]
         + ivp_score * weights["iv_percentile"]
         + yield_score * weights["yield"]
         + retail_score * weights["retail_efficiency"]
