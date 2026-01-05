@@ -5,6 +5,10 @@
 #   ./screen                    # Run with 'balanced' profile (default)
 #   ./screen --profile broad    # Run with specific profile
 #   ./screen 50                 # Limit to first 50 symbols (avoid rate limiting)
+#   ./screen --watch 60         # Watch mode: refresh every 60 seconds
+#   ./screen --watch            # Watch mode: refresh every 300 seconds (default)
+#   ./screen --detail NVDA      # Deep dive on single symbol
+#   ./screen --export csv       # Export to CSV format
 #   ./screen --show-all         # Show ALL symbols, bypass all filters (debugging)
 #   ./screen --json             # Raw JSON output (for scripting)
 #   ./screen --help             # Show help
@@ -20,10 +24,17 @@ fi
 # Export credentials for Python to access via os.getenv()
 export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
 
-# Check if user wants raw JSON output
+# Parse command-line arguments
 JSON_OUTPUT=false
 HELP_MODE=false
+WATCH_MODE=false
+WATCH_INTERVAL=300  # Default: 5 minutes
+EXPORT_MODE=false
+EXPORT_FORMAT=""
+DETAIL_MODE=false
+DETAIL_SYMBOL=""
 FILTERED_ARGS=()
+
 for arg in "$@"; do
     if [ "$arg" = "--json" ]; then
         JSON_OUTPUT=true
@@ -31,14 +42,66 @@ for arg in "$@"; do
     elif [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
         HELP_MODE=true
         FILTERED_ARGS+=("$arg")
+    elif [ "$arg" = "--watch" ]; then
+        WATCH_MODE=true
+        # Next arg might be interval
+    elif [ "$WATCH_MODE" = true ] && [[ "$arg" =~ ^[0-9]+$ ]]; then
+        WATCH_INTERVAL="$arg"
+        WATCH_MODE=false  # Reset flag after capturing interval
+    elif [ "$arg" = "--export" ]; then
+        # Next arg will be format
+        EXPORT_MODE=true
+    elif [ "$EXPORT_MODE" = true ]; then
+        EXPORT_FORMAT="$arg"
+        EXPORT_MODE=false
+    elif [ "$arg" = "--detail" ]; then
+        # Next arg will be symbol
+        DETAIL_MODE=true
+    elif [ "$DETAIL_MODE" = true ]; then
+        DETAIL_SYMBOL="$arg"
+        DETAIL_MODE=false
     else
+        # Reset watch flag if this isn't an interval
+        if [ "$WATCH_MODE" = true ]; then
+            WATCH_MODE=false
+        fi
         FILTERED_ARGS+=("$arg")
     fi
 done
 
+# Re-enable watch mode if it was set but no interval provided
+if [ "$WATCH_MODE" = false ] && [[ " $* " =~ " --watch " ]]; then
+    WATCH_MODE=true
+fi
+
 # Run the vol screener
 if [ "$HELP_MODE" = true ]; then
     ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"
+elif [ -n "$EXPORT_FORMAT" ]; then
+    # Export mode
+    ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}" 2>/dev/null | \
+        ./venv/bin/python scripts/format_screener_output.py --export "$EXPORT_FORMAT"
+elif [ -n "$DETAIL_SYMBOL" ]; then
+    # Detail view mode
+    ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}" 2>/dev/null | \
+        ./venv/bin/python scripts/format_screener_output.py --detail "$DETAIL_SYMBOL"
+elif [ "$WATCH_MODE" = true ]; then
+    # Watch mode: continuous refresh
+    echo "Starting watch mode (refresh every ${WATCH_INTERVAL}s, Ctrl+C to exit)..."
+    sleep 2
+
+    while true; do
+        clear
+        if [ "$JSON_OUTPUT" = true ]; then
+            ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"
+        else
+            ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}" 2>/dev/null | ./venv/bin/python scripts/format_screener_output.py
+        fi
+
+        echo ""
+        echo "Next refresh in ${WATCH_INTERVAL}s... (Ctrl+C to exit)"
+        sleep "$WATCH_INTERVAL"
+    done
 elif [ "$JSON_OUTPUT" = true ]; then
     # Raw JSON output for scripting/piping
     ./venv/bin/python -m variance.vol_screener "${FILTERED_ARGS[@]}"

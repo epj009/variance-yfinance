@@ -1,10 +1,94 @@
 #!/usr/bin/env python3
 """Format vol_screener JSON output for human-readable terminal display."""
 
+import argparse
+import csv
 import json
 import sys
 from datetime import datetime
 from typing import Any
+
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.theme import Theme
+
+# Color theme matching variance TUI
+VARIANCE_THEME = Theme(
+    {
+        "profit": "bold green",
+        "loss": "bold red",
+        "warning": "yellow",
+        "info": "cyan",
+        "dim": "dim white",
+    }
+)
+
+# Initialize console
+console = Console(theme=VARIANCE_THEME)
+
+
+def get_vtr_style(vtr: float) -> str:
+    """Return rich style string for VTR value."""
+    if vtr < 0.60:
+        return "loss"  # Severe compression - AVOID
+    elif vtr < 0.75:
+        return "warning"  # Mild compression
+    elif vtr < 0.85:
+        return "dim"  # Contracting
+    elif vtr < 1.15:
+        return "profit"  # Normal - good for short vol
+    elif vtr < 1.30:
+        return "warning"  # Expanding mildly
+    else:
+        return "bold green"  # Severe expansion - STRONG BUY
+
+
+def get_vote_style(vote: str) -> str:
+    """Return rich style string for Vote."""
+    vote_upper = vote.upper()
+    if "BUY" in vote_upper and "STRONG" not in vote_upper:
+        return "profit"
+    elif "STRONG BUY" in vote_upper or vote_upper == "SCALE":
+        return "bold green"
+    elif "LEAN" in vote_upper:
+        return "profit"
+    elif "WATCH" in vote_upper or "HOLD" in vote_upper:
+        return "dim"
+    elif "AVOID" in vote_upper or "PASS" in vote_upper:
+        return "loss"
+    else:
+        return "dim"
+
+
+def get_signal_style(signal: str) -> str:
+    """Return rich style string for Signal."""
+    signal_upper = signal.upper()
+    if "RICH" in signal_upper or "EXPANDING-SEVERE" in signal_upper:
+        return "profit"
+    elif "EXPANDING" in signal_upper:
+        return "warning"
+    elif "COILED-SEVERE" in signal_upper or "DISCOUNT" in signal_upper:
+        return "loss"
+    elif "COILED" in signal_upper or "EVENT" in signal_upper:
+        return "warning"
+    else:
+        return "dim"
+
+
+# Signal icons mapping
+SIGNAL_ICONS = {
+    "RICH": "$",
+    "EXPANDING-SEVERE": "^^",
+    "EXPANDING-MILD": "^",
+    "COILED-SEVERE": "!!",
+    "COILED-MILD": "!",
+    "DISCOUNT": "-",
+    "EVENT": "E",
+    "FAIR": "·",
+    "NORMAL": "·",
+}
 
 
 def is_market_open_at(dt: datetime) -> bool:
@@ -32,47 +116,53 @@ def format_screener_output(data: dict[str, Any]) -> None:
     candidates = data.get("candidates", [])
     meta = data.get("meta", {})
 
-    # Header
-    print("\n╔════════════════════════════════════════════════════════════════════════════╗")
-    print("║                    VARIANCE VOLATILITY SCREENER                            ║")
-    print("╚════════════════════════════════════════════════════════════════════════════╝\n")
-
-    # Profile info
+    # Header with rich panel
     profile = meta.get("profile", "unknown")
     scan_time = meta.get("scan_timestamp", "N/A")
-    print(f"Profile: {profile.upper()}")
+    scanned = summary.get("scanned_symbols_count", 0)
+    found = summary.get("candidates_count", 0)
+    pass_pct = (found / scanned * 100) if scanned > 0 else 0
 
+    header_text = f"Profile: [cyan]{profile.upper()}[/]  |  Scanned: {scanned}  |  Passed: {found} ({pass_pct:.1f}%)  |  {scan_time}"
+    console.print()
+    console.print(
+        Panel(
+            "[bold]VARIANCE VOLATILITY SCREENER[/]",
+            subtitle=header_text,
+            box=box.DOUBLE,
+            style="bold cyan",
+        )
+    )
+    console.print()
+
+    # Active constraints
     constraints = summary.get("active_constraints", {})
     if constraints:
         vrp = constraints.get("min_vrp", 0.0)
         ivp = constraints.get("min_ivp", 0.0)
         yld = constraints.get("min_yield", 0.0)
         prc = constraints.get("min_price", 0.0)
-        print(
+        console.print(
             f"Active:  VRP > {vrp:.1f} | IVP > {ivp:.0f}% | Yield > {yld:.1f}% | Price > ${prc:.0f}"
         )
-
-    print(f"Time:    {scan_time}")
-    print()
+        console.print()
 
     # Summary stats
-    print("─" * 80)
-    print("SUMMARY")
-    print("─" * 80)
-    scanned = summary.get("scanned_symbols_count", 0)
-    found = summary.get("candidates_count", 0)
-    print(f"  Symbols Scanned:  {scanned}")
-    print(f"  Candidates Found: {found}")
+    console.print("─" * 80)
+    console.print("SUMMARY")
+    console.print("─" * 80)
+    console.print(f"  Symbols Scanned:  {scanned}")
+    console.print(f"  Candidates Found: {found}")
 
     if found > 0:
         pct = (found / scanned * 100) if scanned > 0 else 0
-        print(f"  Pass Rate:        {pct:.1f}%")
-    print()
+        console.print(f"  Pass Rate:        {pct:.1f}%")
+    console.print()
 
     # Filter diagnostics
-    print("─" * 80)
-    print("FILTER DIAGNOSTICS (symbols can fail multiple filters)")
-    print("─" * 80)
+    console.print("─" * 80)
+    console.print("FILTER DIAGNOSTICS (symbols can fail multiple filters)")
+    console.print("─" * 80)
     filters = [
         ("Low VRP Structural", summary.get("low_vrp_structural_count", 0)),
         ("Low VRP Tactical", summary.get("tactical_skipped_count", 0)),
@@ -88,36 +178,46 @@ def format_screener_output(data: dict[str, Any]) -> None:
 
     # Show ALL filters with their counts
     for name, count in filters:
-        print(f"  {name:<25} {count:>4} symbols")
+        console.print(f"  {name:<25} {count:>4} symbols")
 
     # Show unique rejection count
     total_rejections = scanned - found
-    print(f"  {'─' * 35}")
-    print(f"  {'Unique Rejections':<25} {total_rejections:>4} symbols")
-    print(f"  {'Passed All Filters':<25} {found:>4} symbols")
-    print()
+    console.print(f"  {'─' * 35}")
+    console.print(f"  {'Unique Rejections':<25} {total_rejections:>4} symbols")
+    console.print(f"  {'Passed All Filters':<25} {found:>4} symbols")
+    console.print()
 
     # Rejection details (debug mode)
     rejections = meta.get("filter_rejections", {})
     if rejections:
-        print("─" * 80)
-        print("REJECTION DETAILS")
-        print("─" * 80)
+        console.print("─" * 80)
+        console.print("REJECTION DETAILS")
+        console.print("─" * 80)
         for symbol in sorted(rejections):
-            print(f"  {symbol}: {rejections[symbol]}")
-        print()
+            console.print(f"  {symbol}: {rejections[symbol]}")
+        console.print()
 
     # Candidates table
     if candidates:
-        print("─" * 80)
-        print("CANDIDATES")
-        print("─" * 80)
-        print()
+        console.print("─" * 80)
+        console.print("[bold]CANDIDATES[/]")
+        console.print("─" * 80)
+        console.print()
 
-        # Table header
-        header = f"{'Symbol':<8} {'Asset':<10} {'Price':<8} {'VRP S':<7} {'VRP T':<7} {'IV%':<6} {'Signal':<8} {'Score':<6} {'Vote':<8}"
-        print(header)
-        print("─" * 80)
+        # Create rich table
+        table = Table(box=box.SIMPLE, show_header=True, header_style="bold")
+
+        # Add columns
+        table.add_column("Symbol", style="cyan", width=8)
+        table.add_column("Asset", width=10)
+        table.add_column("Price", justify="right", width=9)
+        table.add_column("VRP S", justify="right", width=7)
+        table.add_column("VRP T", justify="right", width=7)
+        table.add_column("VTR", justify="right", width=6)
+        table.add_column("IV%", justify="right", width=5)
+        table.add_column("Signal", width=16)
+        table.add_column("Score", justify="right", width=6)
+        table.add_column("Vote", width=12)
 
         # Sort by score descending
         sorted_candidates = sorted(candidates, key=lambda x: x.get("score", 0), reverse=True)
@@ -128,10 +228,11 @@ def format_screener_output(data: dict[str, Any]) -> None:
             price = c.get("Price", 0)
             vrp_s = c.get("VRP Structural", 0)
             vrp_t = c.get("vrp_tactical", 0)
+            vtr = c.get("VTR") or c.get("Volatility Trend Ratio", 1.0)
             iv_pct = c.get("IV Percentile")
-            signal = c.get("Signal", "N/A")[:7]
+            signal = c.get("Signal", "N/A")
             score = c.get("score", 0)
-            vote = c.get("Vote", "N/A")[:7]
+            vote = c.get("Vote", "N/A")
 
             # Format values
             price_str = (
@@ -139,27 +240,60 @@ def format_screener_output(data: dict[str, Any]) -> None:
             )
             vrp_s_str = f"{vrp_s:.2f}" if vrp_s else "N/A"
             vrp_t_str = f"{vrp_t:.2f}" if vrp_t else "N/A"
+            vtr_str = f"{vtr:.2f}" if isinstance(vtr, (int, float)) else "N/A"
             iv_pct_str = f"{iv_pct:.0f}" if iv_pct is not None else "N/A"
             score_str = f"{score:.1f}" if score else "0.0"
 
-            row = f"{sym:<8} {asset:<10} {price_str:<8} {vrp_s_str:<7} {vrp_t_str:<7} {iv_pct_str:<6} {signal:<8} {score_str:<6} {vote:<8}"
-            print(row)
+            # Add icon to signal
+            signal_short = signal[:12]  # Truncate for display
+            icon = SIGNAL_ICONS.get(signal, "?")
+            signal_display = f"{icon} {signal_short}"
 
-        print()
-        print("─" * 80)
-        print("Legend: VRP S = Structural (IV/HV90), VRP T = Tactical (IV/HV30)")
-        print("        Vote: BUY (score > 70), WATCH (50-70), PASS (< 50)")
-        print("─" * 80)
+            # Style values
+            vtr_style = get_vtr_style(vtr if isinstance(vtr, (int, float)) else 1.0)
+            vote_style = get_vote_style(vote)
+            signal_style = get_signal_style(signal)
+
+            # Add row with styling
+            table.add_row(
+                sym,
+                asset,
+                price_str,
+                vrp_s_str,
+                vrp_t_str,
+                f"[{vtr_style}]{vtr_str}[/]",
+                iv_pct_str,
+                f"[{signal_style}]{signal_display}[/]",
+                score_str,
+                f"[{vote_style}]{vote}[/]",
+            )
+
+        console.print(table)
+        console.print()
+
+        console.print("─" * 80)
+        console.print("[dim]Legend:[/]")
+        console.print(
+            "  [dim]VRP S = Structural (IV/HV90), VRP T = Tactical (IV/HV30), VTR = HV30/HV90[/]"
+        )
+        console.print(
+            "  [dim]VTR:[/] [loss]<0.75 coiled[/] | [dim]0.75-0.85 contracting[/] | [profit]0.85-1.15 normal[/] | [warning]1.15-1.30 expanding[/] | [bold green]>1.30 strong[/]"
+        )
+        console.print(
+            "  [dim]Vote:[/] [bold green]BUY[/] (score>70) | [profit]LEAN[/] (60-70) | [dim]WATCH[/] (50-60) | [loss]AVOID[/]"
+        )
+        console.print("  [dim]Icons:[/] $ = RICH, ^^ = EXPANDING-SEVERE, ! = COILED, E = EVENT")
+        console.print("─" * 80)
     else:
-        print("─" * 80)
-        print("NO CANDIDATES FOUND")
-        print("─" * 80)
-        print()
-        print("All symbols were filtered out. Consider:")
-        print("  • Using --profile broad for lower thresholds")
-        print("  • Running during market hours for more volatile opportunities")
-        print("  • Reviewing filter diagnostics above to see what filtered symbols")
-        print()
+        console.print("─" * 80)
+        console.print("NO CANDIDATES FOUND")
+        console.print("─" * 80)
+        console.print()
+        console.print("All symbols were filtered out. Consider:")
+        console.print("  • Using --profile broad for lower thresholds")
+        console.print("  • Running during market hours for more volatile opportunities")
+        console.print("  • Reviewing filter diagnostics above to see what filtered symbols")
+        console.print()
 
     # Market data quality warning
     md = meta.get("market_data_diagnostics", {})
@@ -187,42 +321,219 @@ def format_screener_output(data: dict[str, Any]) -> None:
 
     # Display warnings based on ACTUAL conditions
     if rate_limited_count > 0 and market_was_open:
-        print("\n⚠️  YAHOO FINANCE RATE LIMITING DETECTED")
-        print("─" * 80)
-        print(f"  {stale}/{total} symbols using cached price data")
-        print("  legacy data source returned 429 (Too Many Requests)")
-        print()
-        print("  Impact:")
-        print("    • Price data: cached (from previous fetch)")
-        print("    • Volatility metrics: FRESH from Tastytrade ✅")
-        print("    • VRP calculations: accurate (use fresh IV/HV)")
-        print()
-        print("  Solutions:")
-        print("    • Wait 5-10 minutes before running again")
-        print("    • Use smaller watchlists (<100 symbols)")
-        print("    • Results are still valid (VRP metrics are fresh)")
-        print("─" * 80)
+        console.print("\n⚠️  YAHOO FINANCE RATE LIMITING DETECTED")
+        console.print("─" * 80)
+        console.print(f"  {stale}/{total} symbols using cached price data")
+        console.print("  legacy data source returned 429 (Too Many Requests)")
+        console.print()
+        console.print("  Impact:")
+        console.print("    • Price data: cached (from previous fetch)")
+        console.print("    • Volatility metrics: FRESH from Tastytrade ✅")
+        console.print("    • VRP calculations: accurate (use fresh IV/HV)")
+        console.print()
+        console.print("  Solutions:")
+        console.print("    • Wait 5-10 minutes before running again")
+        console.print("    • Use smaller watchlists (<100 symbols)")
+        console.print("    • Results are still valid (VRP metrics are fresh)")
+        console.print("─" * 80)
     elif not market_was_open:
-        print("\nℹ️  MARKET STATUS")
-        print("─" * 80)
-        print("  Market was closed at scan time")
-        print("  Using end-of-day data from last market close")
-        print("─" * 80)
+        console.print("\nℹ️  MARKET STATUS")
+        console.print("─" * 80)
+        console.print("  Market was closed at scan time")
+        console.print("  Using end-of-day data from last market close")
+        console.print("─" * 80)
     elif errors > 5:
-        print("\n⚠️  DATA QUALITY WARNING")
-        print("─" * 80)
-        print(f"  {errors} symbols had data fetch errors")
-        print("  This may indicate API connectivity issues")
-        print("─" * 80)
+        console.print("\n⚠️  DATA QUALITY WARNING")
+        console.print("─" * 80)
+        console.print(f"  {errors} symbols had data fetch errors")
+        console.print("  This may indicate API connectivity issues")
+        console.print("─" * 80)
 
-    print()
+    console.print()
+
+
+def render_detail_view(symbol: str, candidates: list[dict[str, Any]]) -> None:
+    """Show detailed deep dive for a specific symbol."""
+    # Find the symbol in candidates list
+    candidate = None
+    for c in candidates:
+        if c.get("Symbol", "").upper() == symbol.upper():
+            candidate = c
+            break
+
+    if candidate is None:
+        console.print()
+        console.print(
+            Panel(
+                f"[bold red]Symbol '{symbol}' not found in candidates list[/]",
+                title="Detail View Error",
+                box=box.DOUBLE,
+                style="red",
+            )
+        )
+        console.print()
+        console.print("[dim]Available symbols:[/]")
+        for c in candidates:
+            console.print(f"  {c.get('Symbol', 'N/A')}")
+        console.print()
+        return
+
+    # Extract all fields
+    sym = candidate.get("Symbol", "N/A")
+    asset_class = candidate.get("Asset Class", "N/A")
+    price = candidate.get("Price", 0)
+    vrp_s = candidate.get("VRP Structural", 0)
+    vrp_t = candidate.get("vrp_tactical", 0)
+    vtr = candidate.get("VTR") or candidate.get("Volatility Trend Ratio", 1.0)
+    iv_pct = candidate.get("IV Percentile")
+    hv_rank = candidate.get("HV Rank")
+    score = candidate.get("score", 0)
+    signal = candidate.get("Signal", "N/A")
+    vote = candidate.get("Vote", "N/A")
+
+    # Build detailed panel content
+    details = []
+    details.append(f"[bold cyan]Symbol:[/] {sym}")
+    details.append(f"[bold cyan]Asset Class:[/] {asset_class}")
+    details.append(f"[bold cyan]Price:[/] ${price:.2f}" if price else "[bold cyan]Price:[/] N/A")
+    details.append("")
+
+    # Volatility metrics
+    details.append("[bold]Volatility Metrics[/]")
+    details.append(f"  VRP Structural:   {vrp_s:.2f}" if vrp_s else "  VRP Structural:   N/A")
+    details.append(f"  VRP Tactical:     {vrp_t:.2f}" if vrp_t else "  VRP Tactical:     N/A")
+
+    # VTR with interpretation
+    if isinstance(vtr, (int, float)):
+        vtr_style = get_vtr_style(vtr)
+        vtr_interpretation = ""
+        if vtr < 0.60:
+            vtr_interpretation = "severe compression, volatility has collapsed"
+        elif vtr < 0.75:
+            vtr_interpretation = "mild compression, volatility coiling"
+        elif vtr < 0.85:
+            vtr_interpretation = "contracting, volatility declining"
+        elif vtr < 1.15:
+            vtr_interpretation = "normal range, stable volatility"
+        elif vtr < 1.30:
+            vtr_interpretation = "expanding mildly, volatility rising"
+        else:
+            vtr_interpretation = "severe expansion, volatility spiking"
+
+        details.append(f"  VTR:              [{vtr_style}]{vtr:.2f}[/] ({vtr_interpretation})")
+    else:
+        details.append("  VTR:              N/A")
+
+    details.append(
+        f"  IV Percentile:    {iv_pct:.0f}%" if iv_pct is not None else "  IV Percentile:    N/A"
+    )
+    details.append(
+        f"  HV Rank:          {hv_rank:.0f}" if hv_rank is not None else "  HV Rank:          N/A"
+    )
+    details.append("")
+
+    # Screening results
+    details.append("[bold]Screening Results[/]")
+    details.append(
+        f"  Score:            {score:.1f}/100" if score else "  Score:            0.0/100"
+    )
+
+    signal_style = get_signal_style(signal)
+    details.append(f"  Signal:           [{signal_style}]{signal}[/]")
+
+    vote_style = get_vote_style(vote)
+    details.append(f"  Vote:             [{vote_style}]{vote}[/]")
+
+    # Create panel
+    console.print()
+    console.print(
+        Panel(
+            "\n".join(details), title=f"[bold]DETAIL VIEW: {sym}[/]", box=box.DOUBLE, style="cyan"
+        )
+    )
+    console.print()
+
+
+def export_csv(candidates: list[dict[str, Any]]) -> None:
+    """Export candidates to CSV format on stdout."""
+    if not candidates:
+        print("Symbol,Asset Class,Price,VRP_S,VRP_T,VTR,IV_Pct,HV_Rank,Score,Signal,Vote")
+        return
+
+    # Define CSV columns
+    fieldnames = [
+        "Symbol",
+        "Asset Class",
+        "Price",
+        "VRP_S",
+        "VRP_T",
+        "VTR",
+        "IV_Pct",
+        "HV_Rank",
+        "Score",
+        "Signal",
+        "Vote",
+    ]
+
+    writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
+    writer.writeheader()
+
+    # Sort by score descending
+    sorted_candidates = sorted(candidates, key=lambda x: x.get("score", 0), reverse=True)
+
+    for c in sorted_candidates:
+        row = {
+            "Symbol": c.get("Symbol", "N/A"),
+            "Asset Class": c.get("Asset Class", "N/A"),
+            "Price": f"{c.get('Price', 0):.2f}" if c.get("Price") else "N/A",
+            "VRP_S": f"{c.get('VRP Structural', 0):.2f}" if c.get("VRP Structural") else "N/A",
+            "VRP_T": f"{c.get('vrp_tactical', 0):.2f}" if c.get("vrp_tactical") else "N/A",
+            "VTR": f"{c.get('VTR', c.get('Volatility Trend Ratio', 1.0)):.2f}"
+            if c.get("VTR") or c.get("Volatility Trend Ratio")
+            else "N/A",
+            "IV_Pct": f"{c.get('IV Percentile'):.0f}"
+            if c.get("IV Percentile") is not None
+            else "N/A",
+            "HV_Rank": f"{c.get('HV Rank'):.0f}" if c.get("HV Rank") is not None else "N/A",
+            "Score": f"{c.get('score', 0):.1f}" if c.get("score") is not None else "0.0",
+            "Signal": c.get("Signal", "N/A"),
+            "Vote": c.get("Vote", "N/A"),
+        }
+        writer.writerow(row)
 
 
 def main() -> None:
     """Read JSON from stdin and format for terminal."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Format vol_screener JSON output for human-readable terminal display"
+    )
+    parser.add_argument(
+        "--detail", type=str, metavar="SYMBOL", help="Show detailed view for a specific symbol"
+    )
+    parser.add_argument(
+        "--export",
+        type=str,
+        metavar="FORMAT",
+        choices=["csv"],
+        help="Export results in specified format (csv)",
+    )
+
+    args = parser.parse_args()
+
     try:
         data = json.load(sys.stdin)
-        format_screener_output(data)
+        candidates = data.get("candidates", [])
+
+        # Route to appropriate handler
+        if args.detail:
+            render_detail_view(args.detail, candidates)
+        elif args.export:
+            if args.export == "csv":
+                export_csv(candidates)
+        else:
+            format_screener_output(data)
+
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON input - {e}", file=sys.stderr)
         sys.exit(1)
