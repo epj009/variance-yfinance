@@ -613,7 +613,6 @@ class TUIRenderer:
                 ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
                 ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),
-                ("HV Rank Trap", summary.get("hv_rank_trap_skipped_count", 0)),
                 ("Low Yield", summary.get("low_yield_skipped_count", 0)),
                 ("Price Floor", summary.get("retail_inefficient_skipped_count", 0)),
                 ("High Slippage", summary.get("slippage_skipped_count", 0)),

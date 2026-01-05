@@ -414,7 +414,6 @@ def render_detail_view(symbol: str, data: dict[str, Any]) -> None:
     vrp_t = symbol_data.get("vrp_tactical", 0)
     vtr = symbol_data.get("vtr", 1.0)
     iv_pct = symbol_data.get("iv_percentile")
-    hv_rank = symbol_data.get("hv_rank")
     score = symbol_data.get("score", 0)
     sector = symbol_data.get("sector", "N/A")
 
@@ -490,9 +489,6 @@ def render_detail_view(symbol: str, data: dict[str, Any]) -> None:
     details.append(
         f"  IV Percentile:    {iv_pct:.0f}%" if iv_pct is not None else "  IV Percentile:    N/A"
     )
-    details.append(
-        f"  HV Rank:          {hv_rank:.0f}" if hv_rank is not None else "  HV Rank:          N/A"
-    )
     details.append("")
 
     # Screening results (only show if it passed filters)
@@ -530,7 +526,7 @@ def render_detail_view(symbol: str, data: dict[str, Any]) -> None:
 def export_csv(candidates: list[dict[str, Any]]) -> None:
     """Export candidates to CSV format on stdout."""
     if not candidates:
-        print("Symbol,Asset Class,Price,VRP_S,VRP_T,VTR,IV_Pct,HV_Rank,Score,Signal,Vote")
+        print("Symbol,Asset Class,Price,VRP_S,VRP_T,VTR,IV_Pct,Score,Signal,Vote")
         return
 
     # Define CSV columns
@@ -542,7 +538,6 @@ def export_csv(candidates: list[dict[str, Any]]) -> None:
         "VRP_T",
         "VTR",
         "IV_Pct",
-        "HV_Rank",
         "Score",
         "Signal",
         "Vote",
@@ -567,7 +562,6 @@ def export_csv(candidates: list[dict[str, Any]]) -> None:
             "IV_Pct": f"{c.get('IV Percentile'):.0f}"
             if c.get("IV Percentile") is not None
             else "N/A",
-            "HV_Rank": f"{c.get('HV Rank'):.0f}" if c.get("HV Rank") is not None else "N/A",
             "Score": f"{c.get('score', 0):.1f}" if c.get("score") is not None else "0.0",
             "Signal": c.get("Signal", "N/A"),
             "Vote": c.get("Vote", "N/A"),
