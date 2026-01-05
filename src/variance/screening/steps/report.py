@@ -59,6 +59,7 @@ def build_report(
     rules: dict[str, Any],
     market_data_diagnostics: dict[str, int],
     debug_rejections: dict[str, str],
+    scanned_symbols: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Constructs the final serialized report."""
     from variance.common import map_sector_to_asset_class
@@ -173,8 +174,29 @@ def build_report(
     if debug_rejections:
         meta["filter_rejections"] = debug_rejections
 
+    # Format scanned_symbols for output (include key metrics and filter results)
+    formatted_scanned = []
+    for symbol_data in scanned_symbols:
+        formatted = {
+            "symbol": symbol_data.get("symbol"),
+            "price": _safe_float(symbol_data.get("price")),
+            "vrp_structural": _safe_float(symbol_data.get("vrp_structural")),
+            "vrp_tactical": _safe_float(symbol_data.get("vrp_tactical")),
+            "iv_percentile": _safe_float(symbol_data.get("iv_percentile")),
+            "hv_rank": _safe_float(symbol_data.get("hv_rank")),
+            "vtr": _safe_float(
+                symbol_data.get("Volatility Trend Ratio", symbol_data.get("compression_ratio"))
+            ),
+            "score": _safe_float(symbol_data.get("score")),
+            "sector": symbol_data.get("sector"),
+            "asset_class": symbol_data.get("asset_class"),
+            "filter_results": symbol_data.get("filter_results", {}),
+        }
+        formatted_scanned.append(formatted)
+
     return {
         "candidates": display_candidates,
+        "scanned_symbols": formatted_scanned,
         "summary": summary,
         "meta": meta,
     }

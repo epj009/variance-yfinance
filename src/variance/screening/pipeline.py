@@ -31,6 +31,7 @@ class ScreeningContext:
     raw_data: dict[str, Any] = field(default_factory=dict)
     market_data_diagnostics: dict[str, int] = field(default_factory=dict)
     candidates: list[dict[str, Any]] = field(default_factory=list)
+    scanned_symbols: list[dict[str, Any]] = field(default_factory=list)
     counters: dict[str, int] = field(default_factory=dict)
     debug_rejections: dict[str, str] = field(default_factory=dict)
     portfolio_returns: Optional[np.ndarray] = None
@@ -150,7 +151,7 @@ class ScreeningPipeline:
         from .steps.filter import apply_specifications
 
         debug_rejections: dict[str, str] = {}
-        self.ctx.candidates, self.ctx.counters = apply_specifications(
+        self.ctx.candidates, self.ctx.counters, self.ctx.scanned_symbols = apply_specifications(
             self.ctx.raw_data,
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {}),
@@ -184,6 +185,7 @@ class ScreeningPipeline:
             self.ctx.config_bundle.get("trading_rules", {}),
             self.ctx.market_data_diagnostics,
             self.ctx.debug_rejections,
+            self.ctx.scanned_symbols,
         )
 
     def _build_enrichment_chain(self) -> list[EnrichmentStrategy]:

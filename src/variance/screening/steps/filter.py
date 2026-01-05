@@ -38,9 +38,14 @@ def apply_specifications(
     market_config: dict[str, Any],
     portfolio_returns: Optional[np.ndarray] = None,
     rejections: Optional[dict[str, str]] = None,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> tuple[list[dict[str, Any]], dict[str, int], list[dict[str, Any]]]:
     """
     Applies composable filters to the candidate pool.
+
+    Returns:
+        - candidates: List of symbols that passed all filters
+        - diagnostics: Counter dictionary with filter statistics
+        - scanned_symbols: List of ALL symbols with their metrics and filter results
 
     Note: This function signature is maintained for backwards compatibility.
     Internally, we use the data passed in parameters.
@@ -135,6 +140,7 @@ def apply_specifications(
 
     # 3. Apply Gate
     candidates = []
+    scanned_symbols = []  # Track ALL symbols with their filter results
     held_roots = set(str(s).upper() for s in getattr(config, "held_symbols", []))
     include_assets = [s.lower() for s in getattr(config, "include_asset_classes", [])]
     exclude_assets = [s.lower() for s in getattr(config, "exclude_asset_classes", [])]
@@ -148,6 +154,14 @@ def apply_specifications(
         # Normalize keys to lowercase for internal consistency
         metrics_dict = {str(k).lower(): v for k, v in metrics.items()}
         metrics_dict["symbol"] = sym
+
+        # Initialize filter tracking for this symbol
+        filter_results: dict[str, Any] = {
+            "passed": False,
+            "rejection_reason": None,
+            "filters_passed": [],
+            "filters_failed": [],
+        }
 
         # --- ASSET CLASS FILTER ---
         from variance.common import map_sector_to_asset_class
@@ -163,19 +177,21 @@ def apply_specifications(
 
         if include_assets and asset_class.lower() not in include_assets:
             diagnostics.incr("asset_class_skipped_count")
-            _record_rejection(
-                rejections,
-                sym,
-                f"Asset Class: {asset_class} not in include list",
-            )
+            reason = f"Asset Class: {asset_class} not in include list"
+            filter_results["rejection_reason"] = reason
+            filter_results["filters_failed"].append("asset_class_include")
+            _record_rejection(rejections, sym, reason)
+            metrics_dict["filter_results"] = filter_results
+            scanned_symbols.append(metrics_dict)
             continue
         if exclude_assets and asset_class.lower() in exclude_assets:
             diagnostics.incr("asset_class_skipped_count")
-            _record_rejection(
-                rejections,
-                sym,
-                f"Asset Class: {asset_class} excluded",
-            )
+            reason = f"Asset Class: {asset_class} excluded"
+            filter_results["rejection_reason"] = reason
+            filter_results["filters_failed"].append("asset_class_exclude")
+            _record_rejection(rejections, sym, reason)
+            metrics_dict["filter_results"] = filter_results
+            scanned_symbols.append(metrics_dict)
             continue
 
         # --- HOLDING FILTER (RFC 013/020) ---
@@ -183,12 +199,14 @@ def apply_specifications(
             # Standalone Scalable Gate: Only allow re-entry if edge has surged
             if scalable_spec.is_satisfied_by(metrics_dict):
                 metrics_dict["is_scalable_surge"] = True
+                filter_results["filters_passed"].append("scalable_gate")
             else:
-                _record_rejection(
-                    rejections,
-                    sym,
-                    _scalable_rejection_reason(metrics_dict, scalable_spec),
-                )
+                reason = _scalable_rejection_reason(metrics_dict, scalable_spec)
+                filter_results["rejection_reason"] = reason
+                filter_results["filters_failed"].append("scalable_gate")
+                _record_rejection(rejections, sym, reason)
+                metrics_dict["filter_results"] = filter_results
+                scanned_symbols.append(metrics_dict)
                 continue
 
         # Skip main spec filter if show_all is enabled
@@ -208,6 +226,8 @@ def apply_specifications(
                     liquidity_spec,
                 )
                 if reason:
+                    filter_results["rejection_reason"] = reason
+                    filter_results["filters_failed"].append("main_spec")
                     _record_rejection(rejections, sym, reason)
                 _update_counters(
                     sym,
@@ -219,35 +239,50 @@ def apply_specifications(
                     portfolio_returns,
                     raw_data,
                 )
+                metrics_dict["filter_results"] = filter_results
+                scanned_symbols.append(metrics_dict)
                 continue
+            else:
+                filter_results["filters_passed"].append("main_spec")
 
         # Skip tactical filter if show_all is enabled
         if not show_all and not tactical_spec.is_satisfied_by(metrics_dict):
             diagnostics.incr("tactical_skipped_count")
-            _record_rejection(
-                rejections,
-                sym,
-                _tactical_rejection_reason(metrics_dict, vrp_tactical_threshold),
-            )
+            reason = _tactical_rejection_reason(metrics_dict, vrp_tactical_threshold)
+            filter_results["rejection_reason"] = reason
+            filter_results["filters_failed"].append("tactical")
+            _record_rejection(rejections, sym, reason)
+            metrics_dict["filter_results"] = filter_results
+            scanned_symbols.append(metrics_dict)
             continue
+        else:
+            if not show_all:
+                filter_results["filters_passed"].append("tactical")
 
         # Skip correlation filter if show_all is enabled
         if not show_all and corr_spec:
             if not corr_spec.is_satisfied_by(metrics_dict):
                 diagnostics.incr("correlation_skipped_count")
-                _record_rejection(
-                    rejections,
-                    sym,
-                    _correlation_rejection_reason(corr_spec, metrics_dict),
-                )
+                reason = _correlation_rejection_reason(corr_spec, metrics_dict)
+                filter_results["rejection_reason"] = reason
+                filter_results["filters_failed"].append("correlation")
+                _record_rejection(rejections, sym, reason)
+                metrics_dict["filter_results"] = filter_results
+                scanned_symbols.append(metrics_dict)
                 continue
+            else:
+                filter_results["filters_passed"].append("correlation")
             # Enrich with correlation metadata
             corr_spec.enrich(metrics_dict)
 
+        # Symbol passed all filters
         logger.info("ACCEPTED | %s | Passed all filters", sym)
+        filter_results["passed"] = True
+        metrics_dict["filter_results"] = filter_results
         candidates.append(metrics_dict)
+        scanned_symbols.append(metrics_dict)
 
-    return candidates, diagnostics.to_dict()
+    return candidates, diagnostics.to_dict(), scanned_symbols
 
 
 def _record_rejection(rejections: Optional[dict[str, str]], symbol: str, reason: str) -> None:

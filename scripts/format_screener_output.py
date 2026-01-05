@@ -352,50 +352,113 @@ def format_screener_output(data: dict[str, Any]) -> None:
     console.print()
 
 
-def render_detail_view(symbol: str, candidates: list[dict[str, Any]]) -> None:
+def render_detail_view(symbol: str, data: dict[str, Any]) -> None:
     """Show detailed deep dive for a specific symbol."""
-    # Find the symbol in candidates list
-    candidate = None
-    for c in candidates:
-        if c.get("Symbol", "").upper() == symbol.upper():
-            candidate = c
+    # First, try to find in scanned_symbols (includes ALL symbols, both candidates and rejected)
+    scanned_symbols = data.get("scanned_symbols", [])
+    candidates = data.get("candidates", [])
+
+    symbol_data = None
+
+    # Search scanned_symbols first (preferred - has filter_results)
+    for s in scanned_symbols:
+        if s.get("symbol", "").upper() == symbol.upper():
+            symbol_data = s
             break
 
-    if candidate is None:
+    # Fallback to candidates if not found in scanned_symbols
+    if symbol_data is None:
+        for c in candidates:
+            if c.get("Symbol", "").upper() == symbol.upper():
+                # Convert candidate format to scanned_symbols format
+                symbol_data = {
+                    "symbol": c.get("Symbol"),
+                    "price": c.get("Price"),
+                    "vrp_structural": c.get("VRP Structural"),
+                    "vrp_tactical": c.get("vrp_tactical"),
+                    "vtr": c.get("VTR") or c.get("Volatility Trend Ratio"),
+                    "iv_percentile": c.get("IV Percentile"),
+                    "hv_rank": c.get("HV Rank"),
+                    "score": c.get("score"),
+                    "signal": c.get("Signal"),
+                    "vote": c.get("Vote"),
+                    "asset_class": c.get("Asset Class"),
+                    "filter_results": {
+                        "passed": True,
+                        "filters_passed": ["all"],
+                        "filters_failed": [],
+                    },
+                }
+                break
+
+    # If still not found, show error
+    if symbol_data is None:
         console.print()
         console.print(
             Panel(
-                f"[bold red]Symbol '{symbol}' not found in candidates list[/]",
+                f"[bold red]Symbol '{symbol}' was not in the scan[/]\n\n"
+                f"Run [cyan]./screen[/] without --detail to see what symbols were scanned.",
                 title="Detail View Error",
                 box=box.DOUBLE,
                 style="red",
             )
         )
         console.print()
-        console.print("[dim]Available symbols:[/]")
-        for c in candidates:
-            console.print(f"  {c.get('Symbol', 'N/A')}")
-        console.print()
         return
 
-    # Extract all fields
-    sym = candidate.get("Symbol", "N/A")
-    asset_class = candidate.get("Asset Class", "N/A")
-    price = candidate.get("Price", 0)
-    vrp_s = candidate.get("VRP Structural", 0)
-    vrp_t = candidate.get("vrp_tactical", 0)
-    vtr = candidate.get("VTR") or candidate.get("Volatility Trend Ratio", 1.0)
-    iv_pct = candidate.get("IV Percentile")
-    hv_rank = candidate.get("HV Rank")
-    score = candidate.get("score", 0)
-    signal = candidate.get("Signal", "N/A")
-    vote = candidate.get("Vote", "N/A")
+    # Extract fields (scanned_symbols format uses lowercase keys)
+    sym = symbol_data.get("symbol", "N/A")
+    asset_class = symbol_data.get("asset_class", "N/A")
+    price = symbol_data.get("price", 0)
+    vrp_s = symbol_data.get("vrp_structural", 0)
+    vrp_t = symbol_data.get("vrp_tactical", 0)
+    vtr = symbol_data.get("vtr", 1.0)
+    iv_pct = symbol_data.get("iv_percentile")
+    hv_rank = symbol_data.get("hv_rank")
+    score = symbol_data.get("score", 0)
+    sector = symbol_data.get("sector", "N/A")
+
+    # Get legacy fields from candidates if available (signal, vote)
+    signal = symbol_data.get("signal", "N/A")
+    vote = symbol_data.get("vote", "N/A")
+
+    # If signal/vote not in scanned_symbols, try to find in candidates
+    if signal == "N/A" or vote == "N/A":
+        for c in candidates:
+            if c.get("Symbol", "").upper() == symbol.upper():
+                signal = c.get("Signal", signal)
+                vote = c.get("Vote", vote)
+                break
+
+    # Get filter results
+    filter_results = symbol_data.get("filter_results", {})
+    passed = filter_results.get("passed", False)
+    rejection_reason = filter_results.get("rejection_reason")
+    filters_passed = filter_results.get("filters_passed", [])
+    filters_failed = filter_results.get("filters_failed", [])
 
     # Build detailed panel content
     details = []
     details.append(f"[bold cyan]Symbol:[/] {sym}")
     details.append(f"[bold cyan]Asset Class:[/] {asset_class}")
+    details.append(f"[bold cyan]Sector:[/] {sector}")
     details.append(f"[bold cyan]Price:[/] ${price:.2f}" if price else "[bold cyan]Price:[/] N/A")
+    details.append("")
+
+    # Filter Status Section
+    details.append("[bold]Filter Status[/]")
+    if passed:
+        details.append("  Status:           [bold green]CANDIDATE - All filters passed[/]")
+    else:
+        details.append("  Status:           [bold red]REJECTED[/]")
+        if rejection_reason:
+            details.append(f"  Reason:           [red]{rejection_reason}[/]")
+
+    # Show which filters passed/failed
+    if filters_passed:
+        details.append(f"  Passed Filters:   [green]{', '.join(filters_passed)}[/]")
+    if filters_failed:
+        details.append(f"  Failed Filters:   [red]{', '.join(filters_failed)}[/]")
     details.append("")
 
     # Volatility metrics
@@ -432,23 +495,33 @@ def render_detail_view(symbol: str, candidates: list[dict[str, Any]]) -> None:
     )
     details.append("")
 
-    # Screening results
-    details.append("[bold]Screening Results[/]")
-    details.append(
-        f"  Score:            {score:.1f}/100" if score else "  Score:            0.0/100"
-    )
+    # Screening results (only show if it passed filters)
+    if passed:
+        details.append("[bold]Screening Results[/]")
+        details.append(
+            f"  Score:            {score:.1f}/100" if score else "  Score:            0.0/100"
+        )
 
-    signal_style = get_signal_style(signal)
-    details.append(f"  Signal:           [{signal_style}]{signal}[/]")
+        if signal != "N/A":
+            signal_style = get_signal_style(signal)
+            details.append(f"  Signal:           [{signal_style}]{signal}[/]")
 
-    vote_style = get_vote_style(vote)
-    details.append(f"  Vote:             [{vote_style}]{vote}[/]")
+        if vote != "N/A":
+            vote_style = get_vote_style(vote)
+            details.append(f"  Vote:             [{vote_style}]{vote}[/]")
+
+    # Determine panel style based on status
+    panel_style = "green" if passed else "red"
+    title_status = "CANDIDATE" if passed else "REJECTED"
 
     # Create panel
     console.print()
     console.print(
         Panel(
-            "\n".join(details), title=f"[bold]DETAIL VIEW: {sym}[/]", box=box.DOUBLE, style="cyan"
+            "\n".join(details),
+            title=f"[bold]DETAIL VIEW: {sym} ({title_status})[/]",
+            box=box.DOUBLE,
+            style=panel_style,
         )
     )
     console.print()
@@ -527,7 +600,7 @@ def main() -> None:
 
         # Route to appropriate handler
         if args.detail:
-            render_detail_view(args.detail, candidates)
+            render_detail_view(args.detail, data)
         elif args.export:
             if args.export == "csv":
                 export_csv(candidates)
