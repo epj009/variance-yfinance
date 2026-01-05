@@ -36,7 +36,7 @@ def calculate_variance_score(
         "structural_vrp": 0.2,
         "tactical_vrp": 0.2,
         "volatility_momentum": 0.1,
-        "hv_rank": 0.1,
+        "hv_rank": 0.0,  # DEPRECATED (2026-01-04): Tastytrade provides IV Rank not HV Rank
         "iv_percentile": 0.1,
         "yield": 0.1,
         "retail_efficiency": 0.1,

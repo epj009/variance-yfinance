@@ -177,6 +177,20 @@ def build_report(
     # Format scanned_symbols for output (include key metrics and filter results)
     formatted_scanned = []
     for symbol_data in scanned_symbols:
+        # Calculate VTR directly from hv30/hv90 (don't rely on enriched field)
+        hv30 = symbol_data.get("hv30")
+        hv90 = symbol_data.get("hv90")
+        vtr = None
+        if hv30 is not None and hv90 is not None:
+            try:
+                hv30_f = float(hv30)
+                hv90_f = float(hv90)
+                # Treat hv30 <= 0 as invalid data (HV cannot be truly zero)
+                if hv30_f > 0 and hv90_f > 0:
+                    vtr = max(0.50, min(hv30_f / hv90_f, 2.0))  # Clamp to [0.5, 2.0]
+            except (ValueError, TypeError, ZeroDivisionError):
+                pass
+
         formatted = {
             "symbol": symbol_data.get("symbol"),
             "price": _safe_float(symbol_data.get("price")),
@@ -184,9 +198,7 @@ def build_report(
             "vrp_tactical": _safe_float(symbol_data.get("vrp_tactical")),
             "iv_percentile": _safe_float(symbol_data.get("iv_percentile")),
             "hv_rank": _safe_float(symbol_data.get("hv_rank")),
-            "vtr": _safe_float(
-                symbol_data.get("Volatility Trend Ratio", symbol_data.get("compression_ratio"))
-            ),
+            "vtr": vtr,  # Can be None if data missing
             "score": _safe_float(symbol_data.get("score")),
             "sector": symbol_data.get("sector"),
             "asset_class": symbol_data.get("asset_class"),

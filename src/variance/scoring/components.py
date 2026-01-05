@@ -113,23 +113,18 @@ def score_volatility_momentum(metrics: dict[str, Any], rules: dict[str, Any]) ->
 
 
 def score_hv_rank(metrics: dict[str, Any], rules: dict[str, Any]) -> float:
-    """Score based on HV rank for rich VRP positions."""
-    vrp_structural = _safe_float(metrics.get("vrp_structural"), -1.0)
-    rich_threshold = _safe_float(rules.get("vrp_structural_rich_threshold", 1.30), 1.30)
-    if vrp_structural <= rich_threshold:
-        return _neutral_score()
+    """
+    DEPRECATED: Score based on HV rank for rich VRP positions.
 
-    hv_rank = metrics.get("hv_rank")
-    if hv_rank is None:
-        return _neutral_score()
-    try:
-        hv_rank_f = float(hv_rank)
-    except (TypeError, ValueError):
-        return _neutral_score()
+    Rationale for deprecation (2026-01-04):
+    - Tastytrade provides IV Rank (not HV Rank)
+    - The field 'hv_rank' doesn't exist in our data (always returns None)
+    - Conceptually wrong for short vol strategies
+    - Redundant with IV Percentile and VTR checks
 
-    floor = _safe_float(rules.get("hv_rank_trap_threshold", 15.0), 15.0)
-    ceiling = _safe_float(rules.get("variance_score_hv_rank_ceiling", 100.0), 100.0)
-    return _normalize_score(hv_rank_f, floor, ceiling)
+    Always returns neutral score (50.0) for backward compatibility.
+    """
+    return _neutral_score()  # Always neutral (50.0)
 
 
 def score_iv_percentile(

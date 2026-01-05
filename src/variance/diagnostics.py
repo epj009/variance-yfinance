@@ -60,7 +60,7 @@ SCREENER_COUNTER_DEFAULTS: dict[str, int] = {
     "low_iv_percentile_skipped_count": 0,
     "low_yield_skipped_count": 0,
     "retail_inefficient_skipped_count": 0,  # New
-    "hv_rank_trap_skipped_count": 0,
+    "hv_rank_trap_skipped_count": 0,  # DEPRECATED (2026-01-04): VolatilityTrapSpec is no-op
     "correlation_skipped_count": 0,
     "tactical_skipped_count": 0,
     "implied_liquidity_count": 0,

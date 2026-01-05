@@ -280,34 +280,28 @@ class IVPercentileSpec(Specification[dict[str, Any]]):
 
 class VolatilityTrapSpec(Specification[dict[str, Any]]):
     """
-    Hard gate against Volatility Traps (Positional).
+    DEPRECATED: This spec is no longer active.
 
-    Rejects symbols where HV Rank < 15 (extreme low of 1-year range).
-    Applies universally across all VRP ranges to prevent vol compression exposure.
+    Rationale for deprecation (2026-01-04):
+    - Tastytrade provides IV Rank (not HV Rank)
+    - The field 'hv_rank' doesn't exist in our data (always returns None → 0)
+    - Conceptually wrong for short vol: we WANT low HV + high IV (max VRP)
+    - Redundant with IV Percentile check and VolatilityMomentumSpec (VTR check)
 
-    Rationale: If HV is at yearly lows (<15 percentile), vol may be coiled to expand,
-    creating whipsaw risk (falling knife) regardless of current VRP level.
+    Kept for backward compatibility with existing config files.
+    This filter always passes (no-op).
 
     Args:
-        rank_threshold: Minimum HV Rank (default 15)
+        rank_threshold: Deprecated parameter (kept for backwards compatibility)
         vrp_rich_threshold: Deprecated parameter (kept for backwards compatibility)
-
-    Note: This spec was refactored in ADR-0011 to remove compression logic.
-    VRP gate removed per QA audit 2026-01-02 to apply HV Rank check universally.
-    See VolatilityMomentumSpec for universal compression detection.
     """
 
     def __init__(self, rank_threshold: float, vrp_rich_threshold: float):
         self.rank_threshold = rank_threshold
-        self.vrp_rich_threshold = vrp_rich_threshold  # Deprecated, kept for compatibility
+        self.vrp_rich_threshold = vrp_rich_threshold
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        hv_rank = metrics.get("hv_rank")
-
-        # Universal HV Rank check (VRP gate removed per QA audit 2026-01-02)
-        if hv_rank is not None and float(hv_rank) < self.rank_threshold:
-            return False
-
+        # DEPRECATED: Always pass (no-op filter)
         return True
 
 

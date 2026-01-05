@@ -169,7 +169,7 @@ class TestVarianceScore:
         assert score == 100.0
 
     def test_score_penalty_trap(self, mock_rules):
-        """HV rank component should score low at the trap threshold."""
+        """DEPRECATED (2026-01-04): HV rank component now always returns neutral (50.0)."""
         rules = dict(mock_rules)
         rules["variance_score_weights"] = {
             "structural_vrp": 0.0,
@@ -183,10 +183,11 @@ class TestVarianceScore:
         }
         metrics = {
             "vrp_structural": 1.5,  # Rich: activates HV rank score
-            "hv_rank": 15,  # At threshold -> 0 score
+            "hv_rank": 15,  # At threshold -> neutral score (deprecated)
         }
         score = vol_screener._calculate_variance_score(metrics, rules)
-        assert score == 0.0
+        # HV rank now always returns 50.0 (neutral) since it's deprecated
+        assert score == 50.0
 
     def test_score_fallback_tactical(self, mock_rules):
         """If tactical missing, fallback to structural."""

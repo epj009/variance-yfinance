@@ -368,14 +368,8 @@ def _vrp_structural_reason(metrics: dict[str, Any], threshold: float) -> str:
 def _vol_trap_reason(
     metrics: dict[str, Any], rank_threshold: float, vrp_rich_threshold: float
 ) -> str:
-    hv_rank = metrics.get("hv_rank")
-    vrp_s = metrics.get("vrp_structural")
-    hv_rank_val = float(hv_rank) if hv_rank is not None else 0.0
-    vrp_val = float(vrp_s) if vrp_s is not None else 0.0
-    return (
-        f"Volatility Trap: HV Rank {hv_rank_val:.1f} < {rank_threshold:.1f} "
-        f"(VRP {vrp_val:.2f} > {vrp_rich_threshold:.2f})"
-    )
+    # DEPRECATED: VolatilityTrapSpec is no-op, this should never be called
+    return "Volatility Trap: DEPRECATED (filter disabled)"
 
 
 def _vol_momentum_reason(metrics: dict[str, Any], min_ratio: float) -> str:
@@ -568,16 +562,8 @@ def _update_counters(
     elif float(metrics.get("vrp_structural", 0)) <= threshold:
         diagnostics.incr("low_vrp_structural_count")
 
-    hv_rank = metrics.get("hv_rank")
-    rich_threshold = float(rules.get("vrp_structural_rich_threshold", 1.0))
-    trap_threshold = float(rules.get("hv_rank_trap_threshold", 15.0))
-    vrp_s_raw = metrics.get("vrp_structural")
-
-    vrp_s = float(vrp_s_raw) if vrp_s_raw is not None else 0.0
-    hv_rank_f = float(hv_rank) if hv_rank is not None else 100.0
-
-    if vrp_s > rich_threshold and hv_rank is not None and hv_rank_f < trap_threshold:
-        diagnostics.incr("hv_rank_trap_skipped_count")
+    # DEPRECATED: HV Rank trap counter removed (VolatilityTrapSpec is no-op)
+    # hv_rank field doesn't exist in Tastytrade data (provides iv_rank instead)
 
     # Retail Efficiency Skip
     from variance.liquidity import SlippageCalculator
