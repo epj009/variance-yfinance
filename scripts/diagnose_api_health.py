@@ -136,7 +136,7 @@ def test_tastytrade_fetch(symbol: str) -> dict[str, Any]:
     result = {"symbol": symbol, "success": False, "errors": [], "data": {}}
 
     try:
-        from variance.tastytrade_client import TastytradeAuthError, TastytradeClient
+        from variance.tastytrade import TastytradeAuthError, TastytradeClient
 
         try:
             client = TastytradeClient()

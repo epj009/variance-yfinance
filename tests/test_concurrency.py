@@ -192,7 +192,7 @@ class TestAsyncTokenRefresh:
         """
         from unittest.mock import patch
 
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         # Create client with expired token
         client = TastytradeClient()
@@ -202,8 +202,6 @@ class TestAsyncTokenRefresh:
         refresh_count = 0
 
         # Mock refresh function to track calls
-        original_refresh = client._refresh_access_token
-
         def counting_refresh():
             nonlocal refresh_count
             refresh_count += 1
@@ -233,7 +231,7 @@ class TestAsyncTokenRefresh:
         Addresses:
         - HIGH-8: Token refresh uses sync requests.post inside async lock
         """
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         client = TastytradeClient()
         client._access_token = "valid_token"

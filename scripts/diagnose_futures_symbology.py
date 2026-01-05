@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from variance.portfolio_parser import get_root_symbol
-from variance.tastytrade_client import TastytradeClient
+from variance.tastytrade import TastytradeClient
 
 
 def load_env_file(filepath: Path) -> None:

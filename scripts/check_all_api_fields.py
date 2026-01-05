@@ -11,9 +11,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 try:
-    from variance.tastytrade_client import TastytradeClient
+    from variance.tastytrade import TastytradeClient
 except ImportError:
-    print("Error: Could not import variance.tastytrade_client.")
+    print("Error: Could not import variance.tastytrade.")
     sys.exit(1)
 
 

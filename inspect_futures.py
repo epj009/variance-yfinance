@@ -12,17 +12,17 @@ except ImportError:
     print("Could not import check_all_fields. Copying logic...")
     import pprint
 
-    from variance.tastytrade_client import TastytradeClient
+    from variance.tastytrade import TastytradeClient
 
     def check_all_fields(symbols: list[str] | None = None) -> None:
         if symbols is None:
             symbols = []
         client = TastytradeClient()
-        token = client._ensure_valid_token()
-        url = f"{client.api_base_url}/market-metrics"
+        token = client._token_manager.get_token()
+        url = f"{client._token_manager.api_base_url}/market-metrics"
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         params = {"symbols": ",".join(symbols)}
-        data = client._fetch_api_data(url, headers, params)
+        data = client._token_manager.fetch_api_data(url, headers, params)
         if data and "data" in data and "items" in data["data"]:
             for item in data["data"]["items"]:
                 print(f"\n--- {item.get('symbol')} ---")

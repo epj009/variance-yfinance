@@ -19,7 +19,7 @@ class TestTastytradeClientHVNormalization:
 
     def test_normalize_hv_decimal_to_percent(self):
         """Test API decimal (0.25) converts to percent (25.0)"""
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         # API returns 0.25 for 25% volatility
         result = TastytradeClient._normalize_hv(0.25)
@@ -27,7 +27,7 @@ class TestTastytradeClientHVNormalization:
 
     def test_normalize_hv_already_percent(self):
         """Test already-percent values pass through (defensive)"""
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         # If API returns 25.0 (already percent), don't multiply
         result = TastytradeClient._normalize_hv(25.0)
@@ -35,7 +35,7 @@ class TestTastytradeClientHVNormalization:
 
     def test_normalize_hv_boundary_cases(self):
         """Test boundary at 2.0 threshold"""
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         # Values <= 2.0 are treated as decimals
         assert TastytradeClient._normalize_hv(0.15) == 15.0  # 0.15 * 100
@@ -48,7 +48,7 @@ class TestTastytradeClientHVNormalization:
 
     def test_normalize_hv_none(self):
         """Test None handling"""
-        from variance.tastytrade_client import TastytradeClient
+        from variance.tastytrade import TastytradeClient
 
         assert TastytradeClient._normalize_hv(None) is None
 

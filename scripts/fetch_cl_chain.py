@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import json
 
-from variance.tastytrade_client import TastytradeClient
+from variance.tastytrade import TastytradeClient
 
 
 def main():

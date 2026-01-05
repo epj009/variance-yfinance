@@ -3,7 +3,7 @@ import time
 import pytest
 import requests
 
-from variance import tastytrade_client as tt
+from variance import tastytrade as tt
 
 
 class DummyResponse:

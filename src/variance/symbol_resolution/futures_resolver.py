@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import quote
 
 if TYPE_CHECKING:
-    from ..tastytrade_client import TastytradeClient
+    from ..tastytrade.auth import TokenManager
 
 
 class FuturesSymbolResolver:
@@ -23,12 +23,12 @@ class FuturesSymbolResolver:
     - Historical chain resolution for stitching multiple contracts
     """
 
-    def __init__(self, api_client: "TastytradeClient"):
+    def __init__(self, api_client: "TokenManager"):
         """
         Initialize futures symbol resolver.
 
         Args:
-            api_client: TastytradeClient instance for API access
+            api_client: TokenManager instance for API access
         """
         self.api = api_client
         self._cache: dict[str, Optional[str]] = {}
@@ -158,12 +158,12 @@ class FuturesSymbolResolver:
         if not symbol:
             return None
 
-        token = self.api._ensure_valid_token()
+        token = self.api.get_token()
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         encoded_symbol = quote(symbol, safe="")
-        url = f"{self.api._credentials.api_base_url}/instruments/futures/{encoded_symbol}"
+        url = f"{self.api.api_base_url}/instruments/futures/{encoded_symbol}"
 
-        data = self.api._fetch_api_data(url, headers, params={})
+        data = self.api.fetch_api_data(url, headers, params={})
         if not data:
             return None
 
@@ -189,11 +189,11 @@ class FuturesSymbolResolver:
 
     def _fetch_future_products(self) -> list[dict[str, Any]]:
         """Fetch list of all futures products from API."""
-        token = self.api._ensure_valid_token()
+        token = self.api.get_token()
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-        url = f"{self.api._credentials.api_base_url}/instruments/future-products"
+        url = f"{self.api.api_base_url}/instruments/future-products"
 
-        data = self.api._fetch_api_data(url, headers, params={})
+        data = self.api.fetch_api_data(url, headers, params={})
         if not data or not isinstance(data, dict):
             return []
 
@@ -208,11 +208,11 @@ class FuturesSymbolResolver:
         if self._futures_list_cache is not None:
             return self._futures_list_cache
 
-        token = self.api._ensure_valid_token()
+        token = self.api.get_token()
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-        url = f"{self.api._credentials.api_base_url}/instruments/futures"
+        url = f"{self.api.api_base_url}/instruments/futures"
 
-        data = self.api._fetch_api_data(url, headers, params={})
+        data = self.api.fetch_api_data(url, headers, params={})
         if not data or not isinstance(data, dict):
             self._futures_list_cache = []
             return self._futures_list_cache

@@ -40,7 +40,7 @@ async def test_nq_direct():
     from tastytrade import DXLinkStreamer, Session
     from tastytrade.dxfeed import Candle
 
-    from variance.tastytrade_client import TastytradeClient
+    from variance.tastytrade import TastytradeClient
 
     client_secret = os.getenv("TT_CLIENT_SECRET")
     refresh_token = os.getenv("TT_REFRESH_TOKEN")

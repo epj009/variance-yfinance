@@ -23,7 +23,7 @@ from ..market_data.helpers import (
     get_dynamic_ttl,
     make_cache_key,
 )
-from ..tastytrade_client import TastytradeAuthError, TastytradeClient, TastytradeMetrics
+from ..tastytrade import TastytradeAuthError, TastytradeClient, TastytradeMetrics
 from .null_dxlink_provider import NullDXLinkProvider
 
 try:

@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from variance.tastytrade_client import TastytradeClient
+from variance.tastytrade import TastytradeClient
 
 
 def estimate_16delta_strikes(spot, iv_percent, dte):

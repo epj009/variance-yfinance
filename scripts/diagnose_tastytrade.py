@@ -10,11 +10,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 try:
-    from variance.tastytrade_client import TastytradeAuthError, TastytradeClient
+    from variance.tastytrade import TastytradeAuthError, TastytradeClient
 except ImportError:
-    print(
-        "Error: Could not import variance.tastytrade_client. Make sure you are in the project root."
-    )
+    print("Error: Could not import variance.tastytrade. Make sure you are in the project root.")
     sys.exit(1)
 
 

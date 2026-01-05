@@ -16,7 +16,7 @@ import pytest
 
 from variance.analyze_portfolio import analyze_portfolio
 from variance.market_data.service import MarketDataFactory, MarketDataService
-from variance.tastytrade_client import TastytradeAuthError, TastytradeClient
+from variance.tastytrade import TastytradeAuthError, TastytradeClient
 
 
 class TestTastytradeAPIFailures:
@@ -36,7 +36,7 @@ class TestTastytradeAPIFailures:
             raise TastytradeAuthError("Missing required environment variables: TT_REFRESH_TOKEN")
 
         with patch(
-            "variance.tastytrade_client.TastytradeCredentials.from_environment",
+            "variance.tastytrade.TastytradeCredentials.from_environment",
             side_effect=failing_credentials,
         ):
             # Should not crash, should return error
@@ -204,7 +204,7 @@ class TestTimeoutHandling:
         Addresses:
         - BLOCKER-3: Missing timeout handling for large portfolios
         """
-        with patch("variance.tastytrade_client.requests.get") as mock_get:
+        with patch("variance.tastytrade.requests.get") as mock_get:
             # Simulate slow response (exceeds timeout)
             import requests
 
@@ -257,7 +257,7 @@ class TestRateLimiting:
         Addresses:
         - HIGH-2: No circuit breaker for API rate limits
         """
-        with patch("variance.tastytrade_client.requests.get") as mock_get:
+        with patch("variance.tastytrade.requests.get") as mock_get:
             # Simulate rate limit response
             mock_response = Mock()
             mock_response.status_code = 429
@@ -451,10 +451,10 @@ class TestDataQualityReporting:
         provider = mock_market_provider(fake_data)
         monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": provider)
 
-        result = analyze_portfolio(str(csv_path))
-
         # NOTE: This test will FAIL until data_quality_score is implemented
         pytest.skip("data_quality_score not yet implemented - test documents expected behavior")
+
+        # result = analyze_portfolio(str(csv_path))  # Unused until feature implemented
 
         # TODO: Uncomment once feature is implemented
         # summary = result.get("portfolio_summary", {})

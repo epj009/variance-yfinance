@@ -1,4 +1,4 @@
-from variance.tastytrade_client import TastytradeClient, TastytradeCredentials
+from variance.tastytrade import TastytradeClient, TastytradeCredentials
 
 
 def _client() -> TastytradeClient:
