@@ -52,7 +52,7 @@ Your findings are handed to the Developer agent for remediation.
 | IV (ATM) | `mean(call_iv, put_iv)` at ATM strike | Midpoint IV | Skew contamination if not truly ATM |
 | VRP Structural | `IV_30 / HV_252` | Variance premium ratio | Division by zero if HV = 0 |
 | VRP Tactical | `IV_30 / HV_20` | Short-term markup | Explodes on flat tape (HV20 near 0) |
-| Compression Ratio | `HV_20 / HV_252` | Regime detector | Unbounded; needs floor/ceiling |
+| Compression Ratio | `HV_30 / HV_90` | Volatility momentum | Unbounded; needs floor/ceiling |
 
 **Mathematical Validation:**
 
@@ -66,6 +66,13 @@ $$r_t = \ln\left(\frac{P_t}{P_{t-1}}\right)$$
 - HV calculated from adjusted close only (misses dividends impact on options)
 - IV not interpolated to constant maturity (30-day IV should use term structure)
 - VRP ratio unbounded (can produce 100x multipliers on data errors)
+
+**Short Vol Compression Guidance (Variance Strategy):**
+- Compression < 0.60: avoid short vol (expansion risk)
+- Compression 0.60-0.75: caution, downgrade conviction
+- Compression 0.85-1.15: normal regime
+- Compression > 1.15: favorable (expansion mean-reverts)
+- Compression > 1.30: strongest short vol edge (contraction expected)
 
 ---
 

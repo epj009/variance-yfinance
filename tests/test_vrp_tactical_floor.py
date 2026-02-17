@@ -22,12 +22,8 @@ TEST STRATEGY:
 4. Regression prevention (verify no side effects)
 """
 
-from unittest.mock import Mock, patch
-
-import pandas as pd
 import pytest
 
-from variance import get_market_data
 from variance.config_loader import load_trading_rules
 
 # ============================================================================
@@ -332,83 +328,6 @@ class TestVRPTacticalRegression:
 # ============================================================================
 # TEST CLASS 5: End-to-End Validation (if possible)
 # ============================================================================
-
-
-class TestVRPTacticalE2E:
-    """End-to-end tests using get_market_data module (mocked)."""
-
-    def test_get_market_data_applies_floor(self, temp_cache_db):
-        """
-        Test that get_market_data.process_single_symbol applies HV floor correctly.
-
-        This is an integration test simulating the full data flow.
-        """
-        # Mock the yfinance module entirely
-
-        # Create mock ticker object
-        mock_ticker = Mock()
-        mock_ticker.fast_info = Mock()
-        mock_ticker.fast_info.last_price = 100.0
-
-        # Mock history with low volatility
-        history_data = pd.DataFrame(
-            {
-                "Close": [100.0] * 252  # Zero volatility (extreme case)
-            },
-            index=pd.date_range(end="2025-01-01", periods=252, freq="D"),
-        )
-        mock_ticker.history.return_value = history_data
-
-        # Mock options data
-        mock_ticker.options = ["2025-02-21"]
-        mock_chain = Mock()
-        mock_chain.calls = pd.DataFrame(
-            {
-                "strike": [100.0],
-                "bid": [2.5],
-                "ask": [2.6],
-                "impliedVolatility": [0.30],
-                "volume": [1000],
-                "dist": [0.0],
-            }
-        )
-        mock_chain.puts = pd.DataFrame(
-            {
-                "strike": [100.0],
-                "bid": [2.5],
-                "ask": [2.6],
-                "impliedVolatility": [0.30],
-                "volume": [1000],
-                "dist": [0.0],
-            }
-        )
-        mock_ticker.option_chain.return_value = mock_chain
-        mock_ticker.info = {}
-        mock_ticker.calendar = pd.DataFrame()
-
-        # Patch yf.Ticker to return our mock
-        with patch("yfinance.Ticker", return_value=mock_ticker):
-            # Force calculate_hv to return low HV20
-            with patch.object(
-                get_market_data, "calculate_hv", return_value={"hv252": 20.0, "hv20": 0.5}
-            ):
-                result = get_market_data.process_single_symbol("TEST")
-
-        # Verify result structure
-        assert result is not None
-        symbol, data = result
-
-        # Check that VRP Tactical was calculated with floor
-        if not isinstance(data, dict) or "error" in data:
-            pytest.skip(f"Test returned error: {data}")
-
-        if "vrp_tactical" in data and data["vrp_tactical"] is not None:
-            # With IV=30, HV20=0.5 floored to 5.0: 30/5 = 6.0
-            assert data["vrp_tactical"] <= 10.0, (
-                f"VRP Tactical {data['vrp_tactical']} exceeds 10.0 (floor not applied?)"
-            )
-        else:
-            pytest.skip("VRP Tactical not calculated (possibly due to missing data)")
 
 
 # ============================================================================

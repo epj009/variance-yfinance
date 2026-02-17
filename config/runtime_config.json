@@ -1,4 +1,16 @@
 {
+  "tastytrade": {
+    "enabled": true,
+    "api_base_url_env": "API_BASE_URL",
+    "fallback_on_error": true,
+    "cache_ttl_seconds": 900,
+    "batch_size": 50,
+    "rate_limit_requests_per_second": 5,
+    "iv_scale_factor": 100,
+    "min_liquidity_rating": 4,
+    "symbols_requiring_proxy": ["/ES", "/NQ", "/CL", "/GC"],
+    "max_concurrent_option_chains": 10
+  },
   "system": {
     "watchlist_path": "watchlists/default-watchlist.csv",
     "fallback_symbols": [
@@ -12,6 +24,7 @@
       "hv": 86400,
       "iv": 900,
       "price": 600,
+      "market_data": 86400,
       "earnings": 604800,
       "sector": 2592000
     }
@@ -300,7 +313,11 @@
       "XLC": "Communication Services",
       "XLRE": "Real Estate",
       "XLI": "Industrials",
-      "XLB": "Materials"
+      "XLB": "Materials",
+      "ETH-USD": "Crypto",
+      "BTC-USD": "Crypto",
+      "ETH/USD": "Crypto",
+      "BTC/USD": "Crypto"
     },
     "FUTURES_PROXY": {
       "/ES": {
@@ -380,8 +397,8 @@
       },
       "/ZT": {
         "type": "etf",
-        "iv_symbol": "IEF",
-        "hv_symbol": "ZT=F"
+        "iv_symbol": "SHY",
+        "hv_symbol": "SHY"
       },
       "/SR3": {
         "type": "etf",
@@ -467,7 +484,7 @@
       "/6C": 100000
     },
     "DATA_FETCHING": {
-      "dte_window_min": 20,
+      "dte_window_min": 25,
       "dte_window_max": 70,
       "target_dte": 45,
       "strike_limit_lower": 0.8,
@@ -479,13 +496,16 @@
         "Technology",
         "Healthcare",
         "Financial Services",
+        "Financial",
         "Consumer Cyclical",
         "Consumer Defensive",
         "Communication Services",
         "Real Estate",
         "Industrials",
+        "Capital Goods",
         "Utilities",
-        "International"
+        "International",
+        "Materials"
       ],
       "Commodity": [
         "Energy",
@@ -500,21 +520,36 @@
       ],
       "Index": [
         "Index"
+      ],
+      "Crypto": [
+        "Crypto"
       ]
     }
   },
   "screener_profiles": {
     "balanced": {
-      "min_vrp_structural": 0.85,
-      "allow_illiquid": false
+      "min_vrp_structural": 1.10,
+      "allow_illiquid": false,
+      "min_iv_percentile": 50,
+      "min_tt_liquidity_rating": 4
     },
     "broad": {
-      "min_vrp_structural": 0.0,
-      "allow_illiquid": true
+      "min_vrp_structural": 1.0,
+      "allow_illiquid": true,
+      "min_iv_percentile": 30
     },
     "high_quality": {
-      "min_vrp_structural": 1.0,
-      "allow_illiquid": false
+      "min_vrp_structural": 1.2,
+      "allow_illiquid": false,
+      "min_iv_percentile": 70,
+      "min_tt_liquidity_rating": 4
+    },
+    "aggressive": {
+      "min_vrp_structural": 0.90,
+      "allow_illiquid": false,
+      "min_iv_percentile": 40,
+      "retail_min_price": 10.0,
+      "min_tt_liquidity_rating": 3
     }
   }
 }

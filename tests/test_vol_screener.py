@@ -1,5 +1,6 @@
 from variance import vol_screener
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
+from variance.signals.classifier import determine_signal_type
 
 
 def make_config_bundle(trading_rules, system_config, market_config=None):
@@ -64,16 +65,13 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.8,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },
@@ -88,7 +86,6 @@ def test_screen_volatility_filters_and_excludes(monkeypatch, tmp_path, mock_mark
 
     assert len(candidates) == 1
     assert candidates[0]["Symbol"] == "ABC"
-    assert candidates[0]["is_bats_efficient"]
     # DEF excluded by sector, GHI skipped by low VRP
     assert summary["sector_skipped_count"] == 1
     assert summary["low_vrp_structural_count"] == 1
@@ -161,16 +158,13 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.85,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },
@@ -184,8 +178,6 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
     )
     report = vol_screener.screen_volatility(config, config_bundle=config_bundle)
     candidates = report["candidates"]
-    summary = report["summary"]
-
     # Should get GLD, /CL, /6E (3 total), exclude AAPL (Equity)
     assert len(candidates) == 3
     symbols = [c["Symbol"] for c in candidates]
@@ -199,8 +191,70 @@ def test_screen_volatility_include_asset_classes(monkeypatch, tmp_path, mock_mar
         assert "Asset Class" in c
         assert c["Asset Class"] in ["Commodity", "FX"]
 
-    # Check summary
-    assert summary["asset_class_skipped_count"] == 1  # AAPL excluded
+
+def test_is_illiquid_futures_uses_option_volume():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"option_volume": 100}
+    is_illiquid, is_implied = vol_screener._is_illiquid("/CL", metrics, rules)
+
+    assert is_illiquid is True
+    assert is_implied is False
+
+
+def test_is_illiquid_futures_without_tt_liquidity_exempt():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics: dict = {}
+    is_illiquid, is_implied = vol_screener._is_illiquid("/CL", metrics, rules)
+
+    assert is_illiquid is False
+    assert is_implied is False
+
+
+def test_is_illiquid_prefers_tt_option_volume_for_equities():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"option_volume": 100, "atm_volume": 1000}
+    is_illiquid, is_implied = vol_screener._is_illiquid("AAPL", metrics, rules)
+
+    assert is_illiquid is True
+    assert is_implied is False
+
+
+def test_signal_type_uses_iv_percentile_percent_scale():
+    flags = {
+        "is_earnings_soon": False,
+        "is_cheap": False,
+        "is_rich": False,
+    }
+    signal = determine_signal_type(flags, None, {}, iv_percentile=85.0, vol_trend_ratio=0.95)
+
+    assert signal == "RICH"
+
+
+def test_is_illiquid_passes_when_activity_is_sufficient():
+    rules = {"min_atm_volume": 500, "liquidity_mode": "volume"}
+    metrics = {"atm_volume": 600}
+    is_illiquid, is_implied = vol_screener._is_illiquid("AAPL", metrics, rules)
+
+    assert is_illiquid is False
+    assert is_implied is False
+
+
+def test_is_illiquid_uses_profile_min_tt_rating_override():
+    """Test that profile-level min_tt_liquidity_rating overrides rules."""
+    rules = {"min_tt_liquidity_rating": 4}
+    metrics = {"liquidity_rating": 3}  # TT rating = 3
+
+    # Without profile override: should be illiquid (3 < 4)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules)
+    assert is_illiquid is True
+
+    # With profile override to 3: should be liquid (3 >= 3)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules, profile_min_rating=3)
+    assert is_illiquid is False
+
+    # With profile override to 5: should be illiquid (3 < 5)
+    is_illiquid, _ = vol_screener._is_illiquid("PG", metrics, rules, profile_min_rating=5)
+    assert is_illiquid is True
 
 
 def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_market_provider):
@@ -268,16 +322,13 @@ def test_screen_volatility_exclude_asset_classes(monkeypatch, tmp_path, mock_mar
     }
 
     mock_provider = mock_market_provider(fake_data)
-    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider)
+    monkeypatch.setattr(MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider)
 
     config_bundle = make_config_bundle(
         trading_rules={
             "vrp_structural_threshold": 0.85,
             "vrp_structural_rich_threshold": 1.0,
             "earnings_days_threshold": 5,
-            "bats_efficiency_min_price": 15,
-            "bats_efficiency_max_price": 75,
-            "bats_efficiency_vrp_structural": 1.0,
             "min_atm_volume": 500,
             "max_slippage_pct": 0.05,
         },

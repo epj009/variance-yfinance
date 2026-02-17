@@ -8,7 +8,7 @@ import os
 import pytest
 
 from variance.analyze_portfolio import analyze_portfolio
-from variance.get_market_data import MarketDataFactory
+from variance.market_data.service import MarketDataFactory
 
 
 class TestAnalyzePortfolioIntegration:
@@ -80,7 +80,7 @@ class TestAnalyzePortfolioIntegration:
     def test_analyze_portfolio_with_sample_csv(self, monkeypatch, mock_provider):
         """Test that the analyzer runs without errors on sample CSV."""
         monkeypatch.setattr(
-            MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider
+            MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider
         )
 
         csv_path = os.path.join(os.path.dirname(__file__), "..", "util", "sample_positions.csv")
@@ -101,7 +101,7 @@ class TestAnalyzePortfolioIntegration:
     def test_analyze_portfolio_returns_valid_json(self, monkeypatch, mock_provider):
         """Test that the output can be serialized to JSON."""
         monkeypatch.setattr(
-            MarketDataFactory, "get_provider", lambda type="yfinance": mock_provider
+            MarketDataFactory, "get_provider", lambda type="tastytrade": mock_provider
         )
 
         csv_path = os.path.join(os.path.dirname(__file__), "..", "util", "sample_positions.csv")

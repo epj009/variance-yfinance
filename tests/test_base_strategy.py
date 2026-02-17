@@ -7,6 +7,7 @@ velocity harvest mechanics, and abstract method enforcement.
 
 import pytest
 
+from variance.models import Position
 from variance.strategies.base import BaseStrategy
 from variance.strategies.default import DefaultStrategy
 
@@ -177,12 +178,14 @@ class TestAbstractMethods:
     def test_is_tested_raises_not_implemented(self, default_strategy):
         """BaseStrategy.is_tested() is abstract but DefaultStrategy implements it."""
         legs = [
-            {
-                "Type": "Option",
-                "Call/Put": "Put",
-                "Quantity": "-1",
-                "Strike Price": "150.0",
-            }
+            Position.from_row(
+                {
+                    "Type": "Option",
+                    "Call/Put": "Put",
+                    "Quantity": "-1",
+                    "Strike Price": "150.0",
+                }
+            )
         ]
         underlying_price = 155.0
 

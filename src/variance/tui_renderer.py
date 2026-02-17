@@ -11,6 +11,8 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.tree import Tree
 
+from .errors import build_error, error_lines
+
 # Define professional theme
 VARIANCE_THEME = Theme(
     {
@@ -35,6 +37,16 @@ class TUIRenderer:
         self.portfolio_summary = self.data.get("portfolio_summary", {})
         self.show_diagnostics = show_diagnostics
 
+    def _resolve_opportunities(self) -> dict[str, Any]:
+        opportunities = self.data.get("opportunities")
+        if isinstance(opportunities, dict):
+            return opportunities
+        if isinstance(self.data.get("candidates"), list) and isinstance(
+            self.data.get("summary"), dict
+        ):
+            return self.data
+        return {}
+
     def render(self) -> None:
         """Main entry point for TUI rendering."""
         self.render_integrity_banner()
@@ -46,7 +58,7 @@ class TUIRenderer:
 
     def render_integrity_banner(self) -> None:
         """Renders a high-visibility warning if data is stale or after-hours."""
-        from variance.get_market_data import is_market_open
+        from variance.market_data.clock import is_market_open
 
         market_closed = not is_market_open()
 
@@ -282,7 +294,7 @@ class TUIRenderer:
 
     def render_opportunities(self) -> None:
         """Renders top vol screener opportunities using Rich Table"""
-        opportunities = self.data.get("opportunities", {})
+        opportunities = self._resolve_opportunities()
         candidates = opportunities.get("candidates", [])
         meta = opportunities.get("meta", {})
         summary = opportunities.get("summary", {})
@@ -311,7 +323,6 @@ class TUIRenderer:
                 ("low vrp", summary.get("low_vrp_structural_count", 0)),
                 ("missing tactical VRP", summary.get("tactical_skipped_count", 0)),
                 ("market data errors", summary.get("market_data_error_count", 0)),
-                ("low vol trap", summary.get("low_vol_trap_skipped_count", 0)),
                 ("data integrity", summary.get("data_integrity_skipped_count", 0)),
             ]
             drop_reasons = [r for r in drop_reasons if r[1]]
@@ -323,6 +334,21 @@ class TUIRenderer:
             return
 
         self.console.print("\n[header]🔍 VOL SCREENER OPPORTUNITIES[/header]")
+
+        # Active Constraints Display (UX Enhancement)
+        active_constraints = summary.get("active_constraints", {})
+        if active_constraints:
+            cons_text = Text("   ", style="dim")
+            vrp = active_constraints.get("min_vrp", 0.0)
+            ivp = active_constraints.get("min_ivp", 0.0)
+            yld = active_constraints.get("min_yield", 0.0)
+            prc = active_constraints.get("min_price", 0.0)
+            cons_text.append(
+                f"RULES: VRP > {vrp:.1f} | IVP > {ivp:.0f}% | Yield > {yld:.1f}% | Price > ${prc:.0f}",
+                style="dim cyan",
+            )
+            self.console.print(cons_text)
+
         self.console.print("   [dim]High Vol Bias candidates for portfolio diversification[/dim]")
 
         # Show exclusion info
@@ -363,27 +389,19 @@ class TUIRenderer:
 
         # Check for Data Integrity Skips (Strict Mode)
         integrity_skips = summary.get("data_integrity_skipped_count", 0)
-        lean_skips = summary.get("lean_data_skipped_count", 0)
-        anomalous_skips = summary.get("anomalous_data_skipped_count", 0)
 
-        total_hidden = (
-            integrity_skips + lean_skips + anomalous_skips + correlation_skips + tactical_skips
-        )
+        total_hidden = integrity_skips + correlation_skips + tactical_skips
         if total_hidden > 0:
             filter_reasons: list[str] = []
             if integrity_skips:
                 filter_reasons.append(f"{integrity_skips} bad data")
-            if lean_skips:
-                filter_reasons.append(f"{lean_skips} lean data")
-            if anomalous_skips:
-                filter_reasons.append(f"{anomalous_skips} anomalies")
             if correlation_skips:
                 filter_reasons.append(f"{correlation_skips} high correlation")
             if tactical_skips:
                 filter_reasons.append(f"{tactical_skips} missing tactical VRP")
 
             self.console.print(
-                f"   [dim]🚫 {total_hidden} symbols hidden due to strict data filters: {', '.join(filter_reasons)}[/dim]"
+                f"   [dim]🚫 {total_hidden} symbols hidden: {', '.join(filter_reasons)}[/dim]"
             )
 
         table = Table(
@@ -395,17 +413,52 @@ class TUIRenderer:
         )
         table.add_column("Symbol", style="cyan", width=8)
         table.add_column("Price", justify="right", width=9)
-        table.add_column("VRP (S)", justify="right", width=9)
-        table.add_column("VRP (T)", justify="right", width=9)
-        table.add_column("Signal", width=12)
-        table.add_column("Score", justify="right", width=7)
-        table.add_column("Rho (ρ)", justify="right", width=9)
-        table.add_column("Asset Class", width=14)
+        table.add_column("VRP(S)", justify="right", width=7)
+        table.add_column("VRP(T)", justify="right", width=7)
+        table.add_column("VTR", justify="right", width=5)
+        table.add_column("IVP", justify="right", width=5)
+        table.add_column("Rho", justify="right", width=5)
+        table.add_column("Yield", justify="right", width=7)
+        table.add_column("Earn", justify="right", width=5)
+        table.add_column("Signal", width=15)
+        table.add_column("Vote", justify="center", width=14)
+
+        proxy_hv90_symbols: list[tuple[str, Optional[str]]] = []
 
         for c in candidates:
-            # Signal Styling
+            # ... signal and rho logic ...
+            if c.get("hv90_source") == "proxy_dxlink":
+                sym = str(c.get("symbol", "N/A"))
+                proxy_sym = c.get("proxy")
+                proxy_hv90_symbols.append((sym, proxy_sym))
+
+            # Signal Styling & Divergence Indicator
             sig = str(c.get("Signal", "N/A"))
-            sig_style = "profit" if "RICH" in sig else "loss" if "DISCOUNT" in sig else "warning"
+            sig_style = (
+                "profit"
+                if "RICH" in sig or "EXPANDING" in sig
+                else "loss"
+                if "DISCOUNT" in sig or "COILED" in sig
+                else "warning"
+            )
+
+            # Calculate Divergence for arrow indicator
+            div_icon = ""
+            vsm_val = c.get("vrp_structural")
+            vtm_raw = c.get("vrp_tactical_markup")
+            if vsm_val and vtm_raw is not None:
+                vtm_val = vtm_raw + 1.0  # Convert markup to ratio
+                div_ratio = vtm_val / vsm_val
+                if div_ratio >= 1.25:
+                    div_icon = " ↑↑"
+                elif div_ratio >= 1.05:
+                    div_icon = " ↑"
+                elif div_ratio <= 0.75:
+                    div_icon = " ↓↓"
+                elif div_ratio <= 0.95:
+                    div_icon = " ↓"
+
+            full_sig = f"[{sig_style}]{sig}{div_icon}[/]"
 
             # Rho Styling (RFC 020)
             rho = c.get("portfolio_rho")
@@ -413,23 +466,102 @@ class TUIRenderer:
             rho_style = "profit" if (rho or 0) < 0.4 else "warning" if (rho or 0) < 0.65 else "loss"
 
             vtm = c.get("vrp_tactical_markup")
-            vtm_str = f"{vtm:+.0%}" if isinstance(vtm, (int, float)) else "N/A"
+            vtm_str = "N/A"
+            if isinstance(vtm, (int, float)):
+                # Convert markup back to ratio: markup of 3.0 (300%) is ratio of 4.0
+                vtm_ratio = vtm + 1.0
+                vtm_str = f"{vtm_ratio:.2f}"
+
+            vsm = c.get("vrp_structural")
+            vsm_str = f"{vsm:.2f}" if isinstance(vsm, (int, float)) else "N/A"
+
+            ivp = c.get("IV Percentile")
+            ivp_str = f"{ivp:.0f}" if isinstance(ivp, (int, float)) else "N/A"
+
+            vtr = c.get("Volatility Trend Ratio") or c.get("VTR", 1.0)
+            if isinstance(vtr, (int, float)):
+                vtr_str = f"{vtr:.2f}"
+                # Color coding (CORRECTED FOR SHORT VOL):
+                # - Green: 0.85-1.15 (good momentum for short vol)
+                # - Yellow: 0.60-0.85 or 1.15-1.30 (caution)
+                # - Red < 0.60: AVOID (expansion risk)
+                # - Green > 1.30: STRONG BUY (contraction expected)
+                if vtr < 0.60:
+                    vtr_style = "loss"  # Red - severe compression (AVOID)
+                elif vtr > 1.30:
+                    vtr_style = "profit"  # Green - severe expansion (STRONG BUY)
+                elif vtr < 0.85 or vtr > 1.15:
+                    vtr_style = "warning"  # Yellow - caution zone
+                else:
+                    vtr_style = "profit"  # Green - normal/good
+                vtr_display = f"[{vtr_style}]{vtr_str}[/]"
+            else:
+                vtr_display = "N/A"
+
+            # Yield Formatting
+            y_val = c.get("Yield", 0.0)
+            y_str = f"{y_val:.1f}%" if y_val > 0 else "N/A"
+            y_style = "profit" if y_val >= 5.0 else "neutral"
+
+            # Earnings Formatting
+            earn = c.get("Earnings", "N/A")
+            earn_str = str(earn)
+            earn_style = "warning" if isinstance(earn, int) and earn <= 7 else "dim"
+
+            # Vote Styling
+            vote = c.get("Vote", "WATCH")
+            vote_style = (
+                "bold green"
+                if vote in ["BUY", "SCALE"]
+                else "green"
+                if vote == "LEAN"
+                else "dim yellow"
+                if vote == "HOLD"
+                else "white"
+            )
+            if vote == "BUY":
+                vote_display = f"[{vote_style}]BUY[/]"
+            elif vote == "SCALE":
+                vote_display = f"[{vote_style}]SCALE[/]"
+            elif vote == "LEAN":
+                vote_display = f"[{vote_style}]LEAN[/]"
+            elif vote == "STRONG BUY":
+                vote_display = "[bold green]STRONG BUY[/]"
+            elif vote == "AVOID":
+                vote_display = "[bold red]AVOID[/]"
+            elif vote == "AVOID (COILED)":
+                vote_display = "[bold red]AVOID (COILED)[/]"
+            else:
+                vote_display = f"[{vote_style}]{vote}[/]"
 
             table.add_row(
                 c.get("symbol", "N/A"),
                 fmt_currency(c.get("price", 0)),
-                f"{c.get('vrp_structural', 0):.2f}",
+                vsm_str,
                 vtm_str,
-                f"[{sig_style}]{sig}[/]",
-                f"{c.get('Score', 0):.1f}",
+                vtr_display,
+                ivp_str,
                 f"[{rho_style}]{rho_str}[/]",
-                c.get("Asset Class", "Equity"),
+                f"[{y_style}]{y_str}[/]",
+                f"[{earn_style}]{earn_str}[/]",
+                full_sig,
+                vote_display,
             )
 
         self.console.print(table)
-        self.console.print(
-            "   [dim]Legend: 💸 Rich | ↔️ Bound | ❄️ Cheap | 📅 Event | 🦇 BATS Efficient | 🌀 Coiled | ⚡ Expanding[/dim]"
-        )
+
+        if proxy_hv90_symbols:
+            proxy_parts = []
+            for sym, proxy_sym in proxy_hv90_symbols:
+                if proxy_sym:
+                    proxy_parts.append(f"{sym} via {proxy_sym}")
+                else:
+                    proxy_parts.append(sym)
+            proxy_list = ", ".join(proxy_parts)
+            attrs_note = "HV90, HV252, VRP Structural, VTR"
+            self.console.print(
+                f"[warning]Proxy HV90 used for: {proxy_list}. Affects: {attrs_note}.[/warning]"
+            )
 
     def render_diagnostics(self) -> None:
         """Renders diagnostics panels for pipeline visibility."""
@@ -470,18 +602,24 @@ class TUIRenderer:
 
             panels.append(self._build_diag_panel("TRIAGE", items))
 
-        opportunities = self.data.get("opportunities", {})
+        opportunities = self._resolve_opportunities()
         summary = opportunities.get("summary", {})
         if summary:
             items = [
                 ("Scanned", summary.get("scanned_symbols_count", 0)),
                 ("Candidates", summary.get("candidates_count", 0)),
+                ("Data Integrity", summary.get("data_integrity_skipped_count", 0)),
                 ("Low VRP", summary.get("low_vrp_structural_count", 0)),
                 ("Missing VRP", summary.get("missing_vrp_structural_count", 0)),
                 ("Missing VRP T", summary.get("tactical_skipped_count", 0)),
+                ("Low IVP", summary.get("low_iv_percentile_skipped_count", 0)),
+                ("Low Yield", summary.get("low_yield_skipped_count", 0)),
+                ("Price Floor", summary.get("retail_inefficient_skipped_count", 0)),
+                ("High Slippage", summary.get("slippage_skipped_count", 0)),
                 ("Illiquid", summary.get("illiquid_skipped_count", 0)),
+                ("Sector Skips", summary.get("sector_skipped_count", 0)),
+                ("Asset Class", summary.get("asset_class_skipped_count", 0)),
                 ("High Corr", summary.get("correlation_skipped_count", 0)),
-                ("Data Errors", summary.get("market_data_error_count", 0)),
             ]
 
             fetch_diag = opportunities.get("meta", {}).get("market_data_diagnostics", {})
@@ -549,13 +687,47 @@ def main() -> None:
 
     data = {}
     if args.input_file:
-        with open(args.input_file) as f:
-            data = json.load(f)
+        try:
+            with open(args.input_file) as f:
+                data = json.load(f)
+        except FileNotFoundError as exc:
+            payload = build_error(
+                "Input file not found.",
+                details=str(exc),
+                hint="Provide a valid JSON report path.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as exc:
+            payload = build_error(
+                "Invalid JSON input.",
+                details=str(exc),
+                hint="Ensure the file contains valid JSON report data.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
     elif not sys.stdin.isatty():
-        data = json.load(sys.stdin)
+        try:
+            data = json.load(sys.stdin)
+        except json.JSONDecodeError as exc:
+            payload = build_error(
+                "Invalid JSON input from stdin.",
+                details=str(exc),
+                hint="Pipe a valid JSON report into this command.",
+            )
+            for line in error_lines(payload):
+                print(line, file=sys.stderr)
+            sys.exit(1)
 
     if not data:
         return
+    if isinstance(data, dict) and "error" in data:
+        for line in error_lines(data):
+            print(line, file=sys.stderr)
+        print(json.dumps(data, indent=2), file=sys.stderr)
+        sys.exit(1)
 
     renderer = TUIRenderer(data, show_diagnostics=args.show_diagnostics)
     renderer.render()

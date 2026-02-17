@@ -1,0 +1,66 @@
+[
+  { "type": "contains", "pattern": "strangle", "id": "short_strangle" },
+  { "type": "contains", "pattern": "straddle", "id": "short_straddle" },
+
+  { "type": "contains", "pattern": "dynamic width iron condor", "id": "dynamic_width_iron_condor" },
+  { "type": "contains", "pattern": "iron condor", "id": "iron_condor" },
+  { "type": "contains_any", "patterns": ["iron butterfly", "iron fly"], "id": "iron_fly" },
+
+  {
+    "type": "contains",
+    "pattern": "vertical spread",
+    "side": "call",
+    "credit_id": "short_call_vertical_spread",
+    "debit_id": "long_call_vertical_spread"
+  },
+  {
+    "type": "contains",
+    "pattern": "vertical spread",
+    "side": "put",
+    "credit_id": "short_put_vertical_spread",
+    "debit_id": "long_put_vertical_spread"
+  },
+
+  { "type": "contains", "pattern": "calendar spread", "side": "call", "id": "call_calendar_spread" },
+  { "type": "contains", "pattern": "calendar spread", "side": "put", "id": "put_calendar_spread" },
+  { "type": "contains_any", "patterns": ["poor man's covered call", "poor mans covered call"], "id": "poor_mans_covered_call" },
+  { "type": "contains_any", "patterns": ["poor man's covered put", "poor mans covered put"], "id": "poor_mans_covered_put" },
+
+  { "type": "exact", "pattern": "short call", "id": "short_naked_call" },
+  { "type": "exact", "pattern": "short put", "id": "short_naked_put" },
+
+  { "type": "contains", "pattern": "covered call", "id": "covered_call" },
+  { "type": "contains", "pattern": "covered put", "id": "covered_put" },
+
+  { "type": "contains", "pattern": "call zebra", "id": "call_zebra" },
+  { "type": "contains", "pattern": "put zebra", "id": "put_zebra" },
+
+  { "type": "contains", "pattern": "reverse big lizard", "id": "reverse_big_lizard" },
+  { "type": "contains", "pattern": "big lizard", "id": "big_lizard" },
+  { "type": "contains_any", "patterns": ["reverse jade lizard", "twisted sister"], "id": "reverse_jade_lizard" },
+  { "type": "contains", "pattern": "jade lizard", "id": "jade_lizard" },
+
+  {
+    "type": "contains_any",
+    "patterns": ["front-ratio", "front ratio", "ratio spread"],
+    "side": "call",
+    "id": "call_front_ratio_spread"
+  },
+  {
+    "type": "contains_any",
+    "patterns": ["front-ratio", "front ratio", "ratio spread"],
+    "side": "put",
+    "id": "put_front_ratio_spread"
+  },
+
+  { "type": "contains", "pattern": "broken wing butterfly", "side": "call", "id": "call_broken_wing_butterfly" },
+  { "type": "contains", "pattern": "broken wing butterfly", "side": "put", "id": "put_broken_wing_butterfly" },
+  { "type": "contains", "pattern": "broken heart butterfly", "side": "call", "id": "call_broken_heart_butterfly" },
+  { "type": "contains", "pattern": "broken heart butterfly", "side": "put", "id": "put_broken_heart_butterfly" },
+  { "type": "contains", "pattern": "butterfly", "side": "call", "id": "call_butterfly" },
+  { "type": "contains", "pattern": "butterfly", "side": "put", "id": "put_butterfly" },
+
+  { "type": "contains_any", "patterns": ["double diagonal", "diagonal spread"], "id": "double_diagonal", "credit_only": true },
+
+  { "type": "contains_any", "patterns": ["back spread", "backspread"], "id": "back_spread" }
+]

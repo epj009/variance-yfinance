@@ -10,30 +10,30 @@ The engine operates on the principle that market direction is noise, and volatil
 ## 2. Volatility Risk Premium (VRP) Mechanics
 The engine's primary "Alpha" signal is the **Volatility Risk Premium (VRP)**. This is the statistical edge gained by selling options premium when implied volatility (IV) is significantly higher than realized volatility (HV).
 
-Variance distinguishes between two specific time horizons to filter "Noise" from "Signal."
+Variance uses **Institutional Grade Decimal Ratios** for all VRP measurements.
 
 ### 2.1. VRP (Structural) - The "Fair Value" Baseline
-*   **Metric:** `IV30 / HV252`
+*   **Metric:** `IV30 / HV90` (Institutional)
 *   **Function:** Measures the long-term premium markup.
-*   **Threshold:** `> 0.85` (Standard richness).
-*   **Significance:** This is the "Strategic Edge." It tells us if an asset is historically overvalued. We use the 252-day realized volatility (1 year of trading) as the "denominator of reality."
+*   **Threshold:** `> 1.0` (Positive VRP).
+*   **Significance:** This is the "Strategic Edge." It tells us if an asset is historically overvalued. We use the 90-day realized volatility (Tastytrade Native) as the "denominator of reality."
 
 ### 2.2. VRP (Tactical) - The "Immediate Opportunity"
-*   **Metric:** `IV30 / HV20`
-*   **Function:** Measures current IV against the most recent 20 days of price action.
+*   **Metric:** `IV30 / HV30` (Institutional)
+*   **Function:** Measures current IV against the most recent 30 days of price action.
 *   **Threshold:** `> 1.0` (Immediate edge).
 *   **Significance:** This is the "Tactical Edge." It identifies assets where the market is panicking (buying insurance) relative to how the stock is *actually* moving right now. 
 
-### 2.3. VRP Tactical Markup (The "Alpha" Score)
-*   **Formula:** `Markup = (IV30 - HV20) / HV20`
-*   **Clinical Goal:** Measures the "Multiple of Insurance Overprice." 
-*   **Example:** If IV is 30% and HV20 is 10%, the markup is **2.0 (+200%)**. You are being paid 3x the actual movement risk to hold the position. 
-*   **VRP Surge:** A markup `> 0.50` (+50% above trend) triggers a `SCALABLE` action code, indicating a high-conviction entry or size expansion.
+### 2.3. VRP Divergence (Alpha Momentum)
+*   **Formula:** `Divergence = VRP_Tactical / VRP_Structural`
+*   **Clinical Goal:** Measures the "Velocity of Edge." 
+*   **Signal ↑↑:** Tactical edge is expanding faster than the long-term trend (Surging Alpha).
+*   **Signal ↓↓:** Tactical edge is mean-reverting (Decaying Alpha).
 
 ### 2.4. Alpha-Theta (Expected Yield)
 *   **Concept:** Standard Theta decay is a "Raw" estimate. Alpha-Theta is "Quality-Adjusted" Theta.
-*   **Formula:** `Alpha-Theta = Raw Theta * (IV / HV)`
-*   **Significance:** If you have $100 of Theta in a stock where VRP is 1.5, your "Alpha-Theta" is $150. You are being "overpaid" for the time you are holding the risk. Conversely, if VRP is 0.5, your $100 of Theta is only "worth" $50 statistically.
+*   **Formula:** `Alpha-Theta = Raw Theta * VRP_Ratio`
+*   **Significance:** If you have $100 of Theta in a stock where VRP is 1.5, your "Alpha-Theta" is $150. You are being "overpaid" for the time you are holding the risk.
 
 ### 2.5. Toxic Theta (The Mechanical Stop)
 *   **Formula:** `Efficiency = Abs(Theta) / Expected_Gamma_Cost`
@@ -41,40 +41,119 @@ Variance distinguishes between two specific time horizons to filter "Noise" from
 *   **Significance:** This check (derived from institutional market-making) determines if the "Time Rent" (Theta) you collect is sufficient to pay for the "Movement Insurance" (Gamma) you are providing.
 *   **Trigger:** If `Efficiency < 0.10`, the trade is marked `TOXIC`. The cost of movement risk is mathematically higher than the decay you are collecting. Exit immediately.
 
+### 2.6. Why Ratio (Not Spread)?
+
+**Academic VRP:** `VRP = IV - HV` (spread in vol points)
+**Our Approach:** `VRP = IV / HV` (ratio, dimensionless)
+
+**Why Ratio is Superior for Retail:**
+
+1. **Credit Scales with Vol**
+   - Sell strangle on 20% IV stock → Collect $2.00
+   - Sell strangle on 40% IV stock → Collect $4.00
+   - Premium doubles when vol doubles → Edge is proportional
+
+2. **Cross-Sectional Comparison**
+   - Stock A: IV=12%, HV=10% → Spread=2pts, Ratio=1.20 (20% markup)
+   - Stock B: IV=52%, HV=50% → Spread=2pts, Ratio=1.04 (4% markup)
+   - Same absolute spread, but Stock A has 5x better relative edge
+
+3. **Risk-Adjusted Edge**
+   - Expected move = Price × IV × sqrt(DTE/365)
+   - Both risk AND premium scale with vol
+   - Edge is the percentage markup, not absolute points
+
+**Academic spread is for variance swaps (institutional). Ratio is for options selling (retail).**
+
+**See:** `docs/adr/0012-vrp-measurement-methodology.md` for full analysis
+
+### 2.7. Why ATM IV (Not OTM)?
+
+**We Measure:** ATM IV (50-delta)
+**We Trade:** OTM options (20-30 delta strangles)
+
+**Why ATM is Still Correct:**
+
+1. **ATM Anchors the Entire Surface**
+   - All strikes priced relative to ATM: `IV_strike = ATM_IV + Skew`
+   - If ATM is rich, wings are also rich
+   - Skew (~3-4 pts) is stable; ATM movement drives surface
+
+2. **Skew Cancels for Delta-Neutral**
+   ```
+   Wing IV = (25d_put_iv + 25d_call_iv) / 2
+           = (ATM + 3pts) + (ATM - 2pts) / 2
+           = ATM + 0.5pts ≈ ATM
+   ```
+   Skew effects cancel when averaging both sides
+
+3. **Tastylive/Spina Methodology**
+   - Mechanical strike selection (always 20-30 delta)
+   - No skew optimization
+   - Focus on overall IV vs HV
+
+**For delta-neutral strategies, ATM is the best proxy. Measuring wings gives nearly identical result.**
+
+**See:** `docs/adr/0012-vrp-measurement-methodology.md` for proof
+
 ---
 
 ## 3. Regime Detection
 Variance separates **Valuation** (is it expensive?) from **Regime** (is it about to move?).
 
 ### Coiled (🌀)
-*   **Metric:** `HV20 / HV60 < 0.85` AND `HV20 / HV252 < 0.75`.
-*   **Meaning:** Realized volatility is significantly lower than both quarterly and yearly averages. Like a compressed spring, energy is being stored.
+*   **Metric:** `HV30 / HV90 < 0.75`.
+*   **Meaning:** Realized volatility is significantly lower than its medium-term trend. Like a compressed spring, energy is being stored.
 *   **Risk:** Higher probability of a violent breakout. Range-bound trades (Iron Condors) are dangerous here.
 
 ### Expanding (⚡)
-*   **Metric:** `HV20 / HV252 > 1.25`.
-*   **Meaning:** The asset is currently moving 25% more than its yearly average.
+*   **Metric:** `HV30 / HV90 > 1.25`.
+*   **Meaning:** The asset is currently moving 25% more than its quarterly average.
 *   **Trading:** Favor trend-following or respect the momentum. Mean reversion (short vol) may be "steamrolled" by the trend.
 
 ---
 
-## 4. The Hard Gate
-*   **Definition:** A safety circuit breaker in the analysis pipeline.
+## 4. The Hard Gates (Institutional Safety)
+
+### 4.1. The North Star Gate
 *   **Mechanism:** If the "North Star" (SPY) data cannot be reached or is invalid, the engine aborts the entire run.
-*   **Why:** Without SPY, beta-weighting and probabilistic stress tests are meaningless. No data is safer than broken data.
+*   **Why:** Without SPY, beta-weighting and probabilistic stress tests are meaningless.
+
+### 4.2. The Volatility Trap Gate
+*   **Mechanism:** Dual-trigger rejection of "Rich" setups that are artifacts of dead realized movement.
+*   **Trigger 1 (Positional):** `HV Rank < 15` (Today's movement is at a 1-year low).
+*   **Trigger 2 (Relative):** `HV30 / HV90 < 0.70` (Today's movement is 30% below its quarterly trend).
+
+### 4.3. The Retail Efficiency Gate
+*   **Mechanism:** Habit-enforcing filter to ensure trades are mechanically manageable for retail accounts.
+*   **Price Floor:** Reject underlyings `< $25.00` (prevents explosive Gamma and poor strike density).
+*   **Slippage Guard:** Reject options with Bid/Ask spreads `> 5%` of price.
 
 ---
 
-## 5. Strict Mode Filtering
-*   **Definition:** Automated hard-rejection of low-integrity data.
-*   **Filters:**
-    *   **Dead Legs:** Rejects equities if Call or Put ATM volume is 0.
-    *   **Wide Spreads:** Rejects if slippage (spread/price) > 5%.
-    *   **Lean Data:** Rejects if HV20 or IV30 are missing.
-*   **Goal:** Ensure every trade recommended in the "Opportunities" list is executable at a fair price.
+## 5. Scoring (The Variance Score)
+The Variance Score (0-100) is a composite measure of institutional opportunity:
+*   **Structural VRP:** Long-term valuation edge (dislocation from fair value).
+*   **Tactical VRP:** Immediate timing edge (dislocation from fair value).
+*   **Volatility Momentum:** HV30/HV90 confirmation (trend vs compression).
+*   **HV Rank (Rich Only):** Avoid positional traps when VRP is rich.
+*   **IV Percentile:** Statistical extreme context.
+*   **Yield:** Normalized premium yield (30-day basis).
+*   **Retail Efficiency:** Price + slippage viability.
+*   **Liquidity:** Rating/volume/spread quality.
 
-### 6. Scoring & Penalties (The "Institutional Brake")
-The Variance Score (0-100) is not just a measure of richness; it is a measure of **Quality-Adjusted Opportunity**. 
+**Note:** Component weights and ceilings are configurable in `config/trading_rules.json`
+(`variance_score_weights` and `variance_score_*_ceiling`).
+
+---
+
+## 6. Allocation Vote
+The engine provides a definitive clinical "Vote" for every candidate:
+*   **BUY:** High Score (>70) and Low Portfolio Correlation (Rho < 0.50).
+*   **SCALE:** Already held, but VRP is surging (Divergence > 1.10).
+*   **LEAN:** High Score but moderate correlation (Rho < 0.65).
+*   **HOLD:** Already held, maintaining status quo.
+*   **AVOID:** Extreme correlation risk (Rho > 0.70) or mechanical inefficiency.
 
 ---
 
@@ -110,7 +189,7 @@ In retail trading, users often subtract volatility (e.g., $IV - HV = 5\%$). Vari
 
 ## 1. The Challenge: Data Fragmentaton
 In retail quantitative trading, many assets (especially Futures and small ETFs) suffer from **Data Blackouts**:
-*   **Futures Options:** Yahoo Finance and other free APIs do not provide options chains for futures tickers.
+*   **Futures Options:** legacy data source and other free APIs do not provide options chains for futures tickers.
 *   **Thin ETFs:** Tickers like `FXC` (CAD) or `SHY` (2Y Bond) often have "dead" options markets with 0.0 bids and near-zero open interest, making their Implied Volatility (IV) unreadable.
 
 ## 2. The Solution: Idiosyncratic Hybrid Signals

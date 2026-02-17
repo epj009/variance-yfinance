@@ -7,7 +7,18 @@
 #   ./variance --chat   # Chat Only (No pre-analysis)
 #   ./variance --debug  # Show diagnostics panels in the TUI
 
+# Auto-load Tastytrade credentials if available
+if [ -f .env.tastytrade ]; then
+    source .env.tastytrade
+fi
+
+# Auto-load Anthropic API key if available
+if [ -f .env.anthropic ]; then
+    source .env.anthropic
+fi
+
 MODE="hybrid"
+AGENT="gemini"  # Default agent (gemini or claude)
 SHOW_DIAGNOSTICS=0
 
 # Parse arguments
@@ -21,7 +32,17 @@ while [[ $# -gt 0 ]]; do
             MODE="demo"
             shift
             ;;
-        --chat|--gemini)
+        --gemini)
+            AGENT="gemini"
+            MODE="hybrid"
+            shift
+            ;;
+        --claude)
+            AGENT="claude"
+            MODE="hybrid"
+            shift
+            ;;
+        --chat)
             MODE="chat"
             shift
             ;;
@@ -33,13 +54,20 @@ while [[ $# -gt 0 ]]; do
             SHOW_DIAGNOSTICS=1
             shift
             ;;
+        --agent)
+            AGENT="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: ./variance [options]"
             echo "Options:"
-            echo "  --tui     Run Python TUI dashboard only (fast)"
-            echo "  --debug   Show diagnostics panels"
-            echo "  --chat    Run Gemini chat only (no pre-analysis)"
-            echo "  --hybrid  Run TUI then start interactive Gemini strategy session (default)"
+            echo "  --tui       Run Python TUI dashboard only (fast)"
+            echo "  --debug     Show diagnostics panels"
+            echo "  --gemini    Run full analysis with Gemini (TUI + AI)"
+            echo "  --claude    Run full analysis with Claude (TUI + AI)"
+            echo "  --chat      Run chat only with default agent (no analysis)"
+            echo "  --hybrid    Run TUI then start interactive strategy session (default)"
+            echo "  --agent     Override agent: gemini|claude (default: gemini)"
             exit 0
             ;;
         *)
@@ -124,6 +152,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
@@ -164,6 +194,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
@@ -203,6 +235,8 @@ case "$MODE" in
         if [ "$SHOW_DIAGNOSTICS" -eq 1 ]; then
             ANALYSIS_ARGS+=("--diag")
         fi
+        # Export Tastytrade credentials if set
+        export TT_CLIENT_ID TT_CLIENT_SECRET TT_REFRESH_TOKEN API_BASE_URL
         (./venv/bin/python3 scripts/analyze_portfolio.py "${ANALYSIS_ARGS[@]}" > "$JSON_FILE" 2> "$LOG_FILE") &
         spinner $!
         echo "Done." >&2
@@ -228,13 +262,37 @@ case "$MODE" in
             exit 1
         fi
 
-        # 3. Launch Gemini
+        # 3. Launch Selected Agent
         echo "" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-        echo " STRATEGIC ANALYSIS (Gemini)" >&2
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-        
-        exec gemini -y -i "First, display the Variance TUI dashboard by running: cat $TUI_FILE
+
+        if [ "$AGENT" = "claude" ]; then
+            echo " STRATEGIC ANALYSIS (Claude)" >&2
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+
+            # Load persona and build context
+            PERSONA=$(cat config/claude_persona.md 2>/dev/null || echo "You are Variance, a quantitative trading strategist.")
+            TUI_CONTENT=$(cat "$TUI_FILE" 2>/dev/null || echo "[TUI output not available]")
+
+            # Launch Claude CLI with system prompt
+            exec claude --system-prompt "$PERSONA" "# Portfolio Dashboard
+
+$TUI_CONTENT
+
+# Analysis Data
+Full analysis JSON: $JSON_FILE
+
+# Your Task
+Analyze the dashboard and provide strategic commentary on:
+1. Triage priorities (harvest, defense, gamma risks)
+2. Portfolio balance (delta/theta, concentration)
+3. Opportunities from the screener
+
+Then remain interactive for follow-up questions."
+        else
+            echo " STRATEGIC ANALYSIS (Gemini)" >&2
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+            exec gemini -y -i "First, display the Variance TUI dashboard by running: cat $TUI_FILE
 
 Then provide strategic commentary on:
 1. Priority actions from the triage (harvest, defense, gamma risks)
@@ -244,10 +302,17 @@ Then provide strategic commentary on:
 The full analysis JSON is at $JSON_FILE if you need detailed data.
 
 Then stay interactive for follow-up questions about the portfolio."
+        fi
         ;;
 
     chat)
-        echo "Starting Gemini Chat..." >&2
-        exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+        if [ "$AGENT" = "claude" ]; then
+            echo "Starting Claude Chat..." >&2
+            PERSONA=$(cat config/claude_persona.md 2>/dev/null || echo "You are Variance, a quantitative trading strategist.")
+            exec claude --system-prompt "$PERSONA" "Analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+        else
+            echo "Starting Gemini Chat..." >&2
+            exec gemini -y -i "Variance, analyze the latest portfolio positions and identify actionable trades based on current market conditions and trading rules."
+        fi
         ;;
 esac

@@ -6,7 +6,7 @@ Handles logic for Butterflies and Iron Butterflies (Pin strategies).
 
 from typing import Any, Optional
 
-from ..portfolio_parser import parse_currency
+from ..models.position import Position
 from .base import BaseStrategy
 
 
@@ -18,15 +18,14 @@ class ButterflyStrategy(BaseStrategy):
     Primary focus: Detecting breach of the inner short strikes.
     """
 
-    def is_tested(self, legs: list[dict[str, Any]], underlying_price: float) -> bool:
+    def is_tested(self, legs: list[Position], underlying_price: float) -> bool:
         """
         Butterfly is tested if price moves outside the 'Tent' (the short strikes).
         """
         short_strikes = []
         for leg in legs:
-            qty = float(parse_currency(leg.get("Quantity", "0")))
-            if qty < 0:
-                short_strikes.append(float(parse_currency(leg.get("Strike Price", "0"))))
+            if leg.quantity < 0:
+                short_strikes.append(float(leg.strike or 0.0))
 
         if not short_strikes:
             return False

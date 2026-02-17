@@ -7,6 +7,7 @@ __pycache__/
 # Virtual Environment
 venv/
 env/
+.venv/
 .env
 
 # Project specific
@@ -35,3 +36,5 @@ positions/
 reports/
 logs/
 .coverage
+.env.tastytrade
+.env.anthropic

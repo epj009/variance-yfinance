@@ -21,8 +21,13 @@ def test_analyze_portfolio_cli_default_json(tmp_path):
         "AAPL,Option,-1,2025-01-17,30,150,Put,150,0,-100,0,5,1.00,1.10\n"
     )
 
+    env = os.environ.copy()
+    env["VARIANCE_TEST_MODE"] = "1"
     result = subprocess.run(
-        [PYTHON_EXE, ANALYZE_SCRIPT, str(csv_path)], capture_output=True, text=True
+        [PYTHON_EXE, ANALYZE_SCRIPT, str(csv_path)],
+        capture_output=True,
+        text=True,
+        env=env,
     )
 
     if result.returncode != 0:

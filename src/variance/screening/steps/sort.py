@@ -29,8 +29,13 @@ def sort_and_dedupe(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     # 2. Sort by Signal Quality
     def _signal_key(c: dict[str, Any]) -> tuple[float, float, int]:
-        score = float(c.get("Score", 0.0))
-        vtm = float(c.get("VRP_Tactical_Markup", -9.9))
+        score_raw = c.get("score")
+        score = float(score_raw) if score_raw is not None else 0.0
+
+        # Check both cases for robustness
+        vtm_raw = c.get("vrp_tactical_markup") or c.get("VRP_Tactical_Markup")
+        vtm = float(vtm_raw) if vtm_raw is not None else -9.9
+
         proxy = c.get("proxy") or c.get("Proxy")
         quality = 1 if proxy else 0
         return (score, vtm, -quality)

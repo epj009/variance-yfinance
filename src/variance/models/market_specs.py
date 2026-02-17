@@ -4,6 +4,7 @@ Concrete Market Specifications
 Implementations of the Specification pattern for volatility filtering.
 """
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -12,41 +13,59 @@ from .specs import Specification
 
 
 class LiquiditySpec(Specification[dict[str, Any]]):
-    """Filters based on bid/ask spread and volume."""
+    """
+    Filters based on liquidity metrics.
 
-    def __init__(self, max_slippage: float, min_vol: int, allow_illiquid: bool = False):
+    Prioritizes Tastytrade liquidity_rating (1-5 scale) when available.
+    Falls back to bid/ask spread and volume analysis when Tastytrade data unavailable.
+
+    Args:
+        max_slippage: Maximum allowed bid/ask spread as percentage (fallback metric)
+        min_vol: Minimum ATM volume required (fallback metric)
+        allow_illiquid: If True, bypass all liquidity checks
+        min_tt_liquidity_rating: Minimum Tastytrade liquidity rating (1-5, primary metric)
+    """
+
+    def __init__(
+        self,
+        max_slippage: float,
+        min_vol: int,
+        allow_illiquid: bool = False,
+        min_tt_liquidity_rating: int = 4,
+    ):
         self.max_slippage = max_slippage
         self.min_vol = min_vol
         self.allow_illiquid = allow_illiquid
+        self.min_tt_liquidity_rating = min_tt_liquidity_rating
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         if self.allow_illiquid:
             return True
 
-        symbol = str(metrics.get("symbol", ""))
-        if symbol.startswith("/"):
-            return True  # Futures exemption
+        from variance.liquidity import SlippageCalculator
 
-        # Implied Liquidity Check
-        call_bid = metrics.get("call_bid")
-        call_ask = metrics.get("call_ask")
-        put_bid = metrics.get("put_bid")
-        put_ask = metrics.get("put_ask")
+        has_quote, max_slippage_found = SlippageCalculator.calculate_max_slippage(metrics)
 
-        max_found = 0.0
-        has_quote = False
+        # PRIMARY: Check Tastytrade liquidity_rating if present (1-5 scale)
+        tt_rating = metrics.get("liquidity_rating")
+        if tt_rating is not None:
+            is_rated = int(tt_rating) >= self.min_tt_liquidity_rating
+            if not is_rated:
+                return False
 
-        for bid, ask in [(call_bid, call_ask), (put_bid, put_ask)]:
-            if bid is not None and ask is not None:
-                mid = (float(bid) + float(ask)) / 2
-                if mid > 0:
-                    has_quote = True
-                    max_found = max(max_found, (float(ask) - float(bid)) / mid)
+            # SAFETY GUARD: Reject if spread is egregiously wide (> 25%), regardless of rating.
+            # This protects against data anomalies or severe illiquidity that the static rating missed.
+            if has_quote and max_slippage_found > 0.25:
+                return False
 
-        if has_quote and max_found <= self.max_slippage:
             return True
 
-        vol_raw = metrics.get("atm_volume")
+        # FALLBACK: Use bid/ask spread logic when Tastytrade data unavailable
+        # Implied Liquidity Check
+        if has_quote and max_slippage_found <= self.max_slippage:
+            return True
+
+        vol_raw = metrics.get("option_volume", metrics.get("atm_volume"))
         oi_raw = metrics.get("atm_open_interest")
         if not has_quote and vol_raw is None and oi_raw is None:
             return True
@@ -67,29 +86,17 @@ class VrpStructuralSpec(Specification[dict[str, Any]]):
         return vrp is not None and float(vrp) > self.threshold
 
 
-class LowVolTrapSpec(Specification[dict[str, Any]]):
-    """Prevents symbols with extremely low realized vol (noise) from passing."""
-
-    def __init__(self, hv_floor: float):
-        self.hv_floor = hv_floor
-
-    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
-        hv252 = metrics.get("hv252")
-        if hv252 is None:
-            return True
-        return float(hv252) >= self.hv_floor
-
-
 class VrpTacticalSpec(Specification[dict[str, Any]]):
-    """Requires tactical VRP to be computable (IV and HV20)."""
+    """Requires tactical VRP to exceed minimum threshold (IV/HV30 or IV/HV20)."""
 
-    def __init__(self, hv_floor: float):
+    def __init__(self, hv_floor: float, threshold: float = 1.0):
         self.hv_floor = hv_floor
+        self.threshold = threshold
 
     def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
         vrp_tactical = metrics.get("vrp_tactical")
         if vrp_tactical is not None:
-            return True
+            return float(vrp_tactical) > self.threshold
 
         iv = metrics.get("iv")
         hv20 = metrics.get("hv20")
@@ -109,8 +116,8 @@ class VrpTacticalSpec(Specification[dict[str, Any]]):
         if hv_floor <= 0:
             return False
 
-        metrics["vrp_tactical"] = iv_f / hv_floor
-        return True
+        _vrp_tactical = iv_f / hv_floor
+        return _vrp_tactical > self.threshold
 
 
 class SectorExclusionSpec(Specification[dict[str, Any]]):
@@ -134,9 +141,18 @@ class DataIntegritySpec(Specification[dict[str, Any]]):
             "iv_scale_corrected",
             "iv_scale_assumed_decimal",
             "after_hours_stale",
+            "tastytrade_fallback",
+            "market_data_unavailable_cached",
             None,
         ]
         return warning in soft_warnings
+
+
+@dataclass(frozen=True)
+class CorrelationResult:
+    passed: bool
+    correlation: Optional[float]
+    used_proxy: bool
 
 
 class CorrelationSpec(Specification[dict[str, Any]]):
@@ -188,9 +204,9 @@ class CorrelationSpec(Specification[dict[str, Any]]):
 
         return None
 
-    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+    def evaluate(self, metrics: dict[str, Any]) -> CorrelationResult:
         if self.portfolio_returns is None or len(self.portfolio_returns) == 0:
-            return True
+            return CorrelationResult(True, None, False)
 
         symbol = str(metrics.get("symbol", ""))
         candidate_returns = metrics.get("returns")
@@ -200,11 +216,13 @@ class CorrelationSpec(Specification[dict[str, Any]]):
             proxy_returns = self._get_etf_proxy_returns(symbol)
             if proxy_returns:
                 candidate_returns = proxy_returns
-                metrics["correlation_via_proxy"] = True  # Transparency flag
+                used_proxy = True
             else:
                 # No returns and no proxy = cannot verify diversification
                 # Must reject for safety (prevent blind correlation risk)
-                return False
+                return CorrelationResult(False, None, False)
+        else:
+            used_proxy = False
 
         from .correlation import CorrelationEngine
 
@@ -212,7 +230,243 @@ class CorrelationSpec(Specification[dict[str, Any]]):
             self.portfolio_returns, np.array(candidate_returns)
         )
 
-        # Attach the rho for downstream TUI rendering
-        metrics["portfolio_rho"] = corr
+        return CorrelationResult(corr <= self.max_correlation, corr, used_proxy)
 
-        return corr <= self.max_correlation
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        """Pure query - no side effects."""
+        result = self.evaluate(metrics)
+        return result.passed
+
+    def enrich(self, metrics: dict[str, Any]) -> None:
+        """Mutation method - adds correlation metadata to metrics dict."""
+        result = self.evaluate(metrics)
+        if result.correlation is not None:
+            metrics["portfolio_rho"] = result.correlation
+        if result.used_proxy:
+            metrics["correlation_via_proxy"] = True
+
+
+class IVPercentileSpec(Specification[dict[str, Any]]):
+    """
+    Filters based on IV Percentile (IVP) from Tastytrade.
+
+    Tastytrade provides IV Percentile for both equities and futures.
+
+    Note: If iv_percentile is None (data unavailable), the symbol fails this filter.
+    This is conservative - we only trade when we have confirmed statistical context.
+    """
+
+    def __init__(self, min_percentile: float):
+        self.min_percentile = min_percentile
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        # If threshold is 0 or negative, pass everything (filter disabled)
+        if self.min_percentile <= 0:
+            return True
+
+        # Require IV Percentile data for all symbols (equities and futures)
+        iv_pct = metrics.get("iv_percentile")
+        if iv_pct is None:
+            return False
+
+        try:
+            # Tastytrade client already normalizes to 0-100 range
+            # (e.g., 77.33 for 77th percentile)
+            iv_pct_val = float(iv_pct)
+            return iv_pct_val >= self.min_percentile
+        except (ValueError, TypeError):
+            return False
+
+
+class VolatilityMomentumSpec(Specification[dict[str, Any]]):
+    """
+    Universal compression detection (not VRP-gated).
+
+    Rejects symbols where HV30/HV90 < min_ratio (volatility contracting).
+    Complements VolatilityTrapSpec by checking momentum across ALL VRP ranges.
+
+    Use Cases:
+    - Post-earnings calm (HV30 < HV90 as recent vol drops)
+    - Market regime shift (vol trending down)
+    - Prevents whipsaw from trading "rich" IV when HV is collapsing
+
+    Args:
+        min_momentum_ratio: Minimum HV30/HV90 ratio (default 0.85)
+            - 1.0 = HV30 equals HV90 (neutral)
+            - 0.85 = HV30 is 15% below HV90 (moderate contraction, OK)
+            - 0.70 = HV30 is 30% below HV90 (severe contraction, reject)
+
+    Example:
+        Symbol: XYZ
+        HV30: 15%
+        HV90: 25%
+        Momentum: 15/25 = 0.60 (40% contraction)
+
+        With min_momentum_ratio = 0.85:
+        Result: REJECT (0.60 < 0.85) - vol collapsing too fast
+
+    Note: Added in ADR-0011 to fill VRP 1.10-1.30 blind spot.
+    """
+
+    def __init__(self, min_momentum_ratio: float = 0.85):
+        self.min_momentum_ratio = min_momentum_ratio
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        hv30 = metrics.get("hv30")
+        hv90 = metrics.get("hv90")
+
+        # Can't determine momentum - pass through
+        if not hv30 or not hv90 or float(hv90) <= 0:
+            return True
+
+        try:
+            momentum = float(hv30) / float(hv90)
+            return momentum >= self.min_momentum_ratio
+        except (ValueError, TypeError, ZeroDivisionError):
+            return True  # Data error - don't reject
+
+
+class RetailEfficiencySpec(Specification[dict[str, Any]]):
+    """
+    Ensures an underlying meets minimum price floor for retail trading.
+
+    Criteria:
+    - Minimum underlying price ($25) to ensure manageable Gamma and strike density.
+    - Futures symbols are exempt from this check.
+    """
+
+    def __init__(self, min_price: float):
+        self.min_price = min_price
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        symbol = str(metrics.get("symbol", ""))
+        if symbol.startswith("/"):
+            return True  # Futures exemption
+
+        # Price Check
+        price_raw = metrics.get("price")
+        try:
+            price = float(price_raw) if price_raw is not None else 0.0
+        except (ValueError, TypeError):
+            price = 0.0
+
+        if price < self.min_price:
+            return False
+
+        return True
+
+
+class SlippageSpec(Specification[dict[str, Any]]):
+    """
+    Filters symbols based on bid/ask spread to prevent excessive slippage.
+
+    High bid/ask spreads indicate illiquidity and result in friction costs
+    that can negate the edge from volatility risk premium strategies.
+
+    Args:
+        max_slippage: Maximum allowed bid/ask spread as percentage (e.g., 0.05 for 5%)
+    """
+
+    def __init__(self, max_slippage: float):
+        self.max_slippage = max_slippage
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        from variance.liquidity import SlippageCalculator
+
+        has_quote, calculated_slippage = SlippageCalculator.calculate_max_slippage(metrics)
+
+        # If no quote data available, pass the check (can't verify)
+        if not has_quote:
+            return True
+
+        return calculated_slippage <= self.max_slippage
+
+
+class YieldSpec(Specification[dict[str, Any]]):
+    """
+    Filters based on Estimated Monthly Yield (Normalized to 30 days).
+
+    Formula: (Straddle Mid / (Price * 0.20)) * (30 / 45) * 100.0
+
+    This proxies the 'Juice' of the trade (Return on Capital).
+    Rejects symbols where the premium collected is too small relative to the capital required,
+    even if the VRP/IVP is high.
+
+    Args:
+        min_yield: Minimum 30-day normalized yield percentage (e.g., 3.0 for 3%)
+    """
+
+    def __init__(self, min_yield: float):
+        self.min_yield = min_yield
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        # If threshold is <= 0, filter is disabled
+        if self.min_yield <= 0:
+            return True
+
+        price_raw = metrics.get("price")
+        if price_raw is None:
+            return False
+
+        try:
+            price = float(price_raw)
+            if price <= 0:
+                return False
+
+            call_bid = metrics.get("call_bid")
+            call_ask = metrics.get("call_ask")
+            put_bid = metrics.get("put_bid")
+            put_ask = metrics.get("put_ask")
+
+            # Fallback to ATM values if explicit bid/ask missing
+            if all(v is None for v in [call_bid, call_ask, put_bid, put_ask]):
+                bid = float(metrics.get("atm_bid", 0.0))
+                ask = float(metrics.get("atm_ask", 0.0))
+            else:
+                # Approximate straddle
+                c_bid = float(call_bid or 0.0)
+                c_ask = float(call_ask or 0.0)
+                p_bid = float(put_bid or 0.0)
+                p_ask = float(put_ask or 0.0)
+                bid = c_bid + p_bid
+                ask = c_ask + p_ask
+
+            mid = (bid + ask) / 2
+            if mid <= 0:
+                return False
+
+            # BPR estimate (naked strangle proxy)
+            bpr_est = price * 0.20
+            if bpr_est <= 0:
+                return False
+
+            # 30-day normalized yield from 45 DTE baseline
+            yield_pct = (mid / bpr_est) * (30.0 / 45.0) * 100.0
+
+            return yield_pct >= self.min_yield
+
+        except (ValueError, TypeError):
+            return False
+
+
+class ScalableGateSpec(Specification[dict[str, Any]]):
+    """
+    Standalone gate to detect if an existing position is 'Scalable'.
+    Permits re-entry/sizing if the volatility edge has surged significantly.
+    """
+
+    def __init__(self, markup_threshold: float, divergence_threshold: float):
+        self.markup_threshold = markup_threshold
+        self.divergence_threshold = divergence_threshold
+
+    def is_satisfied_by(self, metrics: dict[str, Any]) -> bool:
+        vtm_raw = metrics.get("vrp_tactical_markup")
+        vtm = float(vtm_raw) if vtm_raw is not None else 0.0
+
+        vsm_raw = metrics.get("vrp_structural")
+        vsm = float(vsm_raw) if vsm_raw is not None else 1.0
+
+        divergence = (vtm + 1.0) / vsm if vsm > 0 else 1.0
+
+        # Trigger on either absolute markup surge or relative divergence momentum
+        return vtm >= self.markup_threshold or divergence >= self.divergence_threshold

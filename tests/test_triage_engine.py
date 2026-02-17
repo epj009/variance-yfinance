@@ -259,8 +259,7 @@ class TestGammaScaling:
         assert result["gamma"] == pytest.approx(2.0)
 
     def test_beta_gamma_short_circuits_scaling(self, make_option_leg, make_triage_context):
-        leg = make_option_leg(delta=10.0, beta_delta=20.0, gamma=0.5)
-        leg["beta_gamma"] = "1.25"
+        leg = make_option_leg(delta=10.0, beta_delta=20.0, gamma=0.5, beta_gamma=1.25)
         context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
 
         result = triage_engine.triage_cluster([leg], context)
@@ -311,14 +310,18 @@ class TestTriageClusterGamma:
 
         assert result["action_code"] == "GAMMA"
 
-    def test_no_gamma_at_threshold(self, make_option_leg, make_triage_context):
-        """DTE=21 (at threshold) does not trigger GAMMA."""
-        leg = make_option_leg(dte=21)
+    def test_gamma_at_threshold(self, make_option_leg, make_triage_context):
+        """DTE=21 (at threshold) triggers GAMMA."""
+        leg = make_option_leg(
+            dte=21,
+            cost=-100.0,
+            pl_open=20.0,  # 20% profit - below HARVEST threshold
+        )
         context = make_triage_context(market_data={"AAPL": {"vrp_structural": 1.0}})
 
         result = triage_engine.triage_cluster([leg], context)
 
-        assert result["action_code"] != "GAMMA"
+        assert result["action_code"] == "GAMMA"
 
     def test_no_gamma_zero_dte(self, make_option_leg, make_triage_context):
         """Zero DTE does not trigger GAMMA (likely other action)."""

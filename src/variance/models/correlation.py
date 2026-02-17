@@ -5,10 +5,13 @@ Calculates rolling correlation matrices and portfolio-relative correlation
 to detect macro concentration risks.
 """
 
+import logging
 from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 class CorrelationEngine:
@@ -41,8 +44,23 @@ class CorrelationEngine:
         a = returns_a[-min_len:]
         b = returns_b[-min_len:]
 
+        # Validate input data quality
+        if np.any(np.isnan(a)) or np.any(np.isnan(b)):
+            logger.warning("NaN detected in returns for correlation calculation")
+            return 0.0
+        if np.any(np.isinf(a)) or np.any(np.isinf(b)):
+            logger.warning("Inf detected in returns for correlation calculation")
+            return 0.0
+
         correlation_matrix = np.corrcoef(a, b)
-        return float(correlation_matrix[0, 1])
+        corr_value = correlation_matrix[0, 1]
+
+        # Validate output
+        if np.isnan(corr_value) or np.isinf(corr_value):
+            logger.warning("Invalid correlation result (NaN/Inf)")
+            return 0.0
+
+        return float(corr_value)
 
     @staticmethod
     def get_portfolio_proxy_returns(

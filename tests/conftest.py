@@ -2,15 +2,15 @@
 Shared pytest fixtures for test suite.
 """
 
-from datetime import datetime
-from unittest.mock import Mock
+import importlib
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from variance import get_market_data
 from variance.interfaces import IMarketDataProvider, MarketData
+from variance.market_data import settings as md_settings
+from variance.market_data.cache import MarketCache
+from variance.models import Position
 
 
 class MockMarketDataProvider(IMarketDataProvider):
@@ -19,7 +19,13 @@ class MockMarketDataProvider(IMarketDataProvider):
     def __init__(self, data: dict):
         self.data = data
 
-    def get_market_data(self, symbols: list[str]) -> dict[str, MarketData]:
+    def get_market_data(
+        self,
+        symbols: list[str],
+        *,
+        include_returns: bool = False,
+        include_option_quotes: bool = False,
+    ) -> dict[str, MarketData]:
         return {s: self.data[s] for s in symbols if s in self.data}
 
 
@@ -39,8 +45,8 @@ def temp_cache_db(tmp_path, monkeypatch):
     Creates isolated SQLite cache database per test.
 
     - Creates temp .db file in tmp_path
-    - Monkeypatches get_market_data.DB_PATH
-    - Replaces get_market_data.cache with fresh MarketCache instance
+    - Monkeypatches market_data.settings.DB_PATH
+    - Replaces default cache instances with a fresh MarketCache
     - Cleans up after test
 
     Returns:
@@ -49,17 +55,22 @@ def temp_cache_db(tmp_path, monkeypatch):
     db_path = tmp_path / "test_cache.db"
 
     # Patch module-level DB_PATH
-    monkeypatch.setattr(get_market_data, "DB_PATH", str(db_path))
+    monkeypatch.setattr(md_settings, "DB_PATH", str(db_path))
 
-    # Create fresh cache instance
-    fresh_cache = get_market_data.MarketCache(str(db_path))
-    monkeypatch.setattr(get_market_data, "cache", fresh_cache)
+    fresh_cache = MarketCache(str(db_path))
+    cache_mod = importlib.import_module("variance.market_data.cache")
+    pure_mod = importlib.import_module("variance.market_data.pure_tastytrade_provider")
+    service_mod = importlib.import_module("variance.market_data.service")
+
+    monkeypatch.setattr(cache_mod, "cache", fresh_cache)
+    monkeypatch.setattr(pure_mod, "cache", fresh_cache)
+    monkeypatch.setattr(service_mod, "default_cache", fresh_cache)
 
     yield db_path
 
     # Explicit cleanup to prevent ResourceWarning
     try:
-        fresh_cache.conn.close()
+        fresh_cache.close_all()
     except Exception:
         pass  # Already closed or doesn't exist
 
@@ -104,75 +115,6 @@ def mock_option_chain():
     )
 
     return calls, puts
-
-
-@pytest.fixture
-def mock_ticker_factory():
-    """
-    Factory fixture that creates mock yfinance Ticker objects with configurable behavior.
-
-    Usage:
-        ticker = mock_ticker_factory(
-            symbol="AAPL",
-            price=150.0,
-            history_data=pd.DataFrame(...),
-            options=["2025-01-17", "2025-02-21"],
-            option_chain_calls=pd.DataFrame(...),
-            option_chain_puts=pd.DataFrame(...),
-            info={"sector": "Technology"},
-            calendar=pd.DataFrame(...),
-        )
-
-    Returns:
-        Mock: Configured yfinance.Ticker mock object
-    """
-
-    def _create_ticker(
-        symbol: str = "TEST",
-        price: float = 100.0,
-        history_data: pd.DataFrame = None,
-        options: list = None,
-        option_chain_calls: pd.DataFrame = None,
-        option_chain_puts: pd.DataFrame = None,
-        info: dict = None,
-        calendar: pd.DataFrame = None,
-    ):
-        mock = Mock()
-
-        # fast_info property
-        mock.fast_info = Mock()
-        mock.fast_info.last_price = price
-
-        # history() method
-        if history_data is None:
-            # Generate 252 days of dummy price data
-            dates = pd.date_range(end=datetime.now(), periods=252, freq="D")
-            history_data = pd.DataFrame(
-                {"Close": np.random.normal(price, price * 0.02, 252)}, index=dates
-            )
-        mock.history.return_value = history_data
-
-        # options property
-        mock.options = options if options is not None else ["2025-02-15"]
-
-        # option_chain() method
-        def _option_chain(exp_date):
-            chain = Mock()
-            chain.calls = option_chain_calls if option_chain_calls is not None else pd.DataFrame()
-            chain.puts = option_chain_puts if option_chain_puts is not None else pd.DataFrame()
-            return chain
-
-        mock.option_chain = _option_chain
-
-        # info property
-        mock.info = info if info is not None else {"sector": "Technology"}
-
-        # calendar property
-        mock.calendar = calendar if calendar is not None else pd.DataFrame()
-
-        return mock
-
-    return _create_ticker
 
 
 @pytest.fixture
@@ -222,7 +164,7 @@ def mock_strategies():
 
 @pytest.fixture
 def make_option_leg():
-    """Factory for creating normalized option leg dictionaries."""
+    """Factory for creating normalized option leg positions."""
 
     def _make(
         symbol: str = "AAPL",
@@ -234,13 +176,14 @@ def make_option_leg():
         pl_open: float = 50.0,
         delta: float = 10.0,
         beta_delta: float = 10.0,
+        beta_gamma: float | None = None,
         theta: float = -2.0,
         gamma: float = 0.05,
         bid: float = 1.00,
         ask: float = 1.10,
         underlying_price: float = 155.0,
-    ) -> dict:
-        return {
+    ):
+        row = {
             "Symbol": f"{symbol} 250117P{int(strike)}",
             "Type": "Option",
             "Call/Put": call_put,
@@ -252,6 +195,7 @@ def make_option_leg():
             "P/L Open": str(pl_open),
             "Delta": str(delta),
             "beta_delta": str(beta_delta),
+            "beta_gamma": "" if beta_gamma is None else str(beta_gamma),
             "Theta": str(theta),
             "Gamma": str(gamma),
             "Bid": str(bid),
@@ -259,6 +203,7 @@ def make_option_leg():
             "Underlying Last Price": str(underlying_price),
             "Mark": str((bid + ask) / 2),
         }
+        return Position.from_row(row)
 
     return _make
 

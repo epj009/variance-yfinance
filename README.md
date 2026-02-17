@@ -3,12 +3,48 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Philosophy: Tastylive](https://img.shields.io/badge/Philosophy-Tastylive-red.svg)](https://www.tastylive.com/)
+[![Test Coverage: 64%](https://img.shields.io/badge/coverage-64%25-yellow.svg)]()
 
 **Variance** is a quantitative analysis engine designed for systematic options traders. It transforms raw market data and broker positions into an institutional-grade triage dashboard, focusing exclusively on **Price**, **Volatility**, and **Mechanics**.
 
 Built on the Tastylive philosophy, Variance rejects market narratives in favor of statistical edge, specifically exploiting the **Volatility Risk Premium (VRP)** through net-premium selling strategies.
 
-Variance uses institution-grade **Logarithmic Distance** for all volatility calculations, ensuring mathematical objectivity across different asset scales and price regimes.
+Variance uses **ratio-based VRP calculation** (IV/HV) for mathematical objectivity across different asset scales and volatility regimes, aligning with institutional market-making conventions.
+
+---
+
+## 📚 **New Developer Onboarding**
+
+**For contractors or AI agents taking over this project:**
+
+| Document | Purpose | Time to Read |
+|----------|---------|--------------|
+| **[HANDOFF.md](docs/HANDOFF.md)** | Complete project overview, architecture, patterns, workflow | 30 min |
+| **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** | One-page cheat sheet for daily commands | 5 min |
+| **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** | Solutions to common issues | As needed |
+| **[DEVELOPMENT_PRIORITIES.md](docs/DEVELOPMENT_PRIORITIES.md)** | What to work on next, priority backlog | 15 min |
+
+**Quick Start Path:**
+1. Read [HANDOFF.md](docs/HANDOFF.md) for complete context
+2. Keep [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) open while coding
+3. Check [DEVELOPMENT_PRIORITIES.md](docs/DEVELOPMENT_PRIORITIES.md) for next tasks
+4. Refer to [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) when stuck
+
+**Documentation Structure:**
+- **`docs/`** - Core onboarding and reference documentation
+- **`docs/adr/`** - Architecture Decision Records (ADRs)
+- **`docs/archive/`** - Implemented RFCs (core patterns: 008, 016, 017, 018, 021)
+- **`docs/research/`** - Quantitative analysis and API research
+- **`docs/user-guide/`** - End-user guides (filtering, config, diagnostics)
+- **`docs/implementation/`** - Technical implementation specs
+- **`docs/BLUEPRINT.md`** - Deep architectural dive (data layers, caching, pipeline)
+
+**Current Status (January 2026):**
+- **Version:** 0.1.0 (Active Development)
+- **Test Coverage:** 64% (Target: 75%)
+- **Data Provider:** Tastytrade REST API + DXLink streaming (99%+ HV coverage)
+- **Quality Gates:** All passing (ruff, mypy, radon-cc)
+- **Recent Work:** Parallel option chain fetching (12.9x speedup), filter diagnostics, documentation cleanup
 
 ---
 
@@ -23,10 +59,13 @@ Variance has been refactored into a modular, pattern-driven quantitative engine:
 - **`src/variance/get_market_data.py`**: Resilient data layer with a thread-safe SQLite (WAL) cache.
 
 ### 📐 The Quantitative Standard
-Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance operates in **Logarithmic Space**.
-- **Scale Symmetry**: A 1-point move in a low-vol asset has the same mathematical weight as a relative move in a high-vol asset.
-- **Z-Score Foundational**: All signals are derived from how many units of historical movement the current price covers.
-- **Stoic Logic**: "Subtraction is noise; Division is signal."
+Unlike retail tools that use arithmetic subtraction ($IV - HV$), Variance uses **ratio-based normalization**.
+- **VRP Calculation**: Linear ratios ($IV / HV$) ensure proportional scaling - doubling IV doubles premium.
+- **Market Convention**: Professionals quote "IV trading at 1.2x realized" - we speak the same language.
+- **Credit Scaling**: Options premium scales linearly with IV, making ratios mathematically correct for option selling.
+- **Empirically Calibrated**: VRP thresholds adjusted via backtesting to maintain 30-40% pass rates.
+
+📖 **[VRP Methodology Explained](docs/user-guide/vrp-methodology-explained.md)** - Understand the two-stage screening funnel: Structural (historical edge) + Tactical (current edge), and what these metrics prove vs assume.
 
 ---
 
@@ -36,32 +75,25 @@ Variance provides a high-fidelity terminal interface (TUI) for real-time portfol
 
 ```text
 ╭──────────────── THE CAPITAL CONSOLE ─────────────────╮
-│ • Net Liq:  $50,000.00        • Open P/L: $1,110.00  │
-│ • BP Usage: 38.1% (Deploy)    • Status:   Harvesting │
+│ • Net Liq:  $50,000.00        • Open P/L: $3,336.26  │
+│ • BP Usage: 28.5% (Deploy)    • Status:   Harvesting │
 ╰──────────────────────────────────────────────────────╯
-╭──────────────────────────────────────────────────────────────────────────────────╮
-│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)               │
-│ • Tilt:      Neutral (+12 Δ)                 • Downside:  $-3,541.08 (Crash -5%) │
-│ • Theta:     $198.00 → $253.62 (+28% VRP)    • Upside:    $2,858.92 (Rally +5%)  │
-│ • Stability: 0.06 (Stable)                   • Mix:       🌍 Diversified         │
-│                                                                                  │
-╰──────────────────────────────────────────────────────────────────────────────────╯
-```
-                                                                                    
-📊 DELTA SPECTROGRAPH (Portfolio Drag)                                              
-                                                                                    
-      1     SPY            ┃┃┃┃┃┃┃┃┃┃┃┃┃┃┃                                +12.50 Δ   
-      2     /ES            ┃┃┃┃┃┃┃┃┃┃                                      -8.40 Δ   
-      3     IWM            ┃┃┃┃┃┃                                          +5.20 Δ   
-                                                                                    
-📂 PORTFOLIO OVERVIEW
-├── 🚨 ACTION REQUIRED (3)
-│   ├── 💰 SPY (Iron Condor) $200.00 [HARVEST] 
-│   │   └── 27 DTE: Profit 66.7% (Target: 50%)
-│   ├── 🛡️ /ES (Short Strangle) $-800.00 [DEFENSE] 
-│   │   └── 12 DTE: Tested & < 21 DTE
-│   └── 🛡️ IWM (Short Put) $250.00 [GAMMA] 
-│       └── 12 DTE: < 21 DTE Risk
+╭───────────────────────────────────────────────────────────────────────────────────╮
+│ THE GYROSCOPE (Risk)                         THE ENGINE (Exposure)                │
+│ • Tilt:      Neutral (27 Δ)                  • Downside:  $-1,040.09 (Crash -5%)  │
+│ • Theta:     $62.55 → $129.54 (+107% VRP)    • Upside:    $812.20 (Rally +5%)     │
+│ • Stability: 0.21 (Stable)                   • Mix:       🌍 Diversified (0.15 ρ) │
+╰───────────────────────────────────────────────────────────────────────────────────╯
+
+🔍 VOL SCREENER OPPORTUNITIES
+╭──────────┬───────────┬─────────┬─────────┬───────┬───────┬─────────┬───────┬──────────────┬─────────╮
+│ Symbol   │     Price │  VRP(S) │  VRP(T) │   IVP │   Rho │   Yield │  Earn │ Signal       │  Vote   │
+├──────────┼───────────┼─────────┼─────────┼───────┼───────┼─────────┼───────┼──────────────┼─────────┤
+│ /6A      │     $0.67 │    1.59 │    2.99 │   100 │  0.47 │  509.3% │   N/A │ RICH ↑↑      │  SCALE  │
+│ WB       │    $10.08 │   10.09 │   18.24 │    64 │  0.34 │   12.4% │   -36 │ RICH ↑↑      │   BUY   │
+│ AHCO     │    $10.24 │    9.32 │   12.36 │    99 │ -0.17 │   12.6% │   -50 │ RICH ↑↑      │   BUY   │
+│ VALE     │    $13.15 │    1.75 │    1.71 │    58 │  0.51 │    8.6% │    56 │ RICH         │  LEAN   │
+╰──────────┴───────────┴─────────┴─────────┴───────┴───────┴─────────┴───────┴──────────────┴─────────╯
 ```
 
 ---
@@ -71,30 +103,34 @@ Variance provides a high-fidelity terminal interface (TUI) for real-time portfol
 Variance is engineered to enforce three primary mechanical pillars:
 
 1.  **Sell Premium (The Edge):** We are net sellers of options to harvest time decay (Theta) and exploit the fact that implied volatility (IV) historically overstates actual movement (HV).
-2.  **Alpha-Theta (The Engine):** We optimize for **Expected Yield**. Variance adjusts raw Theta for VRP to identify "Toxic Theta" (underpaid risk) vs. "Alpha Theta" (overpaid premium).
+2.  **Alpha-Theta (The Engine):** We optimize for **Expected Yield**. Variance adjusts raw Theta for institutional VRP ratios to identify "Toxic Theta" (underpaid risk) vs. "Alpha Theta" (overpaid premium).
 3.  **Law of Large Numbers:** We prioritize **Occurrences over Home Runs**. The system nudges you to "Trade Small, Trade Often" to allow probabilities to realize over hundreds of independent trades.
 
 ---
 
 ## 🚀 Key Features
 
-### 📡 Dual-VRP Synthesis
-Monitors both **Structural (252d)** and **Tactical (20d)** volatility regimes. The engine identifies dislocations where the cost of insurance is high relative to both long-term norms and immediate movement.
+### 📡 Dual-VRP Synthesis (Tastytrade Native)
+Monitors both **Structural (90d)** and **Tactical (30d)** volatility regimes using institution-grade data. The engine identifies alpha-rich momentum where the cost of insurance is expanding relative to long-term norms.
 
 ### 🛡️ Probabilistic Triage
 Automatically flags positions using unified risk rules:
 *   **💰 HARVEST:** Profit > 50% (Lock in winners).
 *   **🛡️ DEFENSE:** Positions entering the 21-DTE Gamma Zone or breaching strikes.
 *   **💀 TOXIC:** Negative expectancy trades where statistical cost > premium collected.
-*   **🐳 SIZE RISK:** Individual positions contributing > 5% of Net Liq to a crash scenario.
+*   **➕ SCALABLE:** Positions where the volatility edge is surging (VRP Divergence ↑↑).
 
-### 🌀 Resilient Hybrid Proxies
-To solve the "Data Blackout" problem in futures (CAD, Bonds, Oil), Variance employs a **Hybrid Idiosyncratic Model**:
-*   **IV Numerator:** Pulled from liquid category benchmarks (`FXE`, `IEF`, `^VIX`).
-*   **HV Denominator:** Pulled from the actual asset's idiosyncratic price history.
+### 🚦 The Retail Efficiency Gate
+A mechanical habit-enforcer that filters out "toxic" retail trades:
+*   **Price Floor ($25):** Ensures manageable Gamma and strike density for rollability.
+*   **Slippage Guard:** Rejects options with wide Bid/Ask spreads (> 5%).
 
-### 💧 Smart-Gate Liquidity Recovery
-Never miss an equity trade due to stale volume data. Variance automatically switches to **Spread Analysis** when reported volume is zero, accepting any symbol with a tight, tradable Bid/Ask market.
+### 🗳️ Institutional Allocation Vote
+A definitive clinical recommendation for every candidate:
+*   **BUY:** High statistical edge combined with low portfolio correlation.
+*   **SCALE:** Recommendation to increase size on existing surging alpha.
+*   **LEAN:** Good opportunity but requires caution on diversification.
+*   **AVOID:** High-risk setups with excessive correlation or poor mechanics.
 
 ---
 
@@ -102,13 +138,14 @@ Never miss an equity trade due to stale volume data. Variance automatically swit
 
 ### Prerequisites
 *   Python 3.10+
-*   A CSV export of your positions (Standard Tastytrade/ThinkOrSwim format).
+*   Tastytrade API Credentials (OAuth)
+*   A CSV export of your positions (Standard Tastytrade format).
 
 ### Installation
 
 ```bash
 # 1. Clone and Enter
-git clone https://github.com/epj009/variance-yfinance.git variance
+git clone https://github.com/epj009/variance.git variance
 cd variance
 
 # 2. Setup Environment
@@ -116,14 +153,18 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Configure Assistant (Optional)
-mkdir -p .gemini
-cp variance-system-prompt.md .gemini/GEMINI.md
+# 3. Configure Credentials
+# Create a .env.tastytrade file:
+export TT_CLIENT_ID='your_id'
+export TT_CLIENT_SECRET='your_secret'
+export TT_REFRESH_TOKEN='your_token'
 ```
 
 ---
 
 ## 🚀 Usage
+
+**Note**: Both `./variance` and `./screen` automatically load Tastytrade credentials from `.env.tastytrade` if present. No need to manually source the file.
 
 ### 1. Daily Portfolio Triage
 The primary command for managing existing risk. It finds your latest CSV, runs the analysis pipeline, and renders the TUI.
@@ -134,8 +175,26 @@ The primary command for managing existing risk. It finds your latest CSV, runs t
 ### 2. Volatility Screener
 Scan your watchlist for high-probability entries based on tactical VRP markups.
 ```bash
-python3 scripts/vol_screener.py
+./screen                         # Default: balanced profile (pretty output)
+./screen --profile broad         # Lower thresholds, more candidates
+./screen --profile aggressive    # Allows lower-priced stocks ($10+ vs $25+)
+./screen --profile high_quality  # Stricter filters, highest conviction
+./screen --show-all              # Show ALL symbols, bypass all filters (debugging)
+./screen --json                  # Raw JSON output (for scripting/piping)
 ```
+
+**Profiles:**
+- **balanced** (default): VRP ≥ 1.0, Price ≥ $25, IV% ≥ 50, TT Rating ≥ 4 (retail-safe liquidity)
+- **broad**: VRP ≥ 0.85, allows illiquid, IV% ≥ 30 (maximum opportunities)
+- **aggressive**: VRP ≥ 1.0, Price ≥ $10, IV% ≥ 40, TT Rating ≥ 3 (accepts fair liquidity, blue-chip friendly)
+- **high_quality**: VRP ≥ 1.2, Price ≥ $25, IV% ≥ 70, TT Rating ≥ 4 (institutional grade)
+
+**Output includes:**
+- Candidates sorted by score (highest first)
+- VRP Structural and Tactical metrics
+- IV Percentile and signal classification
+- Filter diagnostics showing why symbols were rejected
+- Data quality warnings
 
 ### 3. Quantitative Research Lab
 Run deeper audits on your portfolio's "Alpha-Theta" quality and sector concentration.

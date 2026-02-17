@@ -44,6 +44,8 @@ class TestFuturesProxyCorrelationUnit:
 
         # Should use SPY proxy and calculate correlation
         result = spec.is_satisfied_by(es_metrics)
+        # Enrich with correlation metadata (CQS pattern)
+        spec.enrich(es_metrics)
 
         # Assertions
         assert "correlation_via_proxy" in es_metrics
@@ -77,6 +79,8 @@ class TestFuturesProxyCorrelationUnit:
             "vrp_structural": 0.85,
         }
         spec.is_satisfied_by(es_metrics)
+        # Enrich with correlation metadata (CQS pattern)
+        spec.enrich(es_metrics)
 
         # Should NOT use proxy since it has returns
         assert "correlation_via_proxy" not in es_metrics
@@ -111,6 +115,8 @@ class TestFuturesProxyCorrelationUnit:
         }
 
         result = spec.is_satisfied_by(gc_metrics)
+        # Enrich with correlation metadata (CQS pattern)
+        spec.enrich(gc_metrics)
 
         # Should use GLD proxy for correlation calculation
         assert gc_metrics["correlation_via_proxy"] is True
@@ -166,6 +172,8 @@ class TestFuturesProxyCorrelationUnit:
         }
 
         spec.is_satisfied_by(aapl_metrics)
+        # Enrich with correlation metadata (CQS pattern)
+        spec.enrich(aapl_metrics)
 
         # Should use direct returns, no proxy
         assert "correlation_via_proxy" not in aapl_metrics

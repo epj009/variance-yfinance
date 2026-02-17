@@ -7,6 +7,8 @@ Defines the immutable data objects passed through the Triage Chain.
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from variance.models.position import Position
+
 
 @dataclass(frozen=True)
 class TriageTag:
@@ -34,7 +36,7 @@ class TriageRequest:
     pl_pct: Optional[float]
     days_held: int
     price: float
-    legs: tuple[dict[str, Any], ...]
+    legs: tuple[Position, ...]
 
     # Market Context
     vrp_structural: Optional[float]
@@ -59,8 +61,21 @@ class TriageRequest:
     beta_price: Optional[float] = None
     beta_iv: Optional[float] = None
 
+    # IV-HV Spread Metrics (for P/L expectations)
+    iv_hv_spread_points: Optional[float] = None
+    expected_daily_swing_pct: Optional[float] = None
+    theta_decay_quality: Optional[str] = None
+
     # Multi-Tag System (collector pattern)
     tags: tuple[TriageTag, ...] = ()
+
+    def __post_init__(self) -> None:
+        for idx, leg in enumerate(self.legs):
+            if not isinstance(leg, Position):
+                raise TypeError(
+                    f"TriageRequest expects Position legs; got {type(leg).__name__} "
+                    f"at index {idx}. Use PortfolioParser.parse_positions or Position.from_row."
+                )
 
     def with_tag(self, tag: TriageTag) -> "TriageRequest":
         """Returns a new request with an additional tag."""

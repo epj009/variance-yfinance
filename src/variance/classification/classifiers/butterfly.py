@@ -2,9 +2,9 @@
 Butterfly Strategy Classifier
 """
 
-from typing import Any, Optional
+from typing import Optional
 
-from variance.portfolio_parser import parse_currency
+from variance.models.position import Position
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -12,10 +12,10 @@ from ..base import ClassificationContext, StrategyClassifier
 class ButterflyClassifier(StrategyClassifier):
     """Identifies Butterflies and Broken Wing variants."""
 
-    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[Position], ctx: ClassificationContext) -> bool:
         return self._classify(ctx) is not None
 
-    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
+    def classify(self, legs: list[Position], ctx: ClassificationContext) -> str:
         return self._classify(ctx) or "Custom/Combo"
 
     def _classify(self, ctx: ClassificationContext) -> Optional[str]:
@@ -26,10 +26,10 @@ class ButterflyClassifier(StrategyClassifier):
 
         legs = []
         for leg in side_legs:
-            qty = parse_currency(leg.get("Quantity", "0"))
+            qty = float(leg.quantity)
             if qty == 0:
                 continue
-            strike = parse_currency(leg.get("Strike Price", "0"))
+            strike = float(leg.strike or 0.0)
             legs.append((strike, qty))
 
         if len(legs) not in {3, 4}:

@@ -4,28 +4,38 @@ Screening Pipeline (Template Method)
 Defines the skeleton of the volatility screening algorithm.
 """
 
+import logging
+import os
+import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
 from variance.config_loader import ConfigBundle
 
+from .benchmark import PipelineBenchmark
 from .enrichment.base import EnrichmentStrategy
+
+if TYPE_CHECKING:
+    from variance.vol_screener import ScreenerConfig
 
 
 @dataclass
 class ScreeningContext:
     """Shared state passed through the screening pipeline."""
 
-    config: Any  # ScreenerConfig
+    config: "ScreenerConfig"
     config_bundle: ConfigBundle
     symbols: list[str] = field(default_factory=list)
     raw_data: dict[str, Any] = field(default_factory=dict)
     market_data_diagnostics: dict[str, int] = field(default_factory=dict)
     candidates: list[dict[str, Any]] = field(default_factory=list)
+    scanned_symbols: list[dict[str, Any]] = field(default_factory=list)
     counters: dict[str, int] = field(default_factory=dict)
+    debug_rejections: dict[str, str] = field(default_factory=dict)
     portfolio_returns: Optional[np.ndarray] = None
+    benchmark: Optional[PipelineBenchmark] = None
 
 
 class ScreeningPipeline:
@@ -35,7 +45,7 @@ class ScreeningPipeline:
 
     def __init__(
         self,
-        config: Any,
+        config: "ScreenerConfig",
         config_bundle: ConfigBundle,
         portfolio_returns: Optional[np.ndarray] = None,
     ):
@@ -48,12 +58,73 @@ class ScreeningPipeline:
         """
         The Template Method: Defines the fixed execution order.
         """
-        self._load_symbols()
-        self._fetch_data()
-        self._filter_candidates()
-        self._enrich_candidates()
-        self._sort_and_dedupe()
-        return self._build_report()
+        logger = logging.getLogger(__name__)
+
+        # Enable benchmarking if VARIANCE_BENCHMARK env var is set
+        enable_benchmark = os.getenv("VARIANCE_BENCHMARK", "").lower() in ("1", "true", "yes")
+        if enable_benchmark:
+            self.ctx.benchmark = PipelineBenchmark()
+            self.ctx.benchmark.start()
+
+        start_time = time.time()
+        logger.info("Screening pipeline started")
+        try:
+            with self._measure("1. Load Symbols"):
+                self._load_symbols()
+            logger.info("Loaded %s symbols from watchlist", len(self.ctx.symbols))
+
+            with self._measure("2. Fetch Market Data", len(self.ctx.symbols)):
+                self._fetch_data()
+            logger.info("Fetched market data for %s symbols", len(self.ctx.raw_data))
+
+            with self._measure("3. Filter Candidates", len(self.ctx.raw_data)):
+                self._filter_candidates()
+            raw_count = len(self.ctx.raw_data)
+            cand_count = len(self.ctx.candidates)
+            pass_rate = (cand_count / raw_count * 100.0) if raw_count else 0.0
+            logger.info(
+                "Filtering complete: %s candidates from %s symbols",
+                cand_count,
+                raw_count,
+                extra={"pass_rate": f"{pass_rate:.1f}%"},
+            )
+
+            with self._measure("4. Enrich Candidates", cand_count):
+                self._enrich_candidates()
+            logger.debug("Enrichment complete")
+
+            with self._measure("5. Sort & Dedupe", cand_count):
+                self._sort_and_dedupe()
+
+            with self._measure("6. Build Report"):
+                report = self._build_report()
+
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.info("Screening pipeline completed in %.0fms", elapsed_ms)
+
+            if self.ctx.benchmark:
+                self.ctx.benchmark.finish()
+                self.ctx.benchmark.print_report()
+
+            return report
+        except Exception as exc:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Screening pipeline failed after %.0fms: %s",
+                elapsed_ms,
+                exc,
+                exc_info=True,
+            )
+            raise
+
+    def _measure(self, name: str, items: int = 0) -> Any:
+        """Helper to conditionally measure if benchmarking is enabled."""
+        if self.ctx.benchmark:
+            return self.ctx.benchmark.measure(name, items)
+        else:
+            from contextlib import nullcontext
+
+            return nullcontext()
 
     def _load_symbols(self) -> None:
         """Step 1: Load from watchlist (Hook)."""
@@ -68,19 +139,28 @@ class ScreeningPipeline:
         """Step 2: Fetch market data (Hook)."""
         from .steps.fetch import fetch_market_data
 
-        self.ctx.raw_data, self.ctx.market_data_diagnostics = fetch_market_data(self.ctx.symbols)
+        rules = self.ctx.config_bundle.get("trading_rules", {})
+        min_yield = float(rules.get("min_yield_percent", 0.0))
+        include_option_quotes = min_yield > 0
+        self.ctx.raw_data, self.ctx.market_data_diagnostics = fetch_market_data(
+            self.ctx.symbols, include_option_quotes=include_option_quotes
+        )
 
     def _filter_candidates(self) -> None:
         """Step 3: Apply specifications (Hook)."""
         from .steps.filter import apply_specifications
 
-        self.ctx.candidates, self.ctx.counters = apply_specifications(
+        debug_rejections: dict[str, str] = {}
+        self.ctx.candidates, self.ctx.counters, self.ctx.scanned_symbols = apply_specifications(
             self.ctx.raw_data,
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {}),
             self.ctx.config_bundle.get("market_config", {}),
             portfolio_returns=self.ctx.portfolio_returns,
+            rejections=debug_rejections,
         )
+        if getattr(self.ctx.config, "debug", False):
+            self.ctx.debug_rejections = debug_rejections
 
     def _enrich_candidates(self) -> None:
         """Step 4: Execute enrichment strategies (Hook)."""
@@ -104,6 +184,8 @@ class ScreeningPipeline:
             self.ctx.config,
             self.ctx.config_bundle.get("trading_rules", {}),
             self.ctx.market_data_diagnostics,
+            self.ctx.debug_rejections,
+            self.ctx.scanned_symbols,
         )
 
     def _build_enrichment_chain(self) -> list[EnrichmentStrategy]:

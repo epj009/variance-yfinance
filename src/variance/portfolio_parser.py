@@ -8,7 +8,10 @@ Extracted from analyze_portfolio.py to improve maintainability.
 import csv
 import re
 import sys
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from .models.position import Position
 
 
 class PortfolioParser:
@@ -28,7 +31,8 @@ class PortfolioParser:
         "Underlying Last Price": ["Underlying Last Price", "Underlying Price", "Current Price"],
         "P/L Open": ["P/L Open", "P/L Day", "Unrealized P/L"],
         "Cost": ["Cost", "Cost Basis", "Trade Price"],
-        "IV Rank": ["IV Rank", "IVR", "IV Percentile"],
+        "IV Rank": ["IV Rank", "IVR"],
+        "IV Percentile": ["IV Percentile", "IVP"],
         "Delta": ["Delta", "Δ", "Position Delta", "Raw Delta"],
         "beta_delta": ["β Delta", "Beta Delta", "Delta Beta", "Weighted Delta"],
         "Theta": ["Theta", "Theta Daily", "Daily Theta"],
@@ -40,6 +44,7 @@ class PortfolioParser:
         "Ask": ["Ask", "Ask Price"],
         "Mark": ["Mark", "Mark Price", "Mid"],
         "Open Date": ["Open Date", "D's Opn", "Days Open"],
+        "Sector": ["Sector", "Industry", "Asset Class"],
     }
 
     @staticmethod
@@ -104,6 +109,19 @@ class PortfolioParser:
             print(f"Error reading CSV: {e}", file=sys.stderr)
             raise
         return positions
+
+    @staticmethod
+    def parse_positions(file_path: str) -> list["Position"]:
+        """
+        Parse a CSV file into Position domain objects.
+
+        Raises:
+            TypeError: If a row cannot be converted into a Position.
+        """
+        rows = PortfolioParser.parse(file_path)
+        from .models.position import Position
+
+        return [Position.from_row(row) for row in rows]
 
 
 def parse_currency(value: Optional[str]) -> float:

@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Optional, TypedDict, cast
 
@@ -116,7 +117,9 @@ def load_trading_rules(
 ) -> dict[str, Any]:
     config_path = _resolve_config_dir(config_dir) / "trading_rules.json"
     payload = _load_json(config_path, strict=_resolve_strict(strict))
-    return _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
+    rules = _ensure_dict(payload, name="trading_rules.json", strict=_resolve_strict(strict))
+
+    return rules
 
 
 def load_market_config(

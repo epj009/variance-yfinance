@@ -23,7 +23,7 @@ MARKET_DATA_COUNTER_DEFAULTS: dict[str, int] = {
 MARKET_DATA_COUNTER_DEFAULTS.update(MARKET_DATA_ERROR_COUNTERS)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Diagnostics:
     counters: dict[str, int] = field(default_factory=dict)
 
@@ -57,11 +57,11 @@ SCREENER_COUNTER_DEFAULTS: dict[str, int] = {
     "asset_class_skipped_count": 0,
     "illiquid_skipped_count": 0,
     "data_integrity_skipped_count": 0,
-    "low_vol_trap_skipped_count": 0,
-    "hv_rank_trap_skipped_count": 0,
+    "low_iv_percentile_skipped_count": 0,
+    "low_yield_skipped_count": 0,
+    "retail_inefficient_skipped_count": 0,
     "correlation_skipped_count": 0,
     "tactical_skipped_count": 0,
-    "bats_efficiency_zone_count": 0,
     "implied_liquidity_count": 0,
     "lean_data_skipped_count": 0,
     "anomalous_data_skipped_count": 0,

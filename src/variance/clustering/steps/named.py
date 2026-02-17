@@ -2,14 +2,14 @@
 Named Strategy Clustering Step
 """
 
-from typing import Any
-
+from variance.clustering.steps.extract import LegInfo
+from variance.models.position import Position
 from variance.strategy_detector import identify_strategy
 
 
 def take_named_clusters(
-    leg_infos: list[dict[str, Any]], used_indices: set[int], size: int
-) -> list[list[dict[str, Any]]]:
+    leg_infos: list[LegInfo], used_indices: set[int], size: int
+) -> list[list[Position]]:
     """Greedily identifies N-leg named strategies."""
     clusters = []
 

@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-We screen futures but Yahoo Finance does not provide reliable futures options IV for most contracts (e.g., 6A=F, CL=F). Without an IV source, VRP metrics cannot be computed and futures get dropped. Using ETF proxies for *all* math keeps ratios consistent but shifts HV/returns off the traded instrument.
+We screen futures but legacy data source does not provide reliable futures options IV for most contracts (e.g., 6A=F, CL=F). Without an IV source, VRP metrics cannot be computed and futures get dropped. Using ETF proxies for *all* math keeps ratios consistent but shifts HV/returns off the traded instrument.
 
 ## Decision
 - Use bifurcated futures math: futures HV/returns/correlation, proxy ETF IV.
@@ -13,7 +13,7 @@ We screen futures but Yahoo Finance does not provide reliable futures options IV
 
 ## Alternatives Considered (Not Selected)
 - **Proxy-all math (Option 1):** Use proxy ETF for IV/HV/returns. Rejected because it shifts realized volatility off the traded futures.
-- **Futures-first with proxy fallback (Option 2):** Equivalent to Option 1 with yfinance data, since futures IV is unavailable.
+- **Futures-first with proxy fallback (Option 2):** Equivalent to Option 1 with legacy provider data, since futures IV is unavailable.
 - **VRP discount (10%) or threshold bump (+0.10):** Both remove marginal futures like `/CL` and `/6J` in current runs; rejected to avoid hard gating.
 - **No penalty:** Rejected to avoid over-ranking proxy-IV futures when the ratio is cross-asset.
 

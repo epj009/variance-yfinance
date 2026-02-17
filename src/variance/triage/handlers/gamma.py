@@ -17,8 +17,8 @@ class GammaHandler(TriageHandler[TriageRequest]):
         is_tested = request.strategy_obj.is_tested(request.legs, request.price)
 
         # Gamma trigger: Not tested AND within window AND not expiring today
-        if not is_tested and 0 < request.dte < request.strategy_obj.gamma_trigger_dte:
-            logic = f"< {request.strategy_obj.gamma_trigger_dte} DTE Risk"
+        if not is_tested and 0 < request.dte <= request.strategy_obj.gamma_trigger_dte:
+            logic = f"<= {request.strategy_obj.gamma_trigger_dte} DTE Risk"
             cmd = ActionFactory.create("GAMMA", request.root, logic)
             if cmd:
                 tag = TriageTag(

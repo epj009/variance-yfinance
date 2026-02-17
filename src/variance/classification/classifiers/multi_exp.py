@@ -3,9 +3,8 @@ Multi-Expiry Strategy Classifier
 """
 
 from datetime import datetime
-from typing import Any
 
-from variance.portfolio_parser import parse_currency, parse_dte
+from variance.models.position import Position
 
 from ..base import ClassificationContext, StrategyClassifier
 
@@ -13,17 +12,16 @@ from ..base import ClassificationContext, StrategyClassifier
 class MultiExpClassifier(StrategyClassifier):
     """Identifies Calendars and Diagonals."""
 
-    def can_classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> bool:
+    def can_classify(self, legs: list[Position], ctx: ClassificationContext) -> bool:
         if not ctx.is_multi_exp or len(ctx.option_legs) != 2:
             return False
         return len(ctx.call_legs) == 2 or len(ctx.put_legs) == 2
 
-    def classify(self, legs: list[dict[str, Any]], ctx: ClassificationContext) -> str:
-        def _leg_dte(leg: dict[str, Any]) -> int:
-            dte = parse_dte(leg.get("DTE"))
-            if dte > 0:
-                return dte
-            exp_str = leg.get("Exp Date")
+    def classify(self, legs: list[Position], ctx: ClassificationContext) -> str:
+        def _leg_dte(leg: Position) -> int:
+            if leg.dte > 0:
+                return leg.dte
+            exp_str = leg.exp_date
             if not exp_str:
                 return 0
             try:
@@ -32,39 +30,39 @@ class MultiExpClassifier(StrategyClassifier):
             except ValueError:
                 return 0
 
-        def _is_pmcc(long_leg: dict[str, Any], short_leg: dict[str, Any]) -> bool:
+        def _is_pmcc(long_leg: Position, short_leg: Position) -> bool:
             long_dte = _leg_dte(long_leg)
             short_dte = _leg_dte(short_leg)
             if long_dte < 60 or long_dte < short_dte + 30:
                 return False
 
-            long_delta = parse_currency(long_leg.get("Delta", "0"))
-            short_delta = parse_currency(short_leg.get("Delta", "0"))
+            long_delta = float(long_leg.delta or 0.0)
+            short_delta = float(short_leg.delta or 0.0)
             if long_delta != 0 and short_delta != 0:
                 if long_delta < 0.60 or short_delta > 0.35 or short_delta <= 0:
                     return False
             else:
-                long_strike = parse_currency(long_leg.get("Strike Price", "0"))
-                short_strike = parse_currency(short_leg.get("Strike Price", "0"))
+                long_strike = float(long_leg.strike or 0.0)
+                short_strike = float(short_leg.strike or 0.0)
                 if ctx.underlying_price and not (long_strike < ctx.underlying_price < short_strike):
                     return False
 
             return True
 
-        def _is_pmcp(long_leg: dict[str, Any], short_leg: dict[str, Any]) -> bool:
+        def _is_pmcp(long_leg: Position, short_leg: Position) -> bool:
             long_dte = _leg_dte(long_leg)
             short_dte = _leg_dte(short_leg)
             if long_dte < 60 or long_dte < short_dte + 30:
                 return False
 
-            long_delta = parse_currency(long_leg.get("Delta", "0"))
-            short_delta = parse_currency(short_leg.get("Delta", "0"))
+            long_delta = float(long_leg.delta or 0.0)
+            short_delta = float(short_leg.delta or 0.0)
             if long_delta != 0 and short_delta != 0:
                 if long_delta > -0.60 or short_delta < -0.35 or short_delta >= 0:
                     return False
             else:
-                long_strike = parse_currency(long_leg.get("Strike Price", "0"))
-                short_strike = parse_currency(short_leg.get("Strike Price", "0"))
+                long_strike = float(long_leg.strike or 0.0)
+                short_strike = float(short_leg.strike or 0.0)
                 if ctx.underlying_price and not (short_strike < ctx.underlying_price < long_strike):
                     return False
 
