@@ -11,6 +11,7 @@ from .common import map_sector_to_asset_class, warn_if_not_venv
 from .config_loader import ConfigBundle, load_config_bundle
 from .diagnostics import MarketDataDiagnostics, TriageDiagnostics
 from .errors import build_error
+from .market_data.clock import get_eastern_timestamp
 from .market_data.service import MarketDataFactory
 from .portfolio_parser import (
     PortfolioParser,
@@ -492,7 +493,7 @@ def analyze_portfolio(
             "meta": {
                 "excluded_count": 0,
                 "excluded_symbols": [],
-                "scan_timestamp": datetime.now().isoformat(),
+                "scan_timestamp": get_eastern_timestamp(),
                 "error": str(e),
             },
             "candidates": [],

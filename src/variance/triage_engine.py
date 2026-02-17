@@ -12,6 +12,7 @@ import variance.triage.handlers  # noqa: F401
 from variance.triage.chain import TriageChain
 from variance.triage.request import TriageRequest
 
+from .market_data.clock import get_eastern_timestamp
 from .models.position import Position
 
 # Import common utilities
@@ -645,7 +646,7 @@ def get_position_aware_opportunities(
         "meta": {
             "excluded_count": len(concentrated_roots),
             "excluded_symbols": concentrated_roots,
-            "scan_timestamp": datetime.now().isoformat(),
+            "scan_timestamp": get_eastern_timestamp(),
         },
         "candidates": screener_results.get("candidates", []),
         "summary": screener_results.get("summary", {}),

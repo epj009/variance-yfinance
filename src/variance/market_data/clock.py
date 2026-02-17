@@ -71,4 +71,25 @@ def is_market_open(
     return pytime(9, 30) <= current.time() <= pytime(16, 0)
 
 
-__all__ = ["is_market_open"]
+def get_eastern_now() -> datetime:
+    """
+    Returns current time as timezone-aware datetime in US/Eastern.
+
+    Returns:
+        datetime: Current time with US/Eastern timezone info.
+    """
+    tz = pytz.timezone("US/Eastern")
+    return datetime.now(tz)
+
+
+def get_eastern_timestamp() -> str:
+    """
+    Returns current time as ISO 8601 string with timezone offset.
+
+    Returns:
+        str: ISO 8601 timestamp with timezone offset (e.g., '2026-02-17T14:30:00-05:00').
+    """
+    return get_eastern_now().isoformat()
+
+
+__all__ = ["is_market_open", "get_eastern_now", "get_eastern_timestamp"]

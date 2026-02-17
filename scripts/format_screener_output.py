@@ -14,6 +14,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
 
+from variance.market_data.clock import is_market_open
+
 # Color theme matching variance TUI
 VARIANCE_THEME = Theme(
     {
@@ -89,24 +91,6 @@ SIGNAL_ICONS = {
     "FAIR": "·",
     "NORMAL": "·",
 }
-
-
-def is_market_open_at(dt: datetime) -> bool:
-    """Check if US market is open at given datetime (assumes ET timezone)."""
-    # Weekend check
-    if dt.weekday() >= 5:  # Saturday=5, Sunday=6
-        return False
-
-    # Market hours: 9:30 AM - 4:00 PM ET (assume input is in local time = ET)
-    hour = dt.hour
-    minute = dt.minute
-
-    if hour < 9 or hour >= 16:
-        return False
-    if hour == 9 and minute < 30:
-        return False
-
-    return True
 
 
 def format_screener_output(data: dict[str, Any]) -> None:
@@ -306,8 +290,8 @@ def format_screener_output(data: dict[str, Any]) -> None:
     market_was_open = True  # Default assumption
     if scan_timestamp:
         try:
-            scan_dt = datetime.fromisoformat(scan_timestamp.replace("Z", "+00:00"))
-            market_was_open = is_market_open_at(scan_dt)
+            scan_dt = datetime.fromisoformat(scan_timestamp)
+            market_was_open = is_market_open(scan_dt)
         except (ValueError, AttributeError):
             pass  # Keep default
 

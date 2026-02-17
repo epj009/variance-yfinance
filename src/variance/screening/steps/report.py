@@ -2,8 +2,9 @@
 Report Construction Step
 """
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
+
+from variance.market_data.clock import get_eastern_timestamp
 
 if TYPE_CHECKING:
     from variance.vol_screener import ScreenerConfig
@@ -167,7 +168,7 @@ def build_report(
         display_candidates.append(display)
 
     meta = {
-        "scan_timestamp": datetime.now().isoformat(),
+        "scan_timestamp": get_eastern_timestamp(),
         "profile": getattr(config, "profile", "default"),
         "market_data_diagnostics": market_data_diagnostics,
     }
